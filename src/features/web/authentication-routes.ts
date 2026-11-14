@@ -34,7 +34,6 @@ export function registerAuthenticationRoutes(
       title: "Admin sign in",
       path: "/admin/login",
       siteName: display.tapboardName,
-      adminAccent: display.accent,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       ...pageMessage(request),
     };

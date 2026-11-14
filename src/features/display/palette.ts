@@ -10,7 +10,9 @@ import {
 } from "./types.ts";
 
 export type DisplayStylesheetFont = DisplayFont | "all";
-export const DISPLAY_STYLESHEET_VERSION = "1" as const;
+// Bump whenever the generated CSS changes shape, so browsers never pair a cached
+// stylesheet with newer static CSS.
+export const DISPLAY_STYLESHEET_VERSION = "2" as const;
 
 type FontWeight = number | `${number} ${number}`;
 
@@ -24,24 +26,44 @@ const NAMED_ACCENTS: Readonly<Record<string, string>> = {
   blue: "#2563eb",
 };
 
-const THEMES: Readonly<
-  Record<
-    DisplayTheme,
-    {
-      readonly background: string;
-      readonly surface: string;
-      readonly raised: string;
-      readonly text: string;
-      readonly muted: string;
-      readonly border: string;
-      readonly secondary: string;
-      readonly shadow: string;
-      readonly colorScheme: "dark" | "light";
-    }
-  >
-> = {
+type BundledFont = Exclude<DisplayFont, "system">;
+
+/** Everything a theme may set. Accent roles are derived from these per chosen accent. */
+export interface DisplayPalette {
+  readonly background: string;
+  readonly surface: string;
+  readonly raised: string;
+  readonly text: string;
+  readonly muted: string;
+  readonly border: string;
+  readonly secondary: string;
+  /** The accent used while the operator's accent is "theme". */
+  readonly accent: string;
+  readonly shadow: string;
+  readonly colorScheme: "dark" | "light";
+  readonly danger: string;
+  readonly warning: string;
+  readonly success: string;
+  /** Corner radii for the sm, md, lg and xl steps. */
+  readonly radius: readonly [string, string, string, string];
+  /** Multiplier applied to every --space-* step. */
+  readonly density: number;
+  /** Used for headings while the operator font is left on "system". */
+  readonly headingFont?: BundledFont;
+}
+
+const STANDARD_RADIUS = [".5rem", ".75rem", "1rem", "1.5rem"] as const;
+const DARK_STATUS = { danger: "#ef4444", warning: "#f59e0b", success: "#22c55e" } as const;
+const LIGHT_STATUS = { danger: "#bb303d", warning: "#a15c00", success: "#147d4d" } as const;
+/** Lighter status colours for dark themes whose grounds are not near-black. */
+const SOFT_STATUS = { danger: "#ff8a80", warning: "#f6c453", success: "#7ddba3" } as const;
+
+type NamedTheme = Exclude<DisplayTheme, "auto">;
+
+const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
   modern_dark: {
     background: "#0b0f19",
+    accent: "#fbc02d",
     surface: "#111827",
     raised: "#192231",
     text: "#ffffff",
@@ -50,9 +72,13 @@ const THEMES: Readonly<
     secondary: "#38bdf8",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.25)",
     colorScheme: "dark",
+    ...DARK_STATUS,
+    radius: STANDARD_RADIUS,
+    density: 1,
   },
   warm_pub: {
     background: "#1c0a00",
+    accent: "#fbc02d",
     surface: "#2d1204",
     raised: "#3a1b0a",
     text: "#fdf6e2",
@@ -61,9 +87,14 @@ const THEMES: Readonly<
     secondary: "#c5a880",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
     colorScheme: "dark",
+    ...DARK_STATUS,
+    radius: [".625rem", "1rem", "1.25rem", "2rem"],
+    density: 1,
+    headingFont: "bree_serif",
   },
   cyberpunk: {
     background: "#0d0221",
+    accent: "#ff007f",
     surface: "#19053b",
     raised: "#26075a",
     text: "#00f0ff",
@@ -72,9 +103,13 @@ const THEMES: Readonly<
     secondary: "#00f0ff",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.35)",
     colorScheme: "dark",
+    ...DARK_STATUS,
+    radius: ["0", "0", "0", "0"],
+    density: 1,
   },
   light_minimal: {
     background: "#f8fafc",
+    accent: "#d97706",
     surface: "#ffffff",
     raised: "#ffffff",
     text: "#0f172a",
@@ -83,12 +118,144 @@ const THEMES: Readonly<
     secondary: "#2563eb",
     shadow: "0 .5rem 1.5rem rgba(15,23,42,.12)",
     colorScheme: "light",
+    ...LIGHT_STATUS,
+    radius: STANDARD_RADIUS,
+    density: 1,
   },
+  chalkboard: {
+    background: "#1d2724",
+    accent: "#f2d58a",
+    surface: "#25322e",
+    raised: "#2e3d38",
+    text: "#f4f1e8",
+    muted: "#b9c6be",
+    border: "rgba(244,241,232,.28)",
+    secondary: "#9fd8cb",
+    shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
+    colorScheme: "dark",
+    ...SOFT_STATUS,
+    radius: [".25rem", ".375rem", ".5rem", ".75rem"],
+    density: 1,
+    headingFont: "special_elite",
+  },
+  hop_garden: {
+    background: "#0c1c12",
+    accent: "#f5b942",
+    surface: "#132b1c",
+    raised: "#1a3a26",
+    text: "#f1f7ec",
+    muted: "#a9c4a6",
+    border: "rgba(183,227,106,.28)",
+    secondary: "#b7e36a",
+    shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
+    colorScheme: "dark",
+    ...SOFT_STATUS,
+    radius: [".75rem", "1rem", "1.5rem", "2rem"],
+    density: 1.1,
+  },
+  copper_kettle: {
+    background: "#f6efe2",
+    accent: "#b4571f",
+    surface: "#fffaf0",
+    raised: "#efe3cf",
+    text: "#3b2314",
+    muted: "#75553e",
+    border: "#c9a27e",
+    secondary: "#8f4317",
+    shadow: "0 .5rem 1.5rem rgba(59,35,20,.14)",
+    colorScheme: "light",
+    danger: "#a8242f",
+    warning: "#8a4d00",
+    success: "#0f6b40",
+    radius: STANDARD_RADIUS,
+    density: 1,
+    headingFont: "bree_serif",
+  },
+  steampunk: {
+    background: "#17110c",
+    accent: "#c9a24a",
+    surface: "#231a12",
+    raised: "#30241a",
+    text: "#ecdcc0",
+    muted: "#b8a283",
+    border: "rgba(196,148,74,.45)",
+    secondary: "#7cc4b4",
+    shadow: "0 .5rem 1.5rem rgba(0,0,0,.4)",
+    colorScheme: "dark",
+    ...SOFT_STATUS,
+    radius: [".125rem", ".25rem", ".375rem", ".5rem"],
+    density: 1,
+    headingFont: "rye",
+  },
+  monochrome: {
+    background: "#0a0a0a",
+    accent: "#e5e5e5",
+    surface: "#161616",
+    raised: "#222222",
+    text: "#ffffff",
+    muted: "#a3a3a3",
+    border: "rgba(255,255,255,.3)",
+    secondary: "#d4d4d4",
+    shadow: "0 .5rem 1.5rem rgba(0,0,0,.5)",
+    colorScheme: "dark",
+    // Greyscale throughout, so the beer is the only colour on the display.
+    danger: "#f5f5f5",
+    warning: "#bdbdbd",
+    success: "#8f8f8f",
+    radius: [".125rem", ".25rem", ".25rem", ".375rem"],
+    density: 0.9,
+  },
+};
+
+/** "auto" follows the device light or dark setting using two named themes. */
+const AUTO_THEME = { dark: "modern_dark", light: "light_minimal" } as const;
+
+/** Admin follows the device light or dark setting, independent of the public theme. */
+const ADMIN_PALETTES: Readonly<Record<"dark" | "light", DisplayPalette>> = {
+  dark: {
+    background: "#0d1726",
+    accent: "#fbc02d",
+    surface: "#152235",
+    raised: "#1d2d43",
+    text: "#f5f7fb",
+    muted: "#a9b6c8",
+    border: "rgba(217,229,243,.2)",
+    secondary: "#8cc9ff",
+    shadow: "0 .75rem 2rem rgba(1,8,18,.24)",
+    colorScheme: "dark",
+    danger: "#f07178",
+    warning: "#f6bd4b",
+    success: "#65d49a",
+    radius: STANDARD_RADIUS,
+    density: 1,
+  },
+  light: {
+    background: "#f4f7fb",
+    accent: "#fbc02d",
+    surface: "#ffffff",
+    raised: "#eaf0f7",
+    text: "#132033",
+    muted: "#53657a",
+    border: "rgba(19,32,51,.18)",
+    secondary: "#1769aa",
+    shadow: "0 .75rem 2rem rgba(36,55,78,.12)",
+    colorScheme: "light",
+    ...LIGHT_STATUS,
+    radius: STANDARD_RADIUS,
+    density: 1,
+  },
+};
+
+/** Every palette the generator can emit, for contrast tests. */
+export const DISPLAY_PALETTES: Readonly<Record<string, DisplayPalette>> = {
+  ...THEMES,
+  admin_dark: ADMIN_PALETTES.dark,
+  admin_light: ADMIN_PALETTES.light,
 };
 
 export const FONT_FILES: Readonly<
   Record<
-    Exclude<DisplayFont, "system">,
+    BundledFont,
     {
       readonly family: string;
       readonly file: string;
@@ -153,10 +320,9 @@ function meetsContrast(candidate: string, surfaces: readonly string[], minimum: 
   return surfaces.every((surface) => contrastRatio(candidate, surface) >= minimum);
 }
 
-function onAccent(accent: string): string {
-  return contrastRatio(accent, "#ffffff") >= contrastRatio(accent, "#000000")
-    ? "#ffffff"
-    : "#000000";
+/** Black or white, whichever reads better on the given fill. */
+function onFill(fill: string): string {
+  return contrastRatio(fill, "#ffffff") >= contrastRatio(fill, "#000000") ? "#ffffff" : "#000000";
 }
 
 function nearestContrastRole(accent: string, surfaces: readonly string[], minimum: number): string {
@@ -213,11 +379,10 @@ export interface DisplayPaletteRoles {
 }
 
 export function resolveDisplayPaletteRoles(
-  theme: DisplayTheme,
+  palette: DisplayPalette,
   accent: DisplayAccent,
 ): DisplayPaletteRoles {
-  const palette = THEMES[theme];
-  const accentHex = resolveAccent(accent);
+  const accentHex = resolveAccent(accent, palette);
   const surfaces = [palette.background, palette.surface] as const;
   const accentReadable = nearestContrastRole(accentHex, surfaces, 4.5);
   const accentStrong = nearestContrastRole(accentHex, surfaces, 3);
@@ -227,16 +392,16 @@ export function resolveDisplayPaletteRoles(
     accentReadable,
     accentStrong,
     accentHover,
-    onAccent: onAccent(accentHex),
-    onAccentHover: onAccent(accentHover),
+    onAccent: onFill(accentHex),
+    onAccentHover: onFill(accentHover),
   };
 }
 
-export function resolveAccent(accent: DisplayAccent): string {
-  return NAMED_ACCENTS[accent] ?? accent;
+export function resolveAccent(accent: DisplayAccent, palette: DisplayPalette): string {
+  return accent === "theme" ? palette.accent : (NAMED_ACCENTS[accent] ?? accent);
 }
 
-function fontFace(font: Exclude<DisplayFont, "system">): string {
+function fontFace(font: BundledFont): string {
   const source = FONT_FILES[font];
   return `@font-face{font-family:"${source.family}";font-style:normal;font-weight:${source.weight};font-display:swap;src:url("/assets/fonts/${source.file}") format("woff2");}`;
 }
@@ -271,31 +436,80 @@ export interface GeneratedDisplayStylesheet {
   readonly etag: string;
 }
 
+function accentDeclarations(roles: DisplayPaletteRoles): string {
+  return `--accent:${roles.accent};--accent-readable:${roles.accentReadable};--accent-strong:${roles.accentStrong};--accent-hover:${roles.accentHover};--on-accent:${roles.onAccent};--on-accent-hover:${roles.onAccentHover}`;
+}
+
+/** Every custom property one palette sets, in a fixed order. */
+function paletteDeclarations(
+  palette: DisplayPalette,
+  roles: DisplayPaletteRoles,
+  family: string,
+  headingFamily: string,
+): string {
+  const [radiusSm, radiusMd, radiusLg, radiusXl] = palette.radius;
+  return `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--text:${palette.text};--muted:${palette.muted};--border:${palette.border};${accentDeclarations(roles)};--secondary:${palette.secondary};--shadow:${palette.shadow};--font-family:${family};--font-heading:${headingFamily};color-scheme:${palette.colorScheme};--danger:${palette.danger};--on-danger:${onFill(palette.danger)};--warning:${palette.warning};--success:${palette.success};--radius-sm:${radiusSm};--radius-md:${radiusMd};--radius-lg:${radiusLg};--radius-xl:${radiusXl};--density:${palette.density}`;
+}
+
 export function generateDisplayStylesheet(
   theme: DisplayTheme,
   accent: DisplayAccent,
   font: DisplayStylesheetFont,
 ): GeneratedDisplayStylesheet {
-  const palette = THEMES[theme];
-  const roles = resolveDisplayPaletteRoles(theme, accent);
+  // "auto" emits its dark theme first and its light theme under a media query.
+  const palettes: readonly DisplayPalette[] =
+    theme === "auto" ? [THEMES[AUTO_THEME.dark], THEMES[AUTO_THEME.light]] : [THEMES[theme]];
+  // A theme heading font applies only while the operator font is "system".
+  const headingFontOf = (palette: DisplayPalette): BundledFont | undefined =>
+    font === "system" || font === "all" ? palette.headingFont : undefined;
+  const headingFonts = [
+    ...new Set(palettes.map(headingFontOf).filter((heading) => heading !== undefined)),
+  ];
   const faces =
     font === "all"
-      ? (Object.keys(FONT_FILES) as Exclude<DisplayFont, "system">[]).map(fontFace).join("")
-      : font === "system"
-        ? ""
-        : fontFace(font);
+      ? (Object.keys(FONT_FILES) as BundledFont[]).map(fontFace).join("")
+      : `${font === "system" ? "" : fontFace(font)}${headingFonts.map(fontFace).join("")}`;
   const selectedFamily = font === "all" ? fontFamily("system") : fontFamily(font);
   const previewFonts =
     font === "all"
       ? Object.entries(FONT_FILES)
           .map(
             ([name, value]) =>
-              `.display-preview[data-preview-font="${name}"]{--preview-font:"${value.family}",system-ui,sans-serif}`,
+              `.display-preview[data-preview-font="${name}"]{--preview-font:"${value.family}",system-ui,sans-serif;--font-heading:var(--preview-font)}`,
           )
           .join("")
       : "";
-  const paletteVariables = `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--text:${palette.text};--muted:${palette.muted};--border:${palette.border};--accent:${roles.accent};--accent-readable:${roles.accentReadable};--accent-strong:${roles.accentStrong};--accent-hover:${roles.accentHover};--on-accent:${roles.onAccent};--on-accent-hover:${roles.onAccentHover};--secondary:${palette.secondary};--shadow:${palette.shadow};--font-family:${selectedFamily};color-scheme:${palette.colorScheme};--danger:#ef4444;--warning:#f59e0b;--success:#22c55e`;
-  const css = `${faces}:root{${paletteVariables}}.admin-shell,html[data-admin-accent] .admin-shell{--accent:${roles.accent};--accent-readable:${roles.accentReadable};--accent-strong:${roles.accentStrong};--accent-hover:${roles.accentHover};--on-accent:${roles.onAccent};--on-accent-hover:${roles.onAccentHover}}.display-preview{${paletteVariables};--preview-accent:${roles.accent};--preview-accent-readable:${roles.accentReadable};--preview-accent-strong:${roles.accentStrong};--preview-accent-hover:${roles.accentHover};--preview-on-accent:${roles.onAccent};--preview-on-accent-hover:${roles.onAccentHover};--preview-font:${selectedFamily}}${previewFonts}`;
+  const block = (selector: ":root" | ".display-preview", palette: DisplayPalette): string => {
+    const roles = resolveDisplayPaletteRoles(palette, accent);
+    const headingFont = headingFontOf(palette);
+    const declarations = paletteDeclarations(
+      palette,
+      roles,
+      selectedFamily,
+      headingFont === undefined ? "var(--font-family)" : fontFamily(headingFont),
+    );
+    return selector === ":root"
+      ? `:root{${declarations}}`
+      : `.display-preview{${declarations};--preview-accent:${roles.accent};--preview-accent-readable:${roles.accentReadable};--preview-accent-strong:${roles.accentStrong};--preview-accent-hover:${roles.accentHover};--preview-on-accent:${roles.onAccent};--preview-on-accent-hover:${roles.onAccentHover};--preview-font:${selectedFamily}}`;
+  };
+  const themed = (selector: ":root" | ".display-preview"): string =>
+    palettes
+      .map((palette, index) =>
+        index === 0
+          ? block(selector, palette)
+          : `@media (prefers-color-scheme:light){${block(selector, palette)}}`,
+      )
+      .join("");
+  // Admin keeps its own grounds but shares the display's accent colour.
+  const adminAccent = resolveAccent(accent, palettes[0]!) as DisplayAccent;
+  const adminBlock = (scheme: "dark" | "light"): string =>
+    `.admin-shell{${paletteDeclarations(
+      ADMIN_PALETTES[scheme],
+      resolveDisplayPaletteRoles(ADMIN_PALETTES[scheme], adminAccent),
+      fontFamily("system"),
+      "var(--font-family)",
+    )}}`;
+  const css = `${faces}${themed(":root")}${adminBlock("dark")}@media (prefers-color-scheme:light){${adminBlock("light")}}${themed(".display-preview")}${previewFonts}`;
   return { css, etag: `"${createHash("sha256").update(css).digest("hex")}"` };
 }
 

@@ -1,4 +1,5 @@
 import { displayStylesheetHref } from "../../display/palette.ts";
+import { DISPLAY_ACCENTS, DISPLAY_THEMES } from "../../display/types.ts";
 import type { PublicTapCardMetricSettings } from "../../story/service.ts";
 import { safeDisplayResource, safeTapCardResource } from "../presenters/display.ts";
 import {
@@ -56,6 +57,8 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "/admin/display/shared",
       {
         sharedDisplay,
+        displayThemes: DISPLAY_THEMES,
+        displayAccents: DISPLAY_ACCENTS,
         tapCardSettings,
         previewTap,
         previewMetricCatalog: {

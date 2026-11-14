@@ -3,7 +3,18 @@ export const KEY =
     ? "tapboard.v2.simulation.display-preferences.v1"
     : "tapboard.v2.display-preferences.v1";
 export const fields = Object.freeze({
-  theme: Object.freeze(["modern_dark", "warm_pub", "cyberpunk", "light_minimal"]),
+  theme: Object.freeze([
+    "modern_dark",
+    "warm_pub",
+    "cyberpunk",
+    "light_minimal",
+    "auto",
+    "chalkboard",
+    "hop_garden",
+    "copper_kettle",
+    "steampunk",
+    "monochrome",
+  ]),
   font: Object.freeze([
     "system",
     "outfit",
@@ -17,7 +28,7 @@ export const fields = Object.freeze({
     "rye",
     "special_elite",
   ]),
-  accent: Object.freeze(["amber", "sky", "rose", "cyan", "tan", "orange", "blue"]),
+  accent: Object.freeze(["theme", "amber", "sky", "rose", "cyan", "tan", "orange", "blue"]),
   unitSystem: Object.freeze(["us", "metric"]),
   showServingTemperature: "boolean",
   layoutMode: Object.freeze(["scroll", "rotation"]),
@@ -100,7 +111,7 @@ export function stylesheetHref(values = {}) {
   const accent = readValue("accent");
   const font = readValue("font");
   if (!theme || !accent || !font) return undefined;
-  return `/assets/css/display.css?v=1&theme=${encodeURIComponent(theme)}&accent=${encodeURIComponent(accent)}&font=${encodeURIComponent(font)}`;
+  return `/assets/css/display.css?v=2&theme=${encodeURIComponent(theme)}&accent=${encodeURIComponent(accent)}&font=${encodeURIComponent(font)}`;
 }
 
 export function syncStylesheet(values = {}) {

@@ -47,7 +47,7 @@ function addAccentPicker(target, name, value) {
   text.type = "text";
   text.name = name;
   text.value = value;
-  text.pattern = "#[0-9a-f]{6}|amber|sky|rose|cyan|tan|orange|blue";
+  text.pattern = "#[0-9a-f]{6}|theme|amber|sky|rose|cyan|tan|orange|blue";
   text.maxLength = 7;
   text.autocomplete = "off";
   text.dataset.accentValue = "true";

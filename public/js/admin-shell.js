@@ -8,7 +8,7 @@ if (shell) {
   const drawerBackdrop = shell.querySelector("[data-admin-drawer-backdrop]");
   const jumpInput = shell.querySelector("[data-admin-jump-input]");
   const storageKey = "tapboard.v2.admin-sidebar.v1";
-  const mobileNavigation = window.matchMedia("(max-width: 58rem)");
+  const mobileNavigation = window.matchMedia("(max-width: 60rem)");
   const backgroundNodes = [...shell.children].filter(
     (node) => node !== sidebar && node !== drawerBackdrop,
   );

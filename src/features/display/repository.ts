@@ -8,12 +8,12 @@ import type {
   UpdateDisplaySettingsInput,
   UpdateTapCardDisplaySettingsInput,
 } from "./types.ts";
-import { isDisplayAccent } from "./types.ts";
+import { DISPLAY_THEMES, isDisplayAccent } from "./types.ts";
 
 interface Row {
   revision: number;
   tapboard_name: string;
-  theme: DisplaySettings["theme"];
+  theme: string;
   font: DisplaySettings["font"];
   accent: DisplaySettings["accent"];
   unit_system: DisplaySettings["unitSystem"];
@@ -32,7 +32,9 @@ function map(row: Row): DisplaySettings {
   return {
     revision: row.revision,
     tapboardName: row.tapboard_name,
-    theme: row.theme,
+    // The database checks only the name's format, so a name this build does not know
+    // (a theme removed later, or a database from a newer build) reads as the default.
+    theme: DISPLAY_THEMES.find((theme) => theme === row.theme) ?? "modern_dark",
     font: row.font,
     accent: row.accent,
     unitSystem: row.unit_system,
