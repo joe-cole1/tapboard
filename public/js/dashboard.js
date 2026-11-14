@@ -298,10 +298,8 @@ function patchTap(tap) {
   const link = isStoryCard(tap);
   const title = tap.title || tap.beverageName || "Empty Tap";
   if (!card) {
-    const previous = card;
     card = createCard(tap);
-    previous?.replaceWith(card);
-    if (!previous) grid.append(card);
+    grid.append(card);
   }
   if (!link && card.matches("a.tap-card")) {
     card = retagCard(card, "article");
@@ -378,12 +376,20 @@ function patchTap(tap) {
     tap.accessibleLabel || (link ? `${title} story` : `Tap ${tap.tapNumber}, ${title}`),
   );
   patchUnits(card);
-  grid.append(
-    ...[...grid.children].sort(
-      (left, right) => Number(left.dataset.tapNumber) - Number(right.dataset.tapNumber),
-    ),
-  );
+  placeInTapOrder(card);
   return card;
+}
+
+// Move a card only when its Tap number puts it elsewhere. Moving a node restarts the CSS
+// animations inside it, so re-appending every card would make all the bubbles jump back.
+function placeInTapOrder(card) {
+  const tapNumber = Number(card.dataset.tapNumber);
+  const next =
+    [...grid.children].find(
+      (other) => other !== card && Number(other.dataset.tapNumber) > tapNumber,
+    ) ?? null;
+  if (card.nextElementSibling === next) return;
+  grid.insertBefore(card, next);
 }
 
 const pourTimers = new WeakMap();
