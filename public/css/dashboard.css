@@ -676,16 +676,27 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   border-radius: var(--radius-pill);
 }
-.tap-wars-meter i {
+.tap-wars-meter svg {
   display: block;
+  width: 100%;
   height: 100%;
-  transition: width 160ms ease;
 }
-.tap-wars-meter i:first-child {
-  background: var(--accent);
+.tap-wars-meter rect {
+  transition:
+    width 160ms ease,
+    x 160ms ease;
 }
-.tap-wars-meter i:last-child {
-  background: var(--secondary);
+.tap-wars-meter rect:first-child {
+  fill: var(--accent);
+}
+.tap-wars-meter rect:last-of-type {
+  fill: var(--secondary);
+}
+/* A gap at the split, so themes with close segment colours (Monochrome) still read. */
+.tap-wars-meter line {
+  stroke: var(--surface);
+  stroke-width: var(--space-1);
+  vector-effect: non-scaling-stroke;
 }
 .tap-wars-meter.is-neutral {
   background: repeating-linear-gradient(
@@ -861,7 +872,7 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tap-wars-meter i {
+  .tap-wars-meter rect {
     transition: none;
   }
   .tap-wars-vote-feedback {

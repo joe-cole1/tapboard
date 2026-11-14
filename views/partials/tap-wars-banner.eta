@@ -1,6 +1,9 @@
 <%
   const war = it.tapWars;
   const noVotes = !war || war.totalVotes === 0;
+  const width1 = noVotes ? 0 : war.side1.percentage;
+  const width2 = noVotes ? 0 : war.side2.percentage;
+  const divider = width1 > 0 && width2 > 0 ? "visible" : "hidden";
   const percent = (side) => side.percentage === null ? "—" : side.percentage + "%";
   const winner = war?.winnerSide === 1 ? war.side1 : war?.winnerSide === 2 ? war.side2 : null;
   const leader = war?.leaderSide === 1 ? war.side1 : war?.leaderSide === 2 ? war.side2 : null;
@@ -16,8 +19,7 @@
   <div class="tap-wars-banner__matchup">
     <div class="tap-wars-banner__label-block"><div class="tap-wars-banner__names"><b data-tap-wars-side="1"><%= war?.side1?.title || "" %></b><span aria-hidden="true">vs</span><b data-tap-wars-side="2"><%= war?.side2?.title || "" %></b></div><div class="tap-wars-banner__percentages" aria-hidden="true"><em data-tap-wars-percent="1"><%= war ? (noVotes ? "—" : percent(war.side1)) : "" %></em><span>–</span><em data-tap-wars-percent="2"><%= war ? (noVotes ? "—" : percent(war.side2)) : "" %></em></div></div>
     <div class="tap-wars-meter<% if (noVotes) { %> is-neutral<% } %>" role="img" data-tap-wars-meter aria-label="<%= meterLabel %>">
-      <i data-tap-wars-meter-side="1" style="width:<%= noVotes ? 0 : war.side1.percentage %>%"></i>
-      <i data-tap-wars-meter-side="2" style="width:<%= noVotes ? 0 : war.side2.percentage %>%"></i>
+      <svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect data-tap-wars-meter-side="1" x="0" y="0" width="<%= width1 %>" height="10" /><rect data-tap-wars-meter-side="2" x="<%= width1 %>" y="0" width="<%= width2 %>" height="10" /><line data-tap-wars-meter-divider x1="<%= width1 %>" y1="0" x2="<%= width1 %>" y2="10" visibility="<%= divider %>" /></svg>
     </div>
   </div>
   <button type="button" class="secondary tap-wars-banner__results" data-tap-wars-results aria-haspopup="dialog">View results</button>
@@ -29,7 +31,6 @@
     <% if (war) { %><% for (const side of [war.side1, war.side2]) { %><div data-tap-wars-dialog-side="<%= side.side %>"><dt>Tap <%= side.tapNumber %> · <%= side.title %></dt><dd><strong><%= side.voteCount %> vote<%= side.voteCount === 1 ? "" : "s" %></strong><span><%= side.percentage === null ? "—" : side.percentage + "%" %></span></dd></div><% } %><% } %>
   </dl>
   <div class="tap-wars-meter tap-wars-dialog__meter<% if (noVotes) { %> is-neutral<% } %>" role="img" data-tap-wars-dialog-meter aria-label="<%= meterLabel %>">
-    <i data-tap-wars-dialog-meter-side="1" style="width:<%= noVotes ? 0 : war.side1.percentage %>%"></i>
-    <i data-tap-wars-dialog-meter-side="2" style="width:<%= noVotes ? 0 : war.side2.percentage %>%"></i>
+    <svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect data-tap-wars-dialog-meter-side="1" x="0" y="0" width="<%= width1 %>" height="10" /><rect data-tap-wars-dialog-meter-side="2" x="<%= width1 %>" y="0" width="<%= width2 %>" height="10" /><line data-tap-wars-meter-divider x1="<%= width1 %>" y1="0" x2="<%= width1 %>" y2="10" visibility="<%= divider %>" /></svg>
   </div>
 </dialog>
