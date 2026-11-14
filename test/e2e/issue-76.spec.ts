@@ -960,3 +960,52 @@ test("failed targeted updates recover through bounded snapshots and preserve car
   expect(pageErrors).toEqual([]);
   await context.close();
 });
+
+test("targeted tap updates leave every card's bubble animation running", async ({ browser }) => {
+  const context = await browser.newContext();
+  const publicPage = await context.newPage();
+  await publicPage.goto("/");
+  const publicTap1 = publicPage.locator('[data-tap-number="1"]');
+  await expect(publicTap1.locator(".beer-bubble")).toHaveCount(24);
+  const tap1Id = await publicTap1.getAttribute("data-tap-id");
+  expect(tap1Id).not.toBeNull();
+  const captured = await publicPage.evaluate(() => {
+    const bubbles = document
+      .getAnimations()
+      .filter((animation) => (animation as CSSAnimation).animationName === "tap-bubble-rise");
+    (window as unknown as { bubbleAnimations: Animation[] }).bubbleAnimations = bubbles;
+    return bubbles.length;
+  });
+  expect(captured).toBeGreaterThanOrEqual(24);
+  // patchTap always rewrites the card's accessible name, so this marks when the patch landed.
+  await publicTap1.evaluate((node) => node.setAttribute("aria-label", "before targeted update"));
+
+  const admin = await context.newPage();
+  await login(admin);
+  await admin.goto("/admin/taps");
+  await admin
+    .locator(`tr[data-tap-id="${tap1Id!}"]`)
+    .getByRole("link", { name: "Open", exact: true })
+    .click();
+  const form = await openTapNameForm(admin);
+  const originalName = await form.getByLabel("Tap name").inputValue();
+  await form.getByLabel("Tap name").fill("Bubble continuity Tap");
+  await form.getByRole("button", { name: "Save name" }).click();
+  await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
+  await expect(publicTap1).not.toHaveAttribute("aria-label", "before targeted update");
+
+  // Moving a card in the DOM cancels its CSS animations, so the bubbles would jump back.
+  expect(
+    await publicPage.evaluate(() => {
+      const current = new Set(document.getAnimations());
+      return (window as unknown as { bubbleAnimations: Animation[] }).bubbleAnimations.filter(
+        (animation) => animation.playState !== "running" || !current.has(animation),
+      ).length;
+    }),
+  ).toBe(0);
+
+  await form.getByLabel("Tap name").fill(originalName);
+  await form.getByRole("button", { name: "Save name" }).click();
+  await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
+  await context.close();
+});
