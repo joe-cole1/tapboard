@@ -97,7 +97,6 @@ export function renderAdmin(
     path,
     csrfToken: context.csrfToken,
     siteName: display.tapboardName,
-    adminAccent: display.accent,
     ...(requestedDashboardStyles === true ? { includeDashboardStyles: true } : {}),
     // Every authenticated Admin page receives the configured external display
     // stylesheet. Dedicated preview pages may explicitly request a different

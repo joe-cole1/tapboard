@@ -11,6 +11,7 @@ import { sendHttpError, sendJson } from "../../infrastructure/http/error-mapper.
 import { ApplicationError } from "../../shared/errors.ts";
 import { createLogger, type Logger } from "../../shared/logging.ts";
 import type { SessionMaterial } from "../auth/service.ts";
+import { displayStylesheetHref } from "../display/palette.ts";
 import { readSettings, setEnabled, bumpRevision } from "./repository.ts";
 import { seedSimulation } from "./seed.ts";
 import { SimulationRunner } from "./runner.ts";
@@ -121,8 +122,11 @@ export class WorkspaceApplication implements Application, SimulationController {
             ...(display
               ? {
                   siteName: display.tapboardName,
-                  adminAccent: display.accent,
-                  displayStylesheetHref: `/assets/css/display.css?v=1&theme=${encodeURIComponent(display.theme)}&accent=${encodeURIComponent(display.accent)}&font=${encodeURIComponent(display.font)}`,
+                  displayStylesheetHref: displayStylesheetHref(
+                    display.theme,
+                    display.accent,
+                    display.font,
+                  ),
                 }
               : {}),
             ...page,

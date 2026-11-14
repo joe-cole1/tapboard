@@ -1006,6 +1006,9 @@ void test("an exact v1 database upgrades to v22 with all ledger entries", (conte
         { version: 21, name: "builtin-simulation" },
         { version: 22, name: "system-administration-and-retention" },
         { version: 23, name: "eight-axis-flavor-profile" },
+        { version: 24, name: "display-auto-theme" },
+        { version: 25, name: "display-theme-format" },
+        { version: 26, name: "display-theme-accent" },
       ],
     );
   } finally {

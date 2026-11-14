@@ -1,4 +1,15 @@
-export const DISPLAY_THEMES = ["modern_dark", "warm_pub", "cyberpunk", "light_minimal"] as const;
+export const DISPLAY_THEMES = [
+  "modern_dark",
+  "warm_pub",
+  "cyberpunk",
+  "light_minimal",
+  "auto",
+  "chalkboard",
+  "hop_garden",
+  "copper_kettle",
+  "steampunk",
+  "monochrome",
+] as const;
 export const DISPLAY_FONTS = [
   "system",
   "outfit",
@@ -12,7 +23,17 @@ export const DISPLAY_FONTS = [
   "rye",
   "special_elite",
 ] as const;
-export const DISPLAY_ACCENTS = ["amber", "sky", "rose", "cyan", "tan", "orange", "blue"] as const;
+/** "theme" uses the selected theme's own accent colour. */
+export const DISPLAY_ACCENTS = [
+  "theme",
+  "amber",
+  "sky",
+  "rose",
+  "cyan",
+  "tan",
+  "orange",
+  "blue",
+] as const;
 export const DISPLAY_UNIT_SYSTEMS = ["us", "metric"] as const;
 export const DISPLAY_LAYOUT_MODES = ["scroll", "rotation"] as const;
 export const TAP_CARD_REMAINING_MODES = ["percent", "pints", "pours", "volume"] as const;

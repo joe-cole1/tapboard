@@ -5,7 +5,18 @@
       ? "tapboard.v2.simulation.display-preferences.v1"
       : "tapboard.v2.display-preferences.v1";
   const fields = {
-    theme: ["modern_dark", "warm_pub", "cyberpunk", "light_minimal"],
+    theme: [
+      "modern_dark",
+      "warm_pub",
+      "cyberpunk",
+      "light_minimal",
+      "auto",
+      "chalkboard",
+      "hop_garden",
+      "copper_kettle",
+      "steampunk",
+      "monochrome",
+    ],
     font: [
       "system",
       "outfit",
@@ -19,7 +30,7 @@
       "rye",
       "special_elite",
     ],
-    accent: ["amber", "sky", "rose", "cyan", "tan", "orange", "blue"],
+    accent: ["theme", "amber", "sky", "rose", "cyan", "tan", "orange", "blue"],
     unitSystem: ["us", "metric"],
     showServingTemperature: "boolean",
     layoutMode: ["scroll", "rotation"],
@@ -58,7 +69,7 @@
     const link = document.querySelector("[data-display-stylesheet]");
     if (link instanceof HTMLLinkElement) {
       const params = new URLSearchParams({
-        v: "1",
+        v: "2",
         theme:
           document.documentElement.dataset.theme ??
           document.documentElement.dataset.sharedTheme ??

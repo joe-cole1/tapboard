@@ -1050,7 +1050,6 @@ export function machineKeyPageData(
       path: "/admin/integrations/telemetry",
       csrfToken: context.csrfToken,
       siteName: display.tapboardName,
-      adminAccent: display.accent,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       returnPath: "/admin/integrations/telemetry",
     },

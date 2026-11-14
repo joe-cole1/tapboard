@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   contrastRatio,
+  DISPLAY_PALETTES,
   FONT_FILES,
   displayStylesheetHref,
   generateDisplayStylesheet,
@@ -26,7 +28,7 @@ void test("display stylesheet params accept only bounded themes, accents, and pr
   assert.equal(validateStylesheetParams("light_minimal", "amber", "comic-sans"), undefined);
   assert.equal(
     displayStylesheetHref("light_minimal", "#abcdef", "system"),
-    "/assets/css/display.css?v=1&theme=light_minimal&accent=%23abcdef&font=system",
+    "/assets/css/display.css?v=2&theme=light_minimal&accent=%23abcdef&font=system",
   );
 });
 
@@ -73,24 +75,56 @@ void test("display stylesheet output is deterministic, same-origin, and font-sel
   );
 });
 
-void test("all theme accent combinations receive concrete accessible palette roles", () => {
-  const accents = [...DISPLAY_ACCENTS, "#000000", "#ffffff", "#808080", "#fbc02d"] as const;
-  const surfaces: Record<string, readonly [string, string]> = {
-    modern_dark: ["#0b0f19", "#111827"],
-    warm_pub: ["#1c0a00", "#2d1204"],
-    cyberpunk: ["#0d0221", "#19053b"],
-    light_minimal: ["#f8fafc", "#ffffff"],
+void test("tokens.css holds only the default fallback, matching the generated default palette", () => {
+  const tokens = readFileSync(new URL("../public/css/tokens.css", import.meta.url), "utf8");
+  assert.doesNotMatch(tokens, /\[data-(?:theme|accent|font)[=\]]/u);
+
+  const declarations = (block: string | undefined): Map<string, string> => {
+    assert.ok(block);
+    return new Map(
+      block
+        .split(";")
+        .map((declaration) => declaration.trim())
+        .filter((declaration) => declaration !== "")
+        .map((declaration) => {
+          const separator = declaration.indexOf(":");
+          return [
+            declaration.slice(0, separator).trim(),
+            // Formatting only: spacing around commas and leading zeros differ.
+            declaration
+              .slice(separator + 1)
+              .trim()
+              .replace(/\s*,\s*/gu, ",")
+              .replace(/\s+/gu, " ")
+              .replace(/(^|[^0-9.])0\./gu, "$1."),
+          ];
+        }),
+    );
   };
-  for (const theme of DISPLAY_THEMES) {
+  const fallback = declarations(tokens.match(/:root\s*\{([^}]+)\}/u)?.[1]);
+  const generated = declarations(
+    generateDisplayStylesheet("modern_dark", "amber", "system").css.match(/:root\{([^}]+)\}/u)?.[1],
+  );
+  assert.ok(generated.size > 0);
+  for (const [name, value] of generated) {
+    assert.equal(fallback.get(name), value, `tokens.css fallback ${name}`);
+  }
+});
+
+void test("all theme accent combinations receive concrete accessible palette roles", () => {
+  // DISPLAY_ACCENTS includes "theme", so every palette's own accent is checked too.
+  const accents = [...DISPLAY_ACCENTS, "#000000", "#ffffff", "#808080", "#fbc02d"] as const;
+  // Public themes and both Admin palettes: Admin accent text is derived for Admin's own grounds.
+  for (const [theme, palette] of Object.entries(DISPLAY_PALETTES)) {
     for (const accent of accents) {
-      const roles = resolveDisplayPaletteRoles(theme, accent);
+      const roles = resolveDisplayPaletteRoles(palette, accent);
       assert.ok(contrastRatio(roles.onAccent, roles.accent) >= 4.5, `${theme}/${accent} on-accent`);
       assert.ok(
         contrastRatio(roles.onAccentHover, roles.accentHover) >= 4.5,
         `${theme}/${accent} hover text`,
       );
       assert.notEqual(roles.accentHover, roles.accent, `${theme}/${accent} hover shift`);
-      for (const surface of surfaces[theme]!) {
+      for (const surface of [palette.background, palette.surface]) {
         assert.ok(
           contrastRatio(roles.accentReadable, surface) >= 4.5,
           `${theme}/${accent} readable`,
@@ -98,6 +132,10 @@ void test("all theme accent combinations receive concrete accessible palette rol
         assert.ok(contrastRatio(roles.accentStrong, surface) >= 3, `${theme}/${accent} strong`);
         assert.ok(contrastRatio(roles.accentHover, surface) >= 3, `${theme}/${accent} hover`);
       }
+    }
+  }
+  for (const theme of DISPLAY_THEMES) {
+    for (const accent of accents) {
       const css = generateDisplayStylesheet(theme, accent, "system").css;
       assert.doesNotMatch(css, /color-mix\(/u);
       assert.match(css, /--accent-hover:#[0-9a-f]{6}/u);
@@ -105,12 +143,125 @@ void test("all theme accent combinations receive concrete accessible palette rol
   }
 });
 
+void test("status colours are readable as text on every palette's grounds", () => {
+  for (const [theme, palette] of Object.entries(DISPLAY_PALETTES)) {
+    for (const status of [palette.danger, palette.warning, palette.success]) {
+      for (const surface of [palette.background, palette.surface]) {
+        assert.ok(contrastRatio(status, surface) >= 4.5, `${theme} ${status} against ${surface}`);
+      }
+    }
+  }
+  const light = generateDisplayStylesheet("light_minimal", "amber", "system").css;
+  assert.match(light, /:root\{[^}]*--danger:#bb303d;--on-danger:#ffffff;/u);
+  assert.match(
+    generateDisplayStylesheet("modern_dark", "amber", "system").css,
+    /:root\{[^}]*--danger:#ef4444;--on-danger:#000000;/u,
+  );
+});
+
+void test("a theme sets radius, density and a heading font the operator's font overrides", () => {
+  const root = (css: string): string => css.match(/:root\{([^}]+)\}/u)?.[1] ?? "";
+  const warm = generateDisplayStylesheet("warm_pub", "amber", "system").css;
+  assert.match(root(warm), /--radius-md:1rem;/u);
+  assert.match(root(warm), /--density:1(?:;|$)/u);
+  assert.match(root(warm), /--font-heading:"Bree Serif",system-ui,sans-serif;/u);
+  assert.match(warm, /assets\/fonts\/bree_serif-[0-9a-f]+\.woff2/u);
+  assert.match(
+    root(generateDisplayStylesheet("cyberpunk", "amber", "system").css),
+    /--radius-xl:0;/u,
+  );
+
+  const overridden = generateDisplayStylesheet("warm_pub", "amber", "inter").css;
+  assert.match(root(overridden), /--font-heading:var\(--font-family\);/u);
+  assert.doesNotMatch(overridden, /assets\/fonts\/bree_serif-/u);
+
+  // In the Admin preview a previewed font also drives the headings.
+  assert.ok(
+    generateDisplayStylesheet("warm_pub", "amber", "all").css.includes(
+      '.display-preview[data-preview-font="bungee"]{--preview-font:"Bungee",system-ui,sans-serif;--font-heading:var(--preview-font)}',
+    ),
+  );
+});
+
+void test("the theme accent uses each theme's own colour and Monochrome stays greyscale", () => {
+  const root = (css: string): string => css.match(/:root\{([^}]+)\}/u)?.[1] ?? "";
+  assert.match(
+    root(generateDisplayStylesheet("cyberpunk", "theme", "system").css),
+    /--accent:#ff007f;/u,
+  );
+  assert.match(
+    root(generateDisplayStylesheet("modern_dark", "theme", "system").css),
+    /--accent:#fbc02d;/u,
+  );
+  // An explicit operator accent still wins over the theme's.
+  assert.match(
+    root(generateDisplayStylesheet("cyberpunk", "sky", "system").css),
+    /--accent:#38bdf8;/u,
+  );
+  // Admin shares the display's accent colour.
+  assert.match(
+    generateDisplayStylesheet("cyberpunk", "theme", "system").css,
+    /\.admin-shell\{[^}]*--accent:#ff007f;/u,
+  );
+
+  const monochrome = root(generateDisplayStylesheet("monochrome", "theme", "system").css);
+  const colours = monochrome.match(/#[0-9a-f]{6}\b/gu) ?? [];
+  assert.ok(colours.length > 10);
+  for (const colour of colours) {
+    assert.ok(
+      colour.slice(1, 3) === colour.slice(3, 5) && colour.slice(3, 5) === colour.slice(5, 7),
+      `monochrome uses a non-grey colour: ${colour}`,
+    );
+  }
+});
+
+void test("the auto theme is Modern Dark by default and Light Minimal under a light device setting", () => {
+  const root = (css: string): string => css.match(/:root\{([^}]+)\}/u)?.[1] ?? "";
+  const auto = generateDisplayStylesheet("auto", "amber", "system").css;
+  assert.equal(root(auto), root(generateDisplayStylesheet("modern_dark", "amber", "system").css));
+  const light = root(generateDisplayStylesheet("light_minimal", "amber", "system").css);
+  assert.ok(auto.includes(`@media (prefers-color-scheme:light){:root{${light}}}`));
+  assert.ok(auto.includes(`@media (prefers-color-scheme:light){.display-preview{${light};`));
+  assert.deepEqual(validateStylesheetParams("auto", "amber", "system"), {
+    theme: "auto",
+    accent: "amber",
+    font: "system",
+  });
+});
+
+void test("Admin gets its own generated light and dark palettes, independent of the public theme", () => {
+  const css = generateDisplayStylesheet("cyberpunk", "amber", "bungee").css;
+  const dark = css.match(/\.admin-shell\{([^}]+)\}/u)?.[1] ?? "";
+  const light =
+    css.match(/@media \(prefers-color-scheme:light\)\{\.admin-shell\{([^}]+)\}\}/u)?.[1] ?? "";
+  assert.match(dark, /--background:#0d1726;/u);
+  assert.match(dark, /color-scheme:dark;/u);
+  assert.match(light, /--background:#f4f7fb;/u);
+  assert.match(light, /color-scheme:light;/u);
+  for (const block of [dark, light]) {
+    assert.match(block, /--font-family:system-ui,-apple-system,"Segoe UI",sans-serif;/u);
+    assert.match(block, /--radius-md:\.75rem;/u);
+  }
+  // Regression: amber derived for a dark public theme used to land on Admin's white surface.
+  const readable = light.match(/--accent-readable:(#[0-9a-f]{6})/u)?.[1];
+  assert.ok(readable);
+  assert.ok(contrastRatio(readable, "#ffffff") >= 4.5);
+});
+
 void test("theme body, muted, and secondary roles are readable on both surfaces", () => {
-  const surfaces: Record<string, readonly [string, string]> = {
+  // The original four keep fixed expectations; later themes are read from their palettes.
+  const fixedSurfaces: Record<string, readonly [string, string]> = {
     modern_dark: ["#0b0f19", "#111827"],
     warm_pub: ["#1c0a00", "#2d1204"],
     cyberpunk: ["#0d0221", "#19053b"],
     light_minimal: ["#f8fafc", "#ffffff"],
+    // The first :root block of the auto theme is its dark half.
+    auto: ["#0b0f19", "#111827"],
+  };
+  const surfacesOf = (theme: string): readonly [string, string] => {
+    const palette = DISPLAY_PALETTES[theme];
+    assert.ok(fixedSurfaces[theme] ?? palette, `no surfaces for ${theme}`);
+    return fixedSurfaces[theme] ?? [palette!.background, palette!.surface];
   };
   const variable = (css: string, name: string): string => {
     const match = css.match(new RegExp(`${name}:([^;}]*)`, "u"));
@@ -121,7 +272,7 @@ void test("theme body, muted, and secondary roles are readable on both surfaces"
     const css = generateDisplayStylesheet(theme, "amber", "system").css;
     for (const name of ["--text", "--muted", "--secondary"]) {
       const color = variable(css, name);
-      for (const surface of surfaces[theme]!) {
+      for (const surface of surfacesOf(theme)) {
         assert.ok(contrastRatio(color, surface) >= 4.5, `${theme}/${name} against ${surface}`);
       }
     }

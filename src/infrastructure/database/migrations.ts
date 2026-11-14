@@ -46,7 +46,13 @@ export const SYSTEM_ADMINISTRATION_SCHEMA_VERSION = 22;
 export const SYSTEM_ADMINISTRATION_MIGRATION_NAME = "system-administration-and-retention";
 export const FLAVOR_PROFILE_SCHEMA_VERSION = 23;
 export const FLAVOR_PROFILE_MIGRATION_NAME = "eight-axis-flavor-profile";
-export const CURRENT_SCHEMA_VERSION = FLAVOR_PROFILE_SCHEMA_VERSION;
+export const DISPLAY_AUTO_THEME_SCHEMA_VERSION = 24;
+export const DISPLAY_AUTO_THEME_MIGRATION_NAME = "display-auto-theme";
+export const DISPLAY_THEME_FORMAT_SCHEMA_VERSION = 25;
+export const DISPLAY_THEME_FORMAT_MIGRATION_NAME = "display-theme-format";
+export const DISPLAY_THEME_ACCENT_SCHEMA_VERSION = 26;
+export const DISPLAY_THEME_ACCENT_MIGRATION_NAME = "display-theme-accent";
+export const CURRENT_SCHEMA_VERSION = DISPLAY_THEME_ACCENT_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -1579,6 +1585,12 @@ export const DISPLAY_FONT_SCHEMA_SQL = DISPLAY_CUSTOM_ACCENT_SCHEMA_SQL.replace(
 );
 
 const DISPLAY_FONT_SCHEMA_OBJECTS = [...DISPLAY_CUSTOM_ACCENT_SCHEMA_OBJECTS] as const;
+
+/** v24 adds the "auto" theme, which follows the device's light or dark setting. */
+export const DISPLAY_AUTO_THEME_SCHEMA_SQL = DISPLAY_FONT_SCHEMA_SQL.replace(
+  "theme IN ('modern_dark', 'warm_pub', 'cyberpunk', 'light_minimal')",
+  "theme IN ('modern_dark', 'warm_pub', 'cyberpunk', 'light_minimal', 'auto')",
+);
 
 /** Final v16 declaration for exact canonical schema validation. */
 const TELEMETRY_DISABLED_SOURCE_SCHEMA_SQL = `
@@ -3844,12 +3856,35 @@ const SYSTEM_ADMINISTRATION_SCHEMA_OBJECTS = [
   ["table", "outbox_retention"],
 ] as const;
 
-function validateSystemAdministrationSchema(database: DatabaseExecutor, flavor = false): void {
+/**
+ * v25 stops listing theme names in the database. The column keeps a format check; the
+ * application validates names against DISPLAY_THEMES and reads an unknown stored name
+ * as the default theme, so adding a theme no longer needs a migration.
+ */
+export const DISPLAY_THEME_FORMAT_SCHEMA_SQL = DISPLAY_AUTO_THEME_SCHEMA_SQL.replace(
+  "theme IN ('modern_dark', 'warm_pub', 'cyberpunk', 'light_minimal', 'auto')",
+  "length(CAST(theme AS BLOB)) BETWEEN 1 AND 40 AND theme NOT GLOB '*[^a-z0-9_]*'",
+);
+
+/** v26 adds the "theme" accent, which uses each theme's own accent colour. */
+export const DISPLAY_THEME_ACCENT_SCHEMA_SQL = DISPLAY_THEME_FORMAT_SCHEMA_SQL.replace(
+  "accent IN ('amber', 'sky', 'rose', 'cyan', 'tan', 'orange', 'blue')",
+  "accent IN ('theme', 'amber', 'sky', 'rose', 'cyan', 'tan', 'orange', 'blue')",
+);
+
+function validateSystemAdministrationSchema(
+  database: DatabaseExecutor,
+  version: number = SYSTEM_ADMINISTRATION_SCHEMA_VERSION,
+): void {
+  const flavor = version >= FLAVOR_PROFILE_SCHEMA_VERSION;
+  const autoTheme = version >= DISPLAY_AUTO_THEME_SCHEMA_VERSION;
+  const themeFormat = version >= DISPLAY_THEME_FORMAT_SCHEMA_VERSION;
+  const themeAccent = version >= DISPLAY_THEME_ACCENT_SCHEMA_VERSION;
   validateTelemetrySchemaDefinition(
     database,
     SYSTEM_ADMINISTRATION_SCHEMA_OBJECTS,
-    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${flavor ? FLAVOR_PROFILE_SCHEMA_SQL : ""}`,
-    flavor ? FLAVOR_PROFILE_SCHEMA_VERSION : SYSTEM_ADMINISTRATION_SCHEMA_VERSION,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${flavor ? FLAVOR_PROFILE_SCHEMA_SQL : ""}${autoTheme ? DISPLAY_AUTO_THEME_SCHEMA_SQL : ""}${themeFormat ? DISPLAY_THEME_FORMAT_SCHEMA_SQL : ""}${themeAccent ? DISPLAY_THEME_ACCENT_SCHEMA_SQL : ""}`,
+    version,
     (schemaDatabase) => {
       validateBuiltinSimulationColumns(schemaDatabase);
       expectColumns(schemaDatabase, "auth_session_settings", [
@@ -3922,6 +3957,90 @@ export const FLAVOR_PROFILE_MIGRATION: MigrationDefinition = {
     return undefined;
   },
 };
+export const DISPLAY_AUTO_THEME_MIGRATION: MigrationDefinition = {
+  version: DISPLAY_AUTO_THEME_SCHEMA_VERSION,
+  name: DISPLAY_AUTO_THEME_MIGRATION_NAME,
+  apply(database) {
+    // SQLite cannot alter a CHECK constraint in place. Rebuild only this
+    // singleton table and copy every existing setting unchanged.
+    database.execute(
+      DISPLAY_AUTO_THEME_SCHEMA_SQL.replace(
+        "CREATE TABLE display_settings",
+        "CREATE TABLE display_settings_v24",
+      ),
+    );
+    database.execute(`
+      INSERT INTO display_settings_v24 (
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, updated_at
+      )
+      SELECT
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, updated_at
+      FROM display_settings;
+      DROP TABLE display_settings;
+      ALTER TABLE display_settings_v24 RENAME TO display_settings;
+    `);
+    return undefined;
+  },
+};
+export const DISPLAY_THEME_FORMAT_MIGRATION: MigrationDefinition = {
+  version: DISPLAY_THEME_FORMAT_SCHEMA_VERSION,
+  name: DISPLAY_THEME_FORMAT_MIGRATION_NAME,
+  apply(database) {
+    // SQLite cannot alter a CHECK constraint in place. Rebuild only this
+    // singleton table and copy every existing setting unchanged.
+    database.execute(
+      DISPLAY_THEME_FORMAT_SCHEMA_SQL.replace(
+        "CREATE TABLE display_settings",
+        "CREATE TABLE display_settings_v25",
+      ),
+    );
+    database.execute(`
+      INSERT INTO display_settings_v25 (
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, updated_at
+      )
+      SELECT
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, updated_at
+      FROM display_settings;
+      DROP TABLE display_settings;
+      ALTER TABLE display_settings_v25 RENAME TO display_settings;
+    `);
+    return undefined;
+  },
+};
+export const DISPLAY_THEME_ACCENT_MIGRATION: MigrationDefinition = {
+  version: DISPLAY_THEME_ACCENT_SCHEMA_VERSION,
+  name: DISPLAY_THEME_ACCENT_MIGRATION_NAME,
+  apply(database) {
+    // SQLite cannot alter a CHECK constraint in place. Rebuild only this singleton
+    // table. The previous default accent, amber, becomes "theme": every theme that
+    // existed before this version keeps amber or gains its own accent, and a
+    // deliberately chosen named or custom accent is copied unchanged.
+    database.execute(
+      DISPLAY_THEME_ACCENT_SCHEMA_SQL.replace(
+        "CREATE TABLE display_settings",
+        "CREATE TABLE display_settings_v26",
+      ),
+    );
+    database.execute(`
+      INSERT INTO display_settings_v26 (
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, updated_at
+      )
+      SELECT
+        id, revision, tapboard_name, theme, font,
+        CASE WHEN accent = 'amber' THEN 'theme' ELSE accent END,
+        unit_system, show_serving_temperature, layout_mode, updated_at
+      FROM display_settings;
+      DROP TABLE display_settings;
+      ALTER TABLE display_settings_v26 RENAME TO display_settings;
+    `);
+    return undefined;
+  },
+};
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -3947,6 +4066,9 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   BUILTIN_SIMULATION_MIGRATION,
   SYSTEM_ADMINISTRATION_MIGRATION,
   FLAVOR_PROFILE_MIGRATION,
+  DISPLAY_AUTO_THEME_MIGRATION,
+  DISPLAY_THEME_FORMAT_MIGRATION,
+  DISPLAY_THEME_ACCENT_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -3983,7 +4105,10 @@ function applyMigration(
         migration.version === FILL_CARD_BADGES_SCHEMA_VERSION ||
         migration.version === BUILTIN_SIMULATION_SCHEMA_VERSION ||
         migration.version === SYSTEM_ADMINISTRATION_SCHEMA_VERSION ||
-        migration.version === FLAVOR_PROFILE_SCHEMA_VERSION)
+        migration.version === FLAVOR_PROFILE_SCHEMA_VERSION ||
+        migration.version === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
+        migration.version === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
+        migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4102,8 +4227,13 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateFillCardBadgesSchema(database);
   } else if (version === BUILTIN_SIMULATION_SCHEMA_VERSION) {
     validateBuiltinSimulationSchema(database);
-  } else if (version === FLAVOR_PROFILE_SCHEMA_VERSION) {
-    validateSystemAdministrationSchema(database, true);
+  } else if (
+    version === FLAVOR_PROFILE_SCHEMA_VERSION ||
+    version === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
+    version === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
+    version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION
+  ) {
+    validateSystemAdministrationSchema(database, version);
   } else if (version === SYSTEM_ADMINISTRATION_SCHEMA_VERSION) {
     validateSystemAdministrationSchema(database);
   } else {
@@ -4149,7 +4279,10 @@ export function initializeSchema(
   if (
     isCanonicalMigrationPrefix(migrations) &&
     (currentVersion === SYSTEM_ADMINISTRATION_SCHEMA_VERSION ||
-      currentVersion === FLAVOR_PROFILE_SCHEMA_VERSION)
+      currentVersion === FLAVOR_PROFILE_SCHEMA_VERSION ||
+      currentVersion === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
+      currentVersion === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
+      currentVersion === DISPLAY_THEME_ACCENT_SCHEMA_VERSION)
   ) {
     validateCanonicalSchemaAtVersion(database, currentVersion);
   } else if (

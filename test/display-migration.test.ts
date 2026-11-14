@@ -2,9 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { openDatabase } from "../src/infrastructure/database/connection.ts";
+import { readDisplaySettings } from "../src/features/display/repository.ts";
 import {
   CURRENT_SCHEMA_VERSION,
+  DISPLAY_AUTO_THEME_MIGRATION_NAME,
+  DISPLAY_AUTO_THEME_SCHEMA_VERSION,
   DISPLAY_MIGRATION_NAME,
+  DISPLAY_THEME_ACCENT_MIGRATION_NAME,
+  DISPLAY_THEME_ACCENT_SCHEMA_VERSION,
+  DISPLAY_THEME_FORMAT_MIGRATION_NAME,
+  DISPLAY_THEME_FORMAT_SCHEMA_VERSION,
   DISPLAY_CUSTOM_ACCENT_MIGRATION_NAME,
   DISPLAY_CUSTOM_ACCENT_SCHEMA_VERSION,
   DISPLAY_FONT_MIGRATION_NAME,
@@ -287,6 +294,149 @@ void test("v16->v17 rebuild preserves display settings and accepts the new font 
     );
   } finally {
     database.close();
+  }
+});
+
+void test("v23->v24 rebuild preserves display settings and accepts the auto theme", () => {
+  const database = openDatabase(":memory:", {
+    migrations: MIGRATIONS.slice(0, DISPLAY_AUTO_THEME_SCHEMA_VERSION - 1),
+  });
+  try {
+    database
+      .prepare<[number, string, string, string, string, string]>(
+        "UPDATE display_settings SET revision = ?, tapboard_name = ?, theme = ?, font = ?, accent = ?, updated_at = ? WHERE id = 1",
+      )
+      .run(12, "Garage Taproom", "warm_pub", "rye", "#12ab9f", "2026-03-04T00:00:00.000Z");
+    const before = database.prepare<[], object>("SELECT * FROM display_settings").all();
+    assert.throws(
+      () => database.prepare("UPDATE display_settings SET theme = 'auto' WHERE id = 1").run(),
+      /CHECK constraint/,
+    );
+
+    initializeSchema(database, MIGRATIONS);
+    assert.equal(DISPLAY_AUTO_THEME_SCHEMA_VERSION, 24);
+    assert.equal(database.pragma<number>("user_version", { simple: true }), CURRENT_SCHEMA_VERSION);
+    assert.equal(
+      database
+        .prepare<[], { readonly name: string }>(
+          "SELECT name FROM schema_migrations WHERE version = 24",
+        )
+        .get()?.name,
+      DISPLAY_AUTO_THEME_MIGRATION_NAME,
+    );
+    assert.deepEqual(database.prepare<[], object>("SELECT * FROM display_settings").all(), before);
+
+    database.prepare("UPDATE display_settings SET theme = 'auto' WHERE id = 1").run();
+    assert.throws(
+      () =>
+        database.prepare("UPDATE display_settings SET theme = 'not-a-theme' WHERE id = 1").run(),
+      /CHECK constraint/,
+    );
+    assert.equal(
+      database
+        .prepare<[], { readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM sqlite_schema WHERE name = 'display_settings_v24'",
+        )
+        .get()?.count,
+      0,
+    );
+    // Reopening an upgraded database with the auto theme stored must validate cleanly.
+    initializeSchema(database, MIGRATIONS);
+  } finally {
+    database.close();
+  }
+});
+
+void test("v24->v25 keeps settings, checks only the theme name's format, and unknown names read as the default", () => {
+  const database = openDatabase(":memory:", {
+    migrations: MIGRATIONS.slice(0, DISPLAY_THEME_FORMAT_SCHEMA_VERSION - 1),
+  });
+  try {
+    database
+      .prepare<[number, string, string]>(
+        "UPDATE display_settings SET revision = ?, tapboard_name = ?, theme = ?, accent = 'sky' WHERE id = 1",
+      )
+      .run(5, "Garage Taproom", "auto");
+    const before = database.prepare<[], object>("SELECT * FROM display_settings").all();
+    assert.throws(
+      () => database.prepare("UPDATE display_settings SET theme = 'chalkboard' WHERE id = 1").run(),
+      /CHECK constraint/,
+    );
+
+    initializeSchema(database, MIGRATIONS);
+    assert.equal(DISPLAY_THEME_FORMAT_SCHEMA_VERSION, 25);
+    assert.equal(database.pragma<number>("user_version", { simple: true }), CURRENT_SCHEMA_VERSION);
+    assert.equal(
+      database
+        .prepare<[], { readonly name: string }>(
+          "SELECT name FROM schema_migrations WHERE version = 25",
+        )
+        .get()?.name,
+      DISPLAY_THEME_FORMAT_MIGRATION_NAME,
+    );
+    assert.deepEqual(database.prepare<[], object>("SELECT * FROM display_settings").all(), before);
+    assert.equal(readDisplaySettings(database).theme, "auto");
+
+    const setTheme = database.prepare<[string]>(
+      "UPDATE display_settings SET theme = ? WHERE id = 1",
+    );
+    for (const bad of ["", "Chalkboard", "hop garden", "x;drop", "a".repeat(41)]) {
+      assert.throws(() => setTheme.run(bad), /CHECK constraint/, bad);
+    }
+    setTheme.run("chalkboard");
+    assert.equal(readDisplaySettings(database).theme, "chalkboard");
+    // A well-formed name this build does not know is stored but read as the default theme.
+    setTheme.run("theme_from_a_newer_build");
+    assert.equal(readDisplaySettings(database).theme, "modern_dark");
+    initializeSchema(database, MIGRATIONS);
+  } finally {
+    database.close();
+  }
+});
+
+void test("v25->v26 turns the default amber accent into the theme accent and keeps chosen accents", () => {
+  for (const [stored, expected] of [
+    ["amber", "theme"],
+    ["sky", "sky"],
+    ["#12ab9f", "#12ab9f"],
+  ] as const) {
+    const database = openDatabase(":memory:", {
+      migrations: MIGRATIONS.slice(0, DISPLAY_THEME_ACCENT_SCHEMA_VERSION - 1),
+    });
+    try {
+      database
+        .prepare<[number, string, string, string]>(
+          "UPDATE display_settings SET revision = ?, tapboard_name = ?, theme = ?, accent = ? WHERE id = 1",
+        )
+        .run(8, "Garage Taproom", "warm_pub", stored);
+      assert.throws(
+        () => database.prepare("UPDATE display_settings SET accent = 'theme' WHERE id = 1").run(),
+        /CHECK constraint/,
+      );
+      initializeSchema(database, MIGRATIONS);
+      assert.equal(DISPLAY_THEME_ACCENT_SCHEMA_VERSION, 26);
+      assert.equal(
+        database
+          .prepare<[], { readonly name: string }>(
+            "SELECT name FROM schema_migrations WHERE version = 26",
+          )
+          .get()?.name,
+        DISPLAY_THEME_ACCENT_MIGRATION_NAME,
+      );
+      const settings = readDisplaySettings(database);
+      assert.equal(settings.accent, expected);
+      assert.equal(settings.revision, 8);
+      assert.equal(settings.tapboardName, "Garage Taproom");
+      assert.equal(settings.theme, "warm_pub");
+      database.prepare("UPDATE display_settings SET accent = 'theme' WHERE id = 1").run();
+      assert.throws(
+        () => database.prepare("UPDATE display_settings SET accent = 'themes' WHERE id = 1").run(),
+        /CHECK constraint/,
+      );
+      initializeSchema(database, MIGRATIONS);
+    } finally {
+      database.close();
+    }
   }
 });
 
