@@ -2245,11 +2245,13 @@
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--muted) 18%, var(--surface));
 }
-.tap-wars-meter span {
+.tap-wars-meter svg {
   display: block;
+  width: 100%;
   height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
+}
+.tap-wars-meter rect {
+  fill: var(--accent);
   transition: width 0.2s ease;
 }
 .tap-wars-totals {
@@ -2329,7 +2331,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tap-wars-meter span {
+  .tap-wars-meter rect {
     transition: none;
   }
 }

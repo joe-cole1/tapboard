@@ -71,8 +71,10 @@ if (root) {
       text(`[data-war-count="${sideNumber}"]`, side.voteCount);
       text(`[data-war-percentage="${sideNumber}"]`, displayPercentage(side.percentage));
       const meter = root.querySelector(`[data-war-meter="${sideNumber}"]`);
-      if (meter instanceof HTMLElement)
-        meter.style.width = `${Math.max(0, Math.min(100, Number(side.percentage) || 0))}%`;
+      meter?.setAttribute(
+        "width",
+        String(Math.max(0, Math.min(100, Number(side.percentage) || 0))),
+      );
       const publicSide =
         publicVisible?.id === current.id ? publicVisible[`side${sideNumber}`] : null;
       if (typeof publicSide?.title === "string")

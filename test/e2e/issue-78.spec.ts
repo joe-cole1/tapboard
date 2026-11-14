@@ -189,7 +189,7 @@ test("Tap Wars votes live-update stable cards, pause safely, and publish a froze
   expect(burst.every((response) => response.ok())).toBe(true);
   await expect.poll(async () => (await publicWar(page)).side1.voteCount).toBe(6);
   await expect(banner.locator('[data-tap-wars-percent="1"]')).toHaveText("100%");
-  await expect(banner.locator('[data-tap-wars-meter-side="1"]')).toHaveAttribute("style", /100%/u);
+  await expect(banner.locator('[data-tap-wars-meter-side="1"]')).toHaveAttribute("width", "100");
   await page.getByRole("button", { name: "View results" }).click();
   const dialog = page.locator("[data-tap-wars-dialog]");
   await expect(dialog).toBeVisible();
@@ -533,5 +533,87 @@ test("a replacement assignment cannot inherit votes or resume the original compe
   expect(completed.side1.title).toBe("Tap Wars Amber");
   expect(completed.side1.voteCount).toBe(1);
   await closeCurrentWar(admin);
+  await context.close();
+});
+
+// The share of its track each meter segment fills, as laid out by the browser.
+async function meterShares(page: Page, segmentAttribute: string): Promise<readonly number[]> {
+  return page.evaluate(
+    (attribute) =>
+      [1, 2].map((side) => {
+        const segment = document.querySelector(`[${attribute}="${side}"]`);
+        const track = segment?.closest("svg")?.getBoundingClientRect().width ?? 0;
+        if (!segment || track === 0) return Number.NaN;
+        return Math.round((segment.getBoundingClientRect().width / track) * 100);
+      }),
+    segmentAttribute,
+  );
+}
+
+test("Tap Wars meters show the split without inline styles, with and without JavaScript", async ({
+  browser,
+}) => {
+  const cspErrors: string[] = [];
+  const watchCsp = (context: BrowserContext): void => {
+    context.on("console", (message) => {
+      if (/Content Security Policy/iu.test(message.text())) cspErrors.push(message.text());
+    });
+  };
+  const context = await browser.newContext();
+  watchCsp(context);
+  const admin = await context.newPage();
+  await login(admin);
+  await closeCurrentWar(admin);
+  await startWar(admin, 4, 5);
+  const page = await context.newPage();
+  await page.goto("/");
+  const war = await publicWar(page);
+  const noJsContext = await browser.newContext({
+    javaScriptEnabled: false,
+    storageState: await context.storageState(),
+  });
+  watchCsp(noJsContext);
+  const noJs = await noJsContext.newPage();
+
+  for (const { vote, shares, divider } of [
+    { vote: null, shares: [0, 0], divider: { x: "0", visibility: "hidden" } },
+    { vote: "1", shares: [100, 0], divider: { x: "100", visibility: "hidden" } },
+    { vote: "2", shares: [50, 50], divider: { x: "50", visibility: "visible" } },
+  ]) {
+    if (vote !== null) {
+      const response = await page.request.post(`/api/public/tap-wars/${war.id}/votes`, {
+        form: { side: vote },
+        headers: { Origin: new URL(page.url()).origin, Accept: "application/json" },
+      });
+      expect(response.ok()).toBe(true);
+    }
+    // JavaScript on: the server-rendered meters, then live updates, keep the split.
+    await expect.poll(() => meterShares(page, "data-tap-wars-meter-side")).toEqual(shares);
+    await expect(page.locator("[data-tap-wars-meter-divider]")).toHaveCount(2);
+    for (const line of await page.locator("[data-tap-wars-meter-divider]").all()) {
+      await expect(line).toHaveAttribute("x1", divider.x);
+      await expect(line).toHaveAttribute("visibility", divider.visibility);
+    }
+    await expect.poll(() => meterShares(admin, "data-war-meter")).toEqual(shares);
+    await page.getByRole("button", { name: "View results" }).click();
+    await expect.poll(() => meterShares(page, "data-tap-wars-dialog-meter-side")).toEqual(shares);
+    await page.getByRole("button", { name: "Close Tap Wars results" }).click();
+
+    // JavaScript off: the server-rendered markup alone carries the split.
+    await noJs.goto("/");
+    expect(await noJs.locator("[style], style").count()).toBe(0);
+    expect(await meterShares(noJs, "data-tap-wars-meter-side")).toEqual(shares);
+    await noJs.locator("[data-tap-wars-dialog]").evaluate((dialog) => {
+      (dialog as HTMLDialogElement).showModal();
+    });
+    expect(await meterShares(noJs, "data-tap-wars-dialog-meter-side")).toEqual(shares);
+    await noJs.goto("/admin/tap-wars");
+    expect(await noJs.locator("[style], style").count()).toBe(0);
+    expect(await meterShares(noJs, "data-war-meter")).toEqual(shares);
+  }
+  expect(cspErrors).toEqual([]);
+
+  await closeCurrentWar(admin);
+  await noJsContext.close();
   await context.close();
 });

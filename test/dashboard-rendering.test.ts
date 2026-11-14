@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 import type { PublicDashboardView, PublicTapCardView } from "../src/features/dashboard/types.ts";
+import { tapWarPercentages } from "../src/features/tap-wars/service.ts";
 import type { PublicTapWarView } from "../src/features/tap-wars/types.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
 
@@ -319,4 +320,113 @@ void test("Admin shell exposes all independently reachable navigation seams", ()
   assert.match(html, /Skip to content/u);
   assert.match(html, /Connectivity and integrations/u);
   assert.match(html, /Health summary/u);
+});
+
+const SPLITS = [
+  { votes: [1, 0], widths: [100, 0] },
+  { votes: [1, 1], widths: [50, 50] },
+  { votes: [0, 0], widths: [0, 0] },
+] as const;
+
+function splitWar(side1Votes: number, side2Votes: number): PublicTapWarView {
+  const war = tapWar();
+  const split = tapWarPercentages(side1Votes, side2Votes);
+  const isTie = split !== null && split.side1 === split.side2;
+  return {
+    ...war,
+    side1: { ...war.side1, voteCount: side1Votes, percentage: split?.side1 ?? null },
+    side2: { ...war.side2, voteCount: side2Votes, percentage: split?.side2 ?? null },
+    totalVotes: side1Votes + side2Votes,
+    isTie,
+    leaderSide: split === null || isTie ? null : split.side1 > split.side2 ? 1 : 2,
+  };
+}
+
+function meterSegment(
+  html: string,
+  attribute: string,
+  side: number,
+): { readonly x: number; readonly width: number } {
+  const tag = new RegExp(`<rect\\b[^>]*\\s${attribute}="${side}"[^>]*>`, "u").exec(html)?.[0];
+  assert.ok(tag, `${attribute}="${side}" renders as an SVG rect`);
+  const value = (name: string): number =>
+    Number(new RegExp(`\\s${name}="([^"]*)"`, "u").exec(tag)?.[1] ?? Number.NaN);
+  return { x: value("x"), width: value("width") };
+}
+
+function assertNoInlineStyles(html: string): void {
+  assert.doesNotMatch(html, /\sstyle\s*=/iu);
+  assert.doesNotMatch(html, /<style\b/iu);
+}
+
+void test("public Tap Wars meters carry the split in SVG geometry, not inline styles", () => {
+  for (const { votes, widths } of SPLITS) {
+    const html = createRenderer().render("/public/dashboard", {
+      ...dashboard(splitWar(votes[0], votes[1])),
+    });
+    assertNoInlineStyles(html);
+    for (const attribute of ["data-tap-wars-meter-side", "data-tap-wars-dialog-meter-side"]) {
+      assert.deepEqual(meterSegment(html, attribute, 1), { x: 0, width: widths[0] }, attribute);
+      assert.deepEqual(
+        meterSegment(html, attribute, 2),
+        { x: widths[0], width: widths[1] },
+        attribute,
+      );
+    }
+    // The divider marks the split in themes whose two segment colours are close.
+    const dividers = html.match(/<line\b[^>]*\sdata-tap-wars-meter-divider\b[^>]*>/gu) ?? [];
+    assert.equal(dividers.length, 2);
+    for (const divider of dividers) {
+      assert.match(divider, new RegExp(`\\sx1="${widths[0]}"`, "u"));
+      assert.match(divider, new RegExp(`\\sx2="${widths[0]}"`, "u"));
+      const visible = widths[0] > 0 && widths[1] > 0 ? "visible" : "hidden";
+      assert.match(divider, new RegExp(`\\svisibility="${visible}"`, "u"));
+    }
+  }
+});
+
+void test("Admin Tap Wars meters carry each side's share in SVG geometry, not inline styles", () => {
+  for (const { votes, widths } of SPLITS) {
+    const split = tapWarPercentages(votes[0], votes[1]);
+    const html = createRenderer().render("/admin/tap-wars", {
+      page: { title: "Tap Wars", path: "/admin/tap-wars", csrfToken: "safe" },
+      navItems: [],
+      tapWars: {
+        current: {
+          id: "00000000-0000-4000-8000-000000000175",
+          status: "active",
+          startedAt: "2026-11-14T12:00:00.000Z",
+          totalVotes: votes[0] + votes[1],
+          isTie: split !== null && split.side1 === split.side2,
+          leaderSide: null,
+          competitors: [1, 2].map((side) => ({
+            side,
+            tapNumber: side + 3,
+            adminBeverageTitle: `Admin beverage ${side}`,
+            voteCount: votes[side - 1],
+            percentage: split === null ? null : side === 1 ? split.side1 : split.side2,
+            eligible: true,
+          })),
+        },
+        published: null,
+        publicVisible: null,
+        eligible: [],
+        history: [],
+      },
+    });
+    assertNoInlineStyles(html);
+    assert.deepEqual(meterSegment(html, "data-war-meter", 1), { x: 0, width: widths[0] });
+    assert.deepEqual(meterSegment(html, "data-war-meter", 2), { x: 0, width: widths[1] });
+  }
+});
+
+void test("no view template writes an inline style the CSP would block", async () => {
+  const root = new URL("../views/", import.meta.url);
+  const files = (await readdir(root, { recursive: true })).filter((file) => file.endsWith(".eta"));
+  assert.ok(files.length > 0);
+  for (const file of files) {
+    const source = await readFile(new URL(file, root), "utf8");
+    assert.doesNotMatch(source, /\sstyle\s*=/iu, file);
+    assert.doesNotMatch(source, /<style\b/iu, file);
+  }
 });

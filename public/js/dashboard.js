@@ -853,10 +853,17 @@ function patchTapWarsMeter(meter, war, sideSelector) {
   const neutral = war.totalVotes === 0;
   meter.classList.toggle("is-neutral", neutral);
   meter.setAttribute("aria-label", tapWarsMeterLabel(war));
-  for (const side of [war.side1, war.side2]) {
-    const segment = meter.querySelector(`[${sideSelector}="${side.side}"]`);
-    if (segment) segment.style.width = `${neutral ? 0 : side.percentage}%`;
-  }
+  // SVG geometry attributes, not inline styles: the CSP blocks style attributes.
+  const width1 = neutral ? 0 : war.side1.percentage;
+  const width2 = neutral ? 0 : war.side2.percentage;
+  meter.querySelector(`[${sideSelector}="1"]`)?.setAttribute("width", String(width1));
+  const segment2 = meter.querySelector(`[${sideSelector}="2"]`);
+  segment2?.setAttribute("x", String(width1));
+  segment2?.setAttribute("width", String(width2));
+  const divider = meter.querySelector("[data-tap-wars-meter-divider]");
+  divider?.setAttribute("x1", String(width1));
+  divider?.setAttribute("x2", String(width1));
+  divider?.setAttribute("visibility", width1 > 0 && width2 > 0 ? "visible" : "hidden");
 }
 
 function createTapWarsCardControls(war, side) {
