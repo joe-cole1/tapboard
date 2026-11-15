@@ -121,7 +121,7 @@ Restore a Simulation copy the same way, to `/app/data/tapboard-v2.sqlite3.simula
 
 ## Reproduce acceptance
 
-Run `npm run check`, then install Chromium and run `npm run test:e2e`. `bash scripts/check-production-container.sh` builds a fresh image and checks hardened execution, clean-volume initialization, health/SSR, stdin PIN setup, the online backup command, persistent domain state after restart/recreate, degraded integration behavior, and graceful SIGTERM. It uses only a uniquely named disposable project/volume and removes only what it created. CI runs these as three independent gates.
+Run `npm run check`, then install Chromium and run `npm run test:e2e`. `bash scripts/check-production-container.sh` builds a fresh image and checks hardened execution, clean-volume initialization, health/SSR, stdin PIN setup, the online backup command, persistent domain state after restart/recreate, degraded integration behavior, and graceful SIGTERM. It uses only a uniquely named disposable project/volume and removes only what it created. CI runs these as three independent gates. If browser tests fail, CI reruns only the failed specs once against a fresh fixture server (`npm run test:e2e -- --last-failed`) and posts a warning annotation; locally, the same command reruns your last failures.
 
 Actual VPS deployment, other CPU architectures, and live Brewfather/Home Assistant mutations are operator checks beyond the disposable acceptance run. They are not substitutes for the canonical, browser, migration, and container gates.
 
