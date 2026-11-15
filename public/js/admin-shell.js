@@ -6,7 +6,6 @@ if (shell) {
   const sidebarToggle = shell.querySelector("[data-admin-sidebar-toggle]");
   const sidebarClose = shell.querySelector("[data-admin-sidebar-close]");
   const drawerBackdrop = shell.querySelector("[data-admin-drawer-backdrop]");
-  const jumpInput = shell.querySelector("[data-admin-jump-input]");
   const storageKey = "tapboard.v2.admin-sidebar.v1";
   const mobileNavigation = window.matchMedia("(max-width: 60rem)");
   const backgroundNodes = [...shell.children].filter(
@@ -18,16 +17,20 @@ if (shell) {
     ? "true"
     : "false";
 
+  // The header Menu button opens the drawer on narrow screens and brings a
+  // hidden (collapsed) sidebar back on wide ones.
+  const syncMenuToggle = () => {
+    if (!menuToggle) return;
+    const expanded = mobileNavigation.matches
+      ? shell.dataset.drawerOpen === "true"
+      : shell.dataset.sidebarCollapsed !== "true";
+    menuToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  };
+
   const setCollapsed = (collapsed) => {
     shell.dataset.sidebarCollapsed = collapsed ? "true" : "false";
-    if (sidebarToggle) {
-      sidebarToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
-      sidebarToggle.textContent = collapsed ? "Expand" : "Collapse";
-      sidebarToggle.setAttribute(
-        "aria-label",
-        collapsed ? "Expand Admin navigation" : "Collapse Admin navigation",
-      );
-    }
+    sidebarToggle?.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    syncMenuToggle();
     try {
       window.localStorage.setItem(storageKey, collapsed ? "collapsed" : "expanded");
     } catch {
@@ -52,7 +55,7 @@ if (shell) {
 
   const setDrawerOpen = (open, restoreFocus = true) => {
     shell.dataset.drawerOpen = open ? "true" : "false";
-    if (menuToggle) menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    syncMenuToggle();
     if (drawerBackdrop) drawerBackdrop.hidden = !open;
     synchronizeDrawerAccessibility();
     if (open) {
@@ -78,12 +81,18 @@ if (shell) {
   mobileNavigation.addEventListener("change", () => setDrawerOpen(false, false));
 
   menuToggle?.addEventListener("click", () => {
-    setDrawerOpen(shell.dataset.drawerOpen !== "true");
+    if (mobileNavigation.matches) {
+      setDrawerOpen(shell.dataset.drawerOpen !== "true");
+      return;
+    }
+    setCollapsed(false);
+    sidebar?.querySelector("a")?.focus();
   });
   sidebarClose?.addEventListener("click", () => setDrawerOpen(false));
   drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
   sidebarToggle?.addEventListener("click", () => {
-    setCollapsed(shell.dataset.sidebarCollapsed !== "true");
+    setCollapsed(true);
+    menuToggle?.focus();
   });
   sidebar?.querySelectorAll("a").forEach((link) => {
     link.addEventListener("click", () => {
@@ -131,12 +140,6 @@ if (shell) {
     if (event.key === "Escape" && shell.dataset.drawerOpen === "true") {
       event.preventDefault();
       setDrawerOpen(false);
-      return;
-    }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      jumpInput?.focus();
-      jumpInput?.select();
     }
   });
 

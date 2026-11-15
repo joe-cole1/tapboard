@@ -43,6 +43,7 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
           connectivity: dependencies.dashboardService.getHeader().connectivityLabel,
           diagnostics,
           calculation: service.getCalculationSettings(),
+          display: dependencies.displayService.getSettings(),
           retention: service.getRetentionSettings(),
           sessionPolicy: dependencies.authService.getSessionPolicy(),
           sessions: dependencies.authService.listActiveSessions({

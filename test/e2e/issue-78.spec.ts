@@ -458,7 +458,7 @@ test("Tap Wars remains SSR-safe without JavaScript and does not leak Mystery ide
   await expect(noJs.locator("[data-tap-wars]")).toBeVisible();
   expect((await publicWar(noJs)).side1.voteCount).toBe(beforeNoJsVote + 1);
   await admin.goto(`/admin/taps/${mysteryTap.id}`);
-  await admin.getByRole("button", { name: "Unassign current Fill" }).click();
+  await admin.getByRole("button", { name: "Take off tap" }).click();
   await expect.poll(async () => (await publicWar(noJs)).status).toBe("paused");
   const pausedMystery = await publicWar(noJs);
   expect(pausedMystery.side1.title).toBe("Mystery Tap");
@@ -504,7 +504,7 @@ test("a replacement assignment cannot inherit votes or resume the original compe
   expect(vote.ok()).toBe(true);
 
   await admin.goto(`/admin/taps/${started.side1.tapId}`);
-  await admin.getByRole("button", { name: "Unassign current Fill" }).click();
+  await admin.getByRole("button", { name: "Take off tap" }).click();
   await expect.poll(async () => (await publicWar(page)).status).toBe("paused");
   const assignment = admin.locator('form[action$="/assign"]');
   const replacementValue = await assignment
@@ -595,6 +595,8 @@ test("Tap Wars meters show the split without inline styles, with and without Jav
       await expect(line).toHaveAttribute("visibility", divider.visibility);
     }
     await expect.poll(() => meterShares(admin, "data-war-meter")).toEqual(shares);
+    // Admin's "What guests see" preview is the public banner and follows the votes live.
+    await expect.poll(() => meterShares(admin, "data-tap-wars-meter-side")).toEqual(shares);
     await page.getByRole("button", { name: "View results" }).click();
     await expect.poll(() => meterShares(page, "data-tap-wars-dialog-meter-side")).toEqual(shares);
     await page.getByRole("button", { name: "Close Tap Wars results" }).click();
@@ -610,6 +612,7 @@ test("Tap Wars meters show the split without inline styles, with and without Jav
     await noJs.goto("/admin/tap-wars");
     expect(await noJs.locator("[style], style").count()).toBe(0);
     expect(await meterShares(noJs, "data-war-meter")).toEqual(shares);
+    expect(await meterShares(noJs, "data-tap-wars-meter-side")).toEqual(shares);
   }
   expect(cspErrors).toEqual([]);
 

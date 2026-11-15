@@ -1,37 +1,32 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<% const fontOptions = [
-  ["system", "System"],
-  ["outfit", "Outfit"],
-  ["inter", "Inter"],
-  ["roboto", "Roboto"],
-  ["fredoka", "Fredoka"],
-  ["montserrat", "Montserrat"],
-  ["barlow_condensed", "Barlow Condensed"],
-  ["bree_serif", "Bree Serif"],
-  ["bungee", "Bungee"],
-  ["rye", "Rye"],
-  ["special_elite", "Special Elite"],
-]; %>
 <main id="main-content" class="display-settings-page">
-  <header class="page-header"><p class="eyebrow"><a href="/admin/display">Display</a> / Shared defaults</p><h1>Shared defaults</h1><p>Changes here are inherited by every display without an explicit local override.</p></header>
+  <header class="page-header"><p class="eyebrow"><a href="/admin/display">Display</a> / Default theme</p><h1>Default theme</h1><p>Every display uses these settings unless a browser chooses its own on <a href="/admin/display/this-display">This display</a>.</p></header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="admin-card" aria-labelledby="shared-settings-heading">
-    <h2 id="shared-settings-heading">Shared presentation</h2>
-    <form class="display-settings-form" data-shared-display-form data-autosave="apply" data-autosave-resource="display:shared" action="/admin/display/shared" method="post">
-      <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="expectedRevision" value="<%= it.sharedDisplay.revision %>" />
-      <label>Tapboard name <input name="tapboardName" value="<%= it.sharedDisplay.tapboardName %>" maxlength="80" required /></label>
-      <label>Theme <select name="theme"><% for (const value of it.displayThemes) { %><option value="<%= value %>"<% if (it.sharedDisplay.theme === value) { %> selected<% } %>><%= value.replaceAll("_", " ") %></option><% } %></select></label>
-      <label>Font <select name="font"><% for (const [value, label] of fontOptions) { %><option value="<%= value %>"<% if (it.sharedDisplay.font === value) { %> selected<% } %>><%= label %></option><% } %></select></label>
-      <div class="display-font-previews" aria-label="Font previews"><% for (const [value, label] of fontOptions) { %><div class="display-font-preview display-font-preview--<%= value %>"><strong><%= label %></strong><span>Hazardous Brews</span><small>Northbound Pale Ale · 5.0%</small></div><% } %></div>
-      <label>Accent <input name="accent" value="<%= it.sharedDisplay.accent %>" pattern="#[0-9a-f]{6}|theme|amber|sky|rose|cyan|tan|orange|blue" maxlength="7" required /><span class="display-accent-picker-inline"><input type="color" data-accent-color value="<%= /^#[0-9a-f]{6}$/u.test(it.sharedDisplay.accent) ? it.sharedDisplay.accent : '#fbc02d' %>" aria-label="Custom accent color" /></span><span class="display-accent-swatches" aria-label="Named accents"><% for (const value of it.displayAccents) { %><button type="button" class="display-accent-swatch display-accent-swatch--<%= value %>" data-accent-preset="<%= value %>" aria-label="<%= value %>" title="<%= value %>"></button><% } %></span></label>
-      <label>Units <select name="unitSystem"><option value="us"<% if (it.sharedDisplay.unitSystem === "us") { %> selected<% } %>>US customary</option><option value="metric"<% if (it.sharedDisplay.unitSystem === "metric") { %> selected<% } %>>Metric</option></select></label>
-      <label class="switch-field">Serving temperature <input class="switch-input" type="checkbox" name="showServingTemperature" value="true"<% if (it.sharedDisplay.showServingTemperature) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span><span class="switch-state"><%= it.sharedDisplay.showServingTemperature ? "Shown" : "Hidden" %></span></label>
-      <label>More than six Taps <select name="layoutMode"><option value="scroll"<% if (it.sharedDisplay.layoutMode === "scroll") { %> selected<% } %>>Responsive and scroll</option><option value="rotation"<% if (it.sharedDisplay.layoutMode === "rotation") { %> selected<% } %>>Automatic rotation</option></select></label>
-      <div class="form-actions"><button type="submit">Apply shared defaults</button><output class="autosave-status" data-autosave-status aria-live="polite">Apply to update shared defaults.</output></div>
-    </form>
-  </section>
-  <section class="admin-card display-preview-card" aria-labelledby="display-preview-heading"><div class="section-heading"><div><h2 id="display-preview-heading">Preview</h2><p class="muted">The same Tap card used by the public display.</p></div></div><div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.sharedDisplay.theme %>" data-preview-accent="<%= it.sharedDisplay.accent %>" data-preview-font="<%= it.sharedDisplay.font %>" data-preview-unit-system="<%= it.sharedDisplay.unitSystem %>" data-preview-show-serving-temperature="<%= it.sharedDisplay.showServingTemperature %>"><%~ include("/partials/tap-card", { tap: it.previewTap, sharedDisplay: { ...it.sharedDisplay, remainingMode: it.tapCardSettings?.remainingMode || "percent" }, previewMetricCatalog: it.previewMetricCatalog }) %></div></section>
-  <% if (it.tapCardSettings) { %><section class="admin-card" id="tap-card-settings" aria-labelledby="tap-card-settings-heading"><h2 id="tap-card-settings-heading">Tap-card metrics</h2><p>These defaults control what public cards show. A Tap can override metric visibility on its own detail page.</p><form class="display-settings-form" data-autosave="apply" data-autosave-resource="display:tap-card" action="/admin/display/tap-card" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="expectedRevision" value="<%= it.tapCardSettings.revision %>" /><fieldset><legend>Metrics shown</legend><div class="switch-grid"><% for (const metric of [["showAbv","ABV"],["showIbu","IBU"],["showOg","OG"],["showFg","FG"],["showSrm","SRM"]]) { %><label class="switch-field"><%= metric[1] %><input class="switch-input" type="checkbox" name="<%= metric[0] %>" value="true"<% if (it.tapCardSettings[metric[0]]) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label><% } %></div></fieldset><label>Remaining display <select name="remainingMode"><option value="percent"<% if (it.tapCardSettings.remainingMode === "percent") { %> selected<% } %>>% remaining</option><option value="pints"<% if (it.tapCardSettings.remainingMode === "pints") { %> selected<% } %>>Pints remaining</option><option value="pours"<% if (it.tapCardSettings.remainingMode === "pours") { %> selected<% } %>>Pours remaining</option><option value="volume"<% if (it.tapCardSettings.remainingMode === "volume") { %> selected<% } %>>Volume</option></select></label><button type="submit">Save Tap-card settings</button><output class="autosave-status" data-autosave-status aria-live="polite">Apply to update shared card defaults.</output></form></section><% } %>
+  <div class="display-editor">
+    <section class="admin-card display-preview-card display-editor__preview" aria-labelledby="display-preview-heading">
+      <div class="section-heading"><div><h2 id="display-preview-heading">Preview</h2><p class="muted">The same Tap card guests see on the public display.</p></div></div>
+      <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.sharedDisplay.theme %>" data-preview-accent="<%= it.sharedDisplay.accent %>" data-preview-font="<%= it.sharedDisplay.font %>" data-preview-unit-system="<%= it.sharedDisplay.unitSystem %>" data-preview-show-serving-temperature="<%= it.sharedDisplay.showServingTemperature %>">
+        <%~ include("/partials/tap-card", { tap: it.previewTap, sharedDisplay: { ...it.sharedDisplay, remainingMode: it.tapCardSettings?.remainingMode || "percent" }, previewMetricCatalog: it.previewMetricCatalog }) %>
+      </div>
+    </section>
+    <div class="display-editor__settings">
+      <section class="admin-card" aria-labelledby="default-theme-heading">
+        <h2 id="default-theme-heading">Look and feel</h2>
+        <form class="display-settings-form" data-shared-display-form action="/admin/display/shared" method="post">
+          <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+          <input type="hidden" name="expectedRevision" value="<%= it.sharedDisplay.revision %>" />
+          <label>Tapboard name <input name="tapboardName" value="<%= it.sharedDisplay.tapboardName %>" maxlength="80" required /></label>
+          <%~ include("/partials/display-theme-cards", { options: it.themeOptions, selected: it.sharedDisplay.theme }) %>
+          <%~ include("/partials/display-font-cards", { options: it.fontOptions, selected: it.sharedDisplay.font }) %>
+          <%~ include("/partials/display-accent-picker", { options: it.accentOptions, selected: it.sharedDisplay.accent }) %>
+          <label>More than six Taps <select name="layoutMode"><option value="scroll"<% if (it.sharedDisplay.layoutMode === "scroll") { %> selected<% } %>>Responsive and scroll</option><option value="rotation"<% if (it.sharedDisplay.layoutMode === "rotation") { %> selected<% } %>>Automatic rotation</option></select></label>
+          <p class="muted">Units and serving temperature are on the <a href="/admin/system#units-heading">System</a> page.</p>
+          <div class="form-actions"><button type="submit">Save Default Theme</button></div>
+        </form>
+      </section>
+      <% if (it.tapCardSettings) { %><section class="admin-card" id="tap-card-settings" aria-labelledby="tap-card-settings-heading"><h2 id="tap-card-settings-heading">Tap-card metrics</h2><p>These defaults control what public cards show. A Tap can override metric visibility on its own detail page.</p><form class="display-settings-form" action="/admin/display/tap-card" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="expectedRevision" value="<%= it.tapCardSettings.revision %>" /><fieldset><legend>Metrics shown</legend><div class="switch-grid"><% for (const metric of [["showAbv","ABV"],["showIbu","IBU"],["showOg","OG"],["showFg","FG"],["showSrm","SRM"]]) { %><label class="switch-field"><%= metric[1] %><input class="switch-input" type="checkbox" name="<%= metric[0] %>" value="true"<% if (it.tapCardSettings[metric[0]]) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label><% } %></div></fieldset><label>Remaining display <select name="remainingMode"><option value="percent"<% if (it.tapCardSettings.remainingMode === "percent") { %> selected<% } %>>% remaining</option><option value="pints"<% if (it.tapCardSettings.remainingMode === "pints") { %> selected<% } %>>Pints remaining</option><option value="pours"<% if (it.tapCardSettings.remainingMode === "pours") { %> selected<% } %>>Pours remaining</option><option value="volume"<% if (it.tapCardSettings.remainingMode === "volume") { %> selected<% } %>>Volume</option></select></label><button type="submit">Save Tap-card settings</button></form></section><% } %>
+    </div>
+  </div>
 </main>
 <script type="module" src="/assets/js/admin-display.js"></script>

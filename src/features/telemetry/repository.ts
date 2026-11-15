@@ -11,12 +11,6 @@ import type {
 /** Maximum rows removed per table by one bounded telemetry prune call. */
 export const TELEMETRY_PRUNE_BATCH_SIZE = 500;
 
-export interface TelemetrySourceSearchRow {
-  readonly id: string;
-  readonly name: string;
-  readonly disabled_at: string | null;
-}
-
 export const TELEMETRY_ADMIN_SOURCE_PAGE_SIZE = 25;
 
 function boundedTelemetryQuery(query: string): string {
@@ -84,36 +78,6 @@ export function listTelemetrySourcePage(
        LIMIT ? OFFSET ?`,
     )
     .all(...params);
-}
-
-/**
- * Return only the small source identity projection needed by authenticated
- * Admin navigation.  This intentionally never joins or returns machine-key
- * descriptors, telemetry payloads, or source history.
- */
-export function searchTelemetrySources(
-  database: DatabaseExecutor,
-  query: string,
-  limit = 20,
-): readonly TelemetrySourceSearchRow[] {
-  const boundedQuery = boundedTelemetryQuery(query);
-  const escaped = boundedQuery.replace(/[\\%_]/gu, (value) => `\\${value}`);
-  const pattern = `%${escaped}%`;
-  const boundedLimit = Math.max(1, Math.min(20, Math.trunc(limit)));
-  return database
-    .prepare<[string, string, string, number], TelemetrySourceSearchRow>(
-      `SELECT id, name, disabled_at
-       FROM telemetry_sources
-       WHERE LOWER(name) LIKE LOWER(?) ESCAPE '\\'
-          OR LOWER(id) LIKE LOWER(?) ESCAPE '\\'
-          OR LOWER(CASE WHEN disabled_at IS NULL THEN 'active' ELSE 'disabled' END)
-             LIKE LOWER(?) ESCAPE '\\'
-       ORDER BY CASE WHEN disabled_at IS NULL THEN 0 ELSE 1 END,
-                name COLLATE NOCASE ASC,
-                id ASC
-       LIMIT ?`,
-    )
-    .all(pattern, pattern, pattern, boundedLimit);
 }
 
 export function insertTelemetrySource(

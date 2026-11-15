@@ -26,10 +26,25 @@
           </tbody>
         </table>
       </div>
-      <div class="card-actions tap-assignment-actions">
-        <form action="/admin/taps/<%= it.tap.identity.id %>/unassign" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><button class="secondary button--small" type="submit">Unassign current Fill</button></form>
-        <% if (it.tap.moveTargets.length > 0) { %><form class="inline-form" action="/admin/taps/<%= it.tap.identity.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label>Move to <select name="targetTapId" required><% for (const target of it.tap.moveTargets) { %><option value="<%= target.id %>">Tap <%= target.tapNumber %><% if (target.name) { %> — <%= target.name %><% } %></option><% } %></select></label><button class="secondary button--small" type="submit">Move Fill</button></form><% } %>
-        <form action="/admin/fills/<%= it.tap.assignment.active.fillId %>/kick" method="post" data-confirm="Kick this Filled Keg? It will end the fill and close its active Tap assignment."><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label>Reason <input name="reason" maxlength="255" /></label><%~ include("/partials/kick-confirmation") %><button class="danger button--small" type="submit">Kick Keg</button></form>
+      <div class="tap-assignment-actions">
+        <% if (it.tap.moveTargets.length > 0) { %>
+          <form class="tap-assignment-action" action="/admin/taps/<%= it.tap.identity.id %>/move" method="post">
+            <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+            <input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
+            <div class="tap-assignment-action__copy"><label for="tap-move-target">Move to another tap</label><p class="muted">The Filled Keg keeps its pours and history.</p></div>
+            <div class="tap-assignment-action__controls">
+              <select id="tap-move-target" name="targetTapId" required><% for (const target of it.tap.moveTargets) { %><option value="<%= target.id %>">Tap <%= target.tapNumber %><% if (target.name) { %> — <%= target.name %><% } %></option><% } %></select>
+              <button class="secondary button--small" type="submit">Move</button>
+            </div>
+          </form>
+        <% } %>
+        <form class="tap-assignment-action" action="/admin/taps/<%= it.tap.identity.id %>/unassign" method="post">
+          <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+          <input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
+          <div class="tap-assignment-action__copy"><strong>Take off tap</strong><p class="muted">Returns the Filled Keg to the Keg Room as Available.</p></div>
+          <div class="tap-assignment-action__controls"><button class="secondary button--small" type="submit">Take off tap</button></div>
+        </form>
+        <%~ include("/partials/kick-keg-disclosure", { fillId: it.tap.assignment.active.fillId, csrfToken: it.page.csrfToken }) %>
       </div>
     <% } else if (it.tap.lifecycle.isRetired) { %>
       <p class="muted">Retired Taps cannot receive a new Fill assignment.</p>

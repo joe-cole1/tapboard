@@ -5,7 +5,7 @@ import { fillDeletionConfirmationLabel, type FillService } from "../../fills/ser
 import type { AdminFillPage, AdminFillView } from "../../fills/types.ts";
 import { kegDeletionConfirmationLabel, type KegService } from "../../kegs/service.ts";
 import type { AdminKegPage } from "../../kegs/types.ts";
-import { getVesselDescriptor } from "../../story/vessels.ts";
+import { beverageDisplayColor, getVesselDescriptor } from "../../story/vessels.ts";
 import {
   adminFillPageQueryFromRequest,
   adminKegPageQueryFromRequest,
@@ -24,11 +24,7 @@ import { renderAdmin } from "./layout.ts";
 import { capacityLabel, tareLabel } from "./presentation.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
 import { actor } from "./context.ts";
-import {
-  safeVesselForDisplay,
-  safeColorForDisplay,
-  boundedAdminString,
-} from "./beverage-presentation.ts";
+import { safeVesselForDisplay, boundedAdminString } from "./beverage-presentation.ts";
 import type {
   RegisterKegRoomPagesDependencies,
   RegisterKegRoomMutationsDependencies,
@@ -661,7 +657,6 @@ export function safeFillCard(
   const authoritativeTapId = fill.tapId ?? publicCard?.id ?? null;
   const authoritativeTapNumber = fill.tapNumber ?? publicCard?.tapNumber ?? null;
   const fillGlass = safeVesselForDisplay(fill.fillGlass);
-  const displayColor = safeColorForDisplay(fill.displayColor);
   const graphicId = fillGlass ?? "pint_glass";
   return {
     id: fill.id,
@@ -699,7 +694,11 @@ export function safeFillCard(
       daysRemaining,
     ),
     fillGlass: fillGlass ?? "pint_glass",
-    displayColor: displayColor ?? "#D97706",
+    displayColor: beverageDisplayColor({
+      displayColor: fill.displayColor,
+      srm: fill.srm,
+      beverageType: fill.beverageType,
+    }),
     featured: fill.featured === true,
     graphic: getVesselDescriptor(graphicId),
     updatedAt: fill.updatedAt,

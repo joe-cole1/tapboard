@@ -44,7 +44,7 @@ import type {
   MysteryVisibilityPolicy,
 } from "./types.ts";
 import { mysteryVisibilityPolicy } from "./visibility.ts";
-import { resolveDisplayColor, resolveVessel } from "./vessels.ts";
+import { beverageDisplayColor, resolveVessel } from "./vessels.ts";
 
 const MAX_SOURCE_SNAPSHOTS = 5;
 const DEFAULT_COLOR = "#D97706";
@@ -663,7 +663,6 @@ export class PublicStoryService {
     // Glass/color are explicit Mystery exemptions.  Their deterministic
     // output therefore still uses the effective style/SRM evidence even when
     // the corresponding text fields are hidden.
-    const srm = isBeerLike(presentation.beverageType) ? presentation.srm : null;
     const vessel = resolveVessel({
       fillGlass: presentation.fillGlass,
       style: presentation.style,
@@ -671,7 +670,7 @@ export class PublicStoryService {
     return {
       graphicId: vessel.id,
       graphic: vessel.geometry,
-      displayColor: resolveDisplayColor({ displayColor: presentation.displayColor }, srm),
+      displayColor: beverageDisplayColor(presentation),
     };
   }
 

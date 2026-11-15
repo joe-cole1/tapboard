@@ -607,3 +607,91 @@ void test("System in Simulation uses normal authentication policy and revokes no
   assert.equal(inputValue(normalPage, "absoluteMinutes"), "180");
   assert.equal(inputValue(normalPage, "expectedRevision"), "1");
 });
+
+function mainContent(html: string): string {
+  const main = /<main[\s\S]*?<\/main>/u.exec(html)?.[0];
+  assert.ok(main);
+  return main;
+}
+
+void test("System saves units and serving temperature without touching the default theme", async (context) => {
+  const f = await fixture(context);
+  const browser = await login(f);
+  const initial = await (await get(f, "/admin/system", browser)).text();
+  const expectedDisplayRevision = inputValue(initial, "expectedDisplayRevision");
+  const saved = await post(
+    f,
+    "/admin/system/units",
+    { expectedDisplayRevision, unitSystem: "metric", showServingTemperature: "true" },
+    browser,
+  );
+  assert.ok(location(saved).searchParams.has("notice"));
+  const refreshed = await (await get(f, "/admin/system", browser)).text();
+  assert.match(refreshed, /<option value="metric" selected>/u);
+  assert.match(refreshed, /name="showServingTemperature" value="true" checked/u);
+  const display = await (await get(f, "/admin/display", browser)).text();
+  assert.match(display, /<dt>Theme<\/dt><dd>Modern Dark<\/dd>/u);
+
+  // A stale revision is refused and keeps the saved values.
+  assertRejected(
+    await post(
+      f,
+      "/admin/system/units",
+      { expectedDisplayRevision, unitSystem: "us", showServingTemperature: "true" },
+      browser,
+    ),
+  );
+  assert.match(
+    await (await get(f, "/admin/system", browser)).text(),
+    /<option value="metric" selected>/u,
+  );
+});
+
+void test("Default theme saves a custom accent and leaves units to System", async (context) => {
+  const f = await fixture(context);
+  const browser = await login(f);
+  const system = await (await get(f, "/admin/system", browser)).text();
+  await post(
+    f,
+    "/admin/system/units",
+    {
+      expectedDisplayRevision: inputValue(system, "expectedDisplayRevision"),
+      unitSystem: "metric",
+    },
+    browser,
+  );
+
+  const page = await (await get(f, "/admin/display/shared", browser)).text();
+  // Every theme, font and accent choice is a real radio, so the page works without JavaScript.
+  assert.match(page, /type="radio" name="theme" value="warm_pub"/u);
+  assert.match(page, /type="radio" name="font" value="rye"/u);
+  assert.match(page, /type="radio" name="accent" value="custom"/u);
+  assert.doesNotMatch(mainContent(page), /type="button"/u);
+  assert.doesNotMatch(page, /name="unitSystem"/u);
+
+  const saved = await post(
+    f,
+    "/admin/display/shared",
+    {
+      expectedRevision: inputValue(page, "expectedRevision"),
+      tapboardName: "Tapboard",
+      theme: "warm_pub",
+      font: "rye",
+      accent: "custom",
+      accentCustom: "#3A7BD5",
+      layoutMode: "scroll",
+    },
+    browser,
+  );
+  const redirect = location(saved);
+  assert.equal(redirect.pathname, "/admin/display/shared");
+  assert.ok(redirect.searchParams.has("notice"));
+  const display = await (await get(f, "/admin/display", browser)).text();
+  assert.match(display, /<dt>Theme<\/dt><dd>Warm Pub<\/dd>/u);
+  assert.match(display, /<dt>Accent color<\/dt><dd>#3a7bd5<\/dd>/u);
+  assert.match(display, /<dt>Font<\/dt><dd>Rye<\/dd>/u);
+  assert.match(
+    await (await get(f, "/admin/system", browser)).text(),
+    /<option value="metric" selected>/u,
+  );
+});

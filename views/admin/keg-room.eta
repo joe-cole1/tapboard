@@ -45,7 +45,7 @@
                       <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="secondary button--small" name="direction" value="down" type="submit">Move down</button></form>
                     </div>
                   <% } else if (fill.state === "on_tap") { %>
-                    <details><summary>Kick Keg</summary><p class="muted">This ends the Filled Keg and closes its active Tap assignment.</p><form action="/admin/fills/<%= fill.id %>/kick" method="post" data-confirm="Kick this Filled Keg? It will end the fill and close its active Tap assignment."><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label>Reason <input name="reason" maxlength="255" /></label><%~ include("/partials/kick-confirmation") %><button class="danger button--small" type="submit">Kick Keg</button></form></details>
+                    <a class="button secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Open Filled Keg</a>
                   <% } else { %>
                     <a class="button secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">View Filled Keg</a>
                   <% } %>

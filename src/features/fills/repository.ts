@@ -41,6 +41,7 @@ export interface AdminFillProjectionRow {
   readonly beverage_abv: number | null;
   readonly fill_glass: string | null;
   readonly display_color: string | null;
+  readonly srm: number | null;
   readonly keg_id: string;
   readonly keg_number: number;
   readonly keg_label: string | null;
@@ -96,7 +97,12 @@ const ADMIN_FILL_PROJECTION_CTE = `
         WHEN b.ownership_type = 'custom' THEN cp.display_color
         WHEN po.override_display_color_present = 1 THEN po.display_color
         ELSE sp.display_color
-      END AS display_color
+      END AS display_color,
+      CASE
+        WHEN b.ownership_type = 'custom' THEN cp.srm
+        WHEN po.override_srm_present = 1 THEN po.srm
+        ELSE sp.srm
+      END AS srm
     FROM beverages b
     LEFT JOIN custom_beverage_profiles cp ON cp.beverage_id = b.id
     LEFT JOIN brewfather_source_profiles sp ON sp.beverage_id = b.id
@@ -118,6 +124,7 @@ const ADMIN_FILL_PROJECTION_CTE = `
       bp.beverage_abv,
       bp.fill_glass,
       bp.display_color,
+      bp.srm,
       f.keg_id,
       k.keg_number,
       k.label AS keg_label,
@@ -338,7 +345,7 @@ export function listAdminFillPage(
     .prepare<unknown[], AdminFillProjectionRow>(
       `${ADMIN_FILL_PROJECTION_CTE}
        SELECT id, beverage_id, beverage_name, beverage_type, beverage_style, beverage_abv,
-              fill_glass, display_color, keg_id, keg_number, keg_label, fill_date,
+              fill_glass, display_color, srm, keg_id, keg_number, keg_label, fill_date,
               on_deck_order, ended_at, end_reason, created_at, updated_at,
               tap_id, tap_number, state, featured
        FROM fill_projection

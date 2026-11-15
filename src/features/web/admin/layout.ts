@@ -10,7 +10,6 @@ export const ADMIN_NAV = [
     label: "Overview",
     href: "/admin/overview",
     group: "Overview",
-    mark: "O",
     activePaths: ["/admin/overview"],
   },
   {
@@ -18,7 +17,6 @@ export const ADMIN_NAV = [
     label: "Keg Room",
     href: "/admin/keg-room",
     group: "Manage",
-    mark: "K",
     activePaths: ["/admin/fills", "/admin/kegs", "/admin/keg-room"],
   },
   {
@@ -26,7 +24,6 @@ export const ADMIN_NAV = [
     label: "Taps",
     href: "/admin/taps",
     group: "Manage",
-    mark: "T",
     activePaths: ["/admin/taps"],
   },
   {
@@ -34,7 +31,6 @@ export const ADMIN_NAV = [
     label: "Beverages",
     href: "/admin/beverages",
     group: "Manage",
-    mark: "B",
     activePaths: ["/admin/beverages"],
   },
   {
@@ -42,7 +38,6 @@ export const ADMIN_NAV = [
     label: "Integrations",
     href: "/admin/integrations",
     group: "Configure",
-    mark: "I",
     activePaths: ["/admin/integrations"],
   },
   {
@@ -50,7 +45,6 @@ export const ADMIN_NAV = [
     label: "Display",
     href: "/admin/display",
     group: "Configure",
-    mark: "D",
     activePaths: ["/admin/display"],
   },
   {
@@ -58,7 +52,6 @@ export const ADMIN_NAV = [
     label: "Tap Wars",
     href: "/admin/tap-wars",
     group: "Manage",
-    mark: "W",
     activePaths: ["/admin/tap-wars"],
   },
   {
@@ -66,7 +59,6 @@ export const ADMIN_NAV = [
     label: "System",
     href: "/admin/system",
     group: "Future",
-    mark: "S",
     activePaths: ["/admin/system"],
   },
 ] as const;

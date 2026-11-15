@@ -23,6 +23,8 @@ export function registerTapWarsPages(dependencies: RegisterTapWarsPagesDependenc
       "/admin/tap-wars",
       {
         tapWars: adminTapWarsPageData(dependencies),
+        // The "What guests see" preview renders the public banner partial.
+        includeDashboardStyles: true,
       },
     );
   });

@@ -427,7 +427,7 @@
   grid-column: 1 / -1;
   grid-row: 1;
   display: grid;
-  grid-template-columns: auto auto minmax(12rem, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3) var(--space-4);
   min-width: 0;
@@ -467,22 +467,11 @@
 .admin-sidebar-close {
   display: none;
 }
-.admin-jump-form {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-.admin-jump-form input {
-  min-width: 0;
-  width: 100%;
-}
 .admin-exit {
   white-space: nowrap;
 }
 .admin-header__actions {
+  grid-column: 3;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -547,17 +536,6 @@
   box-shadow: inset 3px 0 0 var(--accent);
   font-weight: 750;
 }
-.admin-nav-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 1.65rem;
-  height: 1.65rem;
-  flex: 0 0 1.65rem;
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-caption);
-  font-weight: 800;
-}
 .admin-nav-label {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -601,36 +579,6 @@
 }
 .admin-shell > .admin-sidebar ~ .admin-breadcrumbs {
   display: flex;
-}
-.admin-shell[data-sidebar-collapsed="true"] {
-  grid-template-columns: 4.6rem minmax(0, 1fr);
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-sidebar {
-  padding-inline: var(--space-2);
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-nav-group h2,
-.admin-shell[data-sidebar-collapsed="true"] .admin-nav-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-nav-group a {
-  justify-content: center;
-  padding-inline: var(--space-1);
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-nav-group a[aria-current="page"] {
-  box-shadow: inset 0 -3px 0 var(--accent);
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-sidebar__controls {
-  justify-content: center;
-}
-.admin-shell[data-sidebar-collapsed="true"] .admin-sidebar-toggle {
-  padding-inline: var(--space-1-5);
-  overflow: hidden;
-  white-space: nowrap;
 }
 .page-header {
   display: grid;
@@ -870,9 +818,6 @@
 .keg-room-table__actions {
   min-width: 12rem;
 }
-.keg-room-table__actions details {
-  margin: 0;
-}
 /* Columns come from .config-grid, so the fields wrap instead of Apply covering Sort. */
 .keg-room-filter-form {
   max-width: none;
@@ -891,18 +836,55 @@
 .keg-inventory-table td:last-child {
   white-space: nowrap;
 }
+/* One labelled row per everyday action; Kick keg sits apart below a divider. */
 .tap-assignment-actions {
-  align-items: end;
+  display: grid;
+  margin-top: var(--space-4);
 }
-.tap-assignment-actions .inline-form {
+.tap-assignment-action {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  max-width: none;
+  margin: 0;
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.tap-assignment-action__copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.tap-assignment-action__copy label,
+.tap-assignment-action__copy strong {
+  font-weight: 700;
+}
+.tap-assignment-action__copy p {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.tap-assignment-action__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 }
-.tap-assignment-actions .inline-form label {
-  display: grid;
-  gap: var(--space-1-5);
+.tap-assignment-action__controls select {
+  width: auto;
+  min-width: 12rem;
+}
+.tap-assignment-actions .kick-disclosure {
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.kick-disclosure > summary strong {
+  color: var(--danger);
+}
+.kick-disclosure[open] > summary {
+  border-color: var(--danger);
 }
 .config-groups {
   display: grid;
@@ -928,8 +910,7 @@
   font-size: var(--text-small);
   line-height: 1.35;
 }
-.quick-actions ul,
-.jump-results {
+.quick-actions ul {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   gap: var(--space-2-5);
@@ -937,8 +918,7 @@
   padding: 0;
   list-style: none;
 }
-.quick-action,
-.jump-results a {
+.quick-action {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -949,19 +929,6 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   text-decoration: none;
-}
-.jump-page-form {
-  max-width: 38rem;
-}
-.jump-results a {
-  justify-content: flex-start;
-}
-.jump-results a > span:last-child {
-  display: grid;
-  gap: 0.15rem;
-}
-.jump-results small {
-  color: var(--muted);
 }
 .pin-indicators {
   display: none;
@@ -1041,17 +1008,6 @@
   .admin-shell {
     display: block;
   }
-  .admin-shell > .admin-header {
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
-  }
-  .admin-header .admin-jump-form {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-  .admin-header .admin-header__actions {
-    grid-column: 4;
-    grid-row: 1;
-  }
   .admin-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
@@ -1095,19 +1051,6 @@
   .admin-shell > .admin-sidebar ~ .admin-breadcrumbs {
     grid-column: 1 / -1;
   }
-  .admin-shell[data-sidebar-collapsed="true"] .admin-nav-group h2,
-  .admin-shell[data-sidebar-collapsed="true"] .admin-nav-label {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-  }
-  .admin-shell[data-sidebar-collapsed="true"] .admin-nav-group a {
-    justify-content: flex-start;
-    padding-inline: var(--space-2-5);
-  }
   .admin-breadcrumbs {
     padding-block: var(--space-3) var(--space-1-5);
   }
@@ -1126,6 +1069,16 @@
   }
 }
 @media (min-width: 60.0625rem) {
+  /* Collapsed hides the whole sidebar; the header Menu button brings it back. */
+  .admin-shell[data-sidebar-collapsed="true"] {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+  .admin-shell[data-sidebar-collapsed="true"] .admin-sidebar {
+    display: none;
+  }
+  .admin-shell[data-sidebar-collapsed="true"] .admin-menu-toggle:not([hidden]) {
+    display: block;
+  }
   .admin-menu-toggle[hidden] {
     display: none;
   }
@@ -1614,26 +1567,18 @@
 }
 .beverage-color-cue {
   display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  flex: 0 0 1rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 1.5rem;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: transparent;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--background) 35%, transparent);
 }
-.beverage-color-cue__fallback {
-  fill: var(--surface-raised);
-}
 .beverage-detail-header__title {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-.beverage-detail-header__title .beverage-color-cue {
-  width: 1.5rem;
-  height: 1.5rem;
-  flex-basis: 1.5rem;
 }
 
 .autosave-status {
@@ -1847,8 +1792,49 @@
   margin-block: var(--space-1-5) var(--space-3);
   overflow-wrap: anywhere;
 }
-.keg-room-card .key-value-list {
+/*
+ * Label/value list: muted labels in a narrow column, values beside them, one divider per row.
+ * Works with <div><dt/><dd/></div> rows and with bare dt/dd pairs; stacks on phones.
+ */
+.key-value-list {
+  display: grid;
+  grid-template-columns: fit-content(14rem) minmax(0, 1fr);
+  column-gap: var(--space-4);
   margin-block: var(--space-2) var(--space-4);
+}
+.key-value-list > div {
+  display: contents;
+}
+.key-value-list dt,
+.key-value-list dd {
+  margin: 0;
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.key-value-list dt {
+  color: var(--muted);
+}
+.key-value-list > div:first-child > *,
+.key-value-list > dt:first-child,
+.key-value-list > dt:first-child + dd {
+  border-top: 0;
+}
+@media (max-width: 30rem) {
+  .key-value-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .key-value-list dt {
+    padding-bottom: 0;
+  }
+  .key-value-list dd {
+    padding-top: var(--space-1);
+    border-top: 0;
+  }
+  .key-value-list > div:first-child > dt,
+  .key-value-list > dt:first-child {
+    padding-top: 0;
+  }
 }
 .keg-room-section {
   margin-block: var(--space-6);
@@ -1918,28 +1904,126 @@
 .display-settings-form > label > select {
   width: 100%;
 }
-.display-accent-picker-inline {
-  display: inline-flex;
-  margin-top: var(--space-1-5);
+/*
+ * Theme, font and accent choices are real radio buttons inside labels, so they work
+ * without JavaScript. The radio is visually hidden; its label shows the choice.
+ */
+.display-choice {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
-.display-accent-picker-inline input[type="color"] {
+.display-choice legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-weight: 650;
+}
+.display-choice__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
+}
+.display-theme-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: var(--space-2);
+}
+.display-theme-card,
+.display-font-preview {
+  position: relative;
+  display: grid;
+  gap: var(--space-1-5);
+  align-content: start;
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+.display-theme-card:hover,
+.display-font-preview:hover {
+  border-color: var(--muted);
+}
+.display-theme-card:has(:checked),
+.display-font-preview:has(:checked) {
+  border-color: var(--accent-strong);
+  box-shadow: inset 0 0 0 2px var(--accent-strong);
+}
+.display-theme-card:has(:focus-visible),
+.display-font-preview:has(:focus-visible),
+.display-accent-option:has(:focus-visible) .display-accent-swatch {
+  outline: 3px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+.display-theme-card__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: calc(var(--radius-sm) - 2px);
+}
+.display-theme-card__name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.display-theme-card--inherit {
+  place-content: center;
+  min-height: 5rem;
+}
+.display-font-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-2);
+}
+.display-font-preview {
+  gap: 0.15rem;
+  padding-inline: var(--space-3);
+}
+.display-accent-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.display-accent-option {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 3.5rem;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  cursor: pointer;
+}
+.display-accent-option:has(:checked) {
+  color: var(--text);
+  font-weight: 700;
+}
+.display-accent-option:has(:checked) .display-accent-swatch {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--text);
+}
+.display-accent-custom {
+  display: inline-flex !important;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+}
+.display-accent-custom input[type="color"] {
   width: 3.25rem;
   min-height: 2.5rem;
   padding: var(--space-1);
   cursor: pointer;
 }
-.display-font-previews {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: var(--space-2);
-}
-.display-font-preview {
-  display: grid;
-  gap: 0.15rem;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
+/* The colour input is only needed while Custom is chosen. */
+.display-accent-field:not(:has([data-accent-custom-choice]:checked)) .display-accent-custom {
+  display: none !important;
 }
 .display-font-preview span {
   font-size: var(--text-body);
@@ -1991,27 +2075,32 @@
   border-radius: var(--radius-sm);
   background: var(--background);
 }
-.display-accent-swatches {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1-5);
-  margin-top: var(--space-1-5);
-}
 .display-accent-swatch {
+  display: block;
   width: 2rem;
   height: 2rem;
-  padding: 0;
   border: 2px solid var(--border);
   border-radius: 50%;
-  cursor: pointer;
-}
-.display-accent-swatch:focus-visible {
-  outline: 3px solid var(--accent-strong);
-  outline-offset: 2px;
 }
 /* "theme" is not one colour: a split swatch stands for the selected theme's own accent. */
 .display-accent-swatch--theme {
   background: linear-gradient(135deg, var(--text) 50%, var(--surface-raised) 50%);
+}
+.display-accent-swatch--inherit {
+  border-style: dashed;
+  background: transparent;
+}
+.display-accent-swatch--custom {
+  background: conic-gradient(
+    #ef4444,
+    #f59e0b,
+    #eab308,
+    #22c55e,
+    #06b6d4,
+    #3b82f6,
+    #a855f7,
+    #ef4444
+  );
 }
 .display-accent-swatch--amber {
   background: #fbc02d;
@@ -2091,6 +2180,36 @@
 }
 .display-preview-card {
   overflow: hidden;
+}
+/* Default theme editor: preview first on narrow screens, a sticky right column on wide ones. */
+.display-editor {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+.display-editor__settings {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.display-editor .admin-card {
+  margin-block: 0;
+}
+/* Two columns only once the preview column can hold a full-size Tap card. */
+@media (min-width: 90rem) {
+  .display-editor {
+    grid-template-columns: minmax(0, 1fr) 30rem;
+  }
+  .display-editor__preview {
+    position: sticky;
+    top: var(--space-4);
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .display-editor__settings {
+    grid-column: 1;
+    grid-row: 1;
+  }
 }
 .display-preview {
   display: grid;
@@ -2242,20 +2361,29 @@
   font-size: var(--text-title);
   font-weight: 800;
 }
-.tap-wars-meter {
+.tap-wars-competitor__meter {
   height: 0.55rem;
   overflow: hidden;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--muted) 18%, var(--surface));
 }
-.tap-wars-meter svg {
+.tap-wars-competitor__meter svg {
   display: block;
   width: 100%;
   height: 100%;
 }
-.tap-wars-meter rect {
+.tap-wars-competitor__meter rect {
   fill: var(--accent);
   transition: width 0.2s ease;
+}
+/* "What guests see": the real public banner, in the public theme. */
+.tap-wars-guest-preview__frame {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--background);
+}
+.tap-wars-guest-preview__frame .tap-wars-banner {
+  margin: 0;
 }
 .tap-wars-totals {
   color: var(--muted);
@@ -2334,7 +2462,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tap-wars-meter rect {
+  .tap-wars-competitor__meter rect {
     transition: none;
   }
 }

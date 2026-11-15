@@ -1,4 +1,5 @@
 import { connect } from "/assets/js/sse.js";
+import { patchTapWarsBanner } from "/assets/js/tap-wars-banner.js";
 
 const root = document.querySelector("[data-admin-tap-wars]");
 
@@ -104,10 +105,17 @@ if (root) {
       }
       const next = await response.json();
       const nextSignature = `${next.current?.id ?? ""}:${next.current?.status ?? ""}:${next.published?.id ?? ""}`;
-      if (nextSignature !== currentSignature() || !patchCurrent(next.current, next.publicVisible)) {
+      // The guest preview renders server-side only when guests see a war; reload if that changed.
+      const guestBanner = root.querySelector("[data-tap-wars-guest-preview] [data-tap-wars]");
+      if (
+        nextSignature !== currentSignature() ||
+        Boolean(guestBanner) !== Boolean(next.publicVisible) ||
+        !patchCurrent(next.current, next.publicVisible)
+      ) {
         window.location.reload();
         return;
       }
+      if (guestBanner) patchTapWarsBanner(guestBanner, next.publicVisible);
       if (announced && status instanceof HTMLElement)
         status.textContent = "Tap War vote totals updated.";
     } catch {

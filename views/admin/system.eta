@@ -41,7 +41,18 @@
       </div>
       <button type="submit">Save calculation defaults</button>
     </form>
-    <p class="muted">Configure <a href="/admin/health">health and pour detection</a>, <a href="/admin/display/shared">shared display defaults</a>, and <a href="/admin/integrations">integrations</a> in their settings pages.</p>
+    <p class="muted">Configure <a href="/admin/health">health and pour detection</a>, the <a href="/admin/display/shared">default theme</a>, and <a href="/admin/integrations">integrations</a> in their settings pages.</p>
+  </section>
+  <section class="admin-card" aria-labelledby="units-heading">
+    <h2 id="units-heading">Units and readouts</h2>
+    <p>How public displays show volumes and temperatures. A browser can still choose its own units on <a href="/admin/display/this-display">This display</a>.</p>
+    <form action="/admin/system/units" method="post" class="stack-form">
+      <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+      <input type="hidden" name="expectedDisplayRevision" value="<%= it.system.display.revision %>" />
+      <label>Units <select name="unitSystem"><option value="us"<% if (it.system.display.unitSystem === "us") { %> selected<% } %>>US customary</option><option value="metric"<% if (it.system.display.unitSystem === "metric") { %> selected<% } %>>Metric</option></select></label>
+      <label class="switch-field">Serving temperature <input class="switch-input" type="checkbox" name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label>
+      <button type="submit">Save units</button>
+    </form>
   </section>
   <section class="admin-card" aria-labelledby="system-sessions-heading">
     <h2 id="system-sessions-heading">Admin sessions</h2>

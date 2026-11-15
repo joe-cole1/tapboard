@@ -939,9 +939,10 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(normalNamedTapDetailHtml, /href="\/admin\/keg-room\/fills\/fill-on-tap-qc"/);
   assert.match(normalNamedTapDetailHtml, /href="\/admin\/keg-room\/kegs\/keg-qc"/);
   assert.match(normalNamedTapDetailHtml, /Aug 2, 2026, 12:30 PM UTC/);
+  // Everyday actions come first; Kick keg sits apart, last.
   assert.ok(
-    normalNamedTapDetailHtml.indexOf("Unassign current Fill") <
-      normalNamedTapDetailHtml.indexOf("Kick Keg"),
+    normalNamedTapDetailHtml.indexOf("Take off tap") <
+      normalNamedTapDetailHtml.indexOf("Kick keg…"),
   );
   assert.match(
     normalNamedTapDetailHtml,
@@ -984,6 +985,8 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(canonicalKegRoom.status, 200);
   const kegRoomHtml = await canonicalKegRoom.text();
   assert.match(kegRoomHtml, /<h1>Keg Room<\/h1>/);
+  // Kicking needs the Filled Keg or Tap page; the Keg Room table only links there.
+  assert.doesNotMatch(kegRoomHtml, /\/kick"/);
   assert.match(kegRoomHtml, /href="\/admin\/keg-room\/fills\/new"[^>]*>Fill a Keg<\/a>/);
   assert.match(kegRoomHtml, /href="\/admin\/keg-room\/kegs"[^>]*>Physical Kegs<\/a>/);
   assert.match(kegRoomHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>View history<\/a>/);

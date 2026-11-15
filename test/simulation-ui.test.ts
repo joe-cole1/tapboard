@@ -161,7 +161,7 @@ void test("Simulator requires Admin auth and projects only the public control fi
   assert.equal(page.status, 200);
   assert.match(page.body, /SIMULATION/u);
   assert.match(page.body, /data-workspace-revision="1"/u);
-  assert.match(page.body, /aria-current="page"[^>]*><span[^>]*>S<\/span><span[^>]*>Simulator/u);
+  assert.match(page.body, /aria-current="page"[^>]*><span[^>]*>Simulator/u);
   assert.match(page.body, /&lt;script&gt;/u);
   assert.doesNotMatch(page.body, /<script>alert/u);
   assert.doesNotMatch(page.body, new RegExp(secret, "u"));
