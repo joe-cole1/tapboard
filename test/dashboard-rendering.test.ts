@@ -385,6 +385,44 @@ void test("public Tap Wars meters carry the split in SVG geometry, not inline st
   }
 });
 
+// One banner label's text, tags stripped: "Mystery Tap Tap 1 · 90%".
+function bannerLabel(html: string, side: number): string {
+  const start = html.indexOf(`data-tap-wars-label="${side}"`);
+  assert.ok(start > 0, `banner label ${side} renders`);
+  const end = html.indexOf("</em>", start);
+  return html
+    .slice(html.indexOf(">", start) + 1, end)
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+void test("the Tap Wars banner bar carries each side's title, tap and percentage inside it", () => {
+  for (const { votes, labels } of [
+    { votes: [9, 1], labels: ["Mystery Tap Tap 1 · 90%", "Public Porter Tap 3 · 10%"] },
+    { votes: [1, 0], labels: ["Mystery Tap Tap 1 · 100%", "Public Porter Tap 3 · 0%"] },
+    { votes: [1, 1], labels: ["Mystery Tap Tap 1 · 50%", "Public Porter Tap 3 · 50%"] },
+    { votes: [0, 0], labels: ["Mystery Tap Tap 1 · —", "Public Porter Tap 3 · —"] },
+  ] as const) {
+    const html = createRenderer().render("/public/dashboard", {
+      ...dashboard(splitWar(votes[0], votes[1])),
+    });
+    assertNoInlineStyles(html);
+    assert.deepEqual([bannerLabel(html, 1), bannerLabel(html, 2)], labels, votes.join("/"));
+    // The labels sit inside the role="img" bar, hidden from screen readers, which hear the
+    // split once through the bar's aria-label.
+    const meter = html.indexOf("data-tap-wars-meter ");
+    assert.ok(meter > 0 && meter < html.indexOf('data-tap-wars-label="1"'));
+    assert.ok(html.indexOf('data-tap-wars-label="2"') < html.indexOf("data-tap-wars-results"));
+    assert.match(html, /class="tap-wars-banner__labels" aria-hidden="true"/u);
+    assert.doesNotMatch(html, />vs</u);
+  }
+  // With no war, the labels still render empty so a live update can fill them in.
+  const none = createRenderer().render("/public/dashboard", { ...dashboard() });
+  assert.equal(bannerLabel(none, 1), "·");
+  assert.equal(bannerLabel(none, 2), "·");
+});
+
 void test("Admin Tap Wars meters carry each side's share in SVG geometry, not inline styles", () => {
   for (const { votes, widths } of SPLITS) {
     const split = tapWarPercentages(votes[0], votes[1]);
