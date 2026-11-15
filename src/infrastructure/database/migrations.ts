@@ -4254,18 +4254,18 @@ export function initializeSchema(
     throw incompatibleSchema("schema version is newer than this application supports");
   }
 
+  const canonicalPrefix = isCanonicalMigrationPrefix(migrations);
   if (userVersion === 0) {
     validateCleanVersionZero(database);
   } else {
     validateMigrationLedger(database, userVersion, migrations);
-    if (isCanonicalMigrationPrefix(migrations)) {
+    if (canonicalPrefix) {
       validateCanonicalSchemaAtVersion(database, userVersion);
     } else if (userVersion === FOUNDATION_SCHEMA_VERSION) {
       validateFoundationSchema(database);
     }
   }
 
-  const canonicalPrefix = isCanonicalMigrationPrefix(migrations);
   for (const migration of migrations.slice(userVersion)) {
     applyMigration(database, migration, canonicalPrefix);
   }
@@ -4276,106 +4276,7 @@ export function initializeSchema(
   }
   validateMigrationLedger(database, currentVersion, migrations);
 
-  if (
-    isCanonicalMigrationPrefix(migrations) &&
-    (currentVersion === SYSTEM_ADMINISTRATION_SCHEMA_VERSION ||
-      currentVersion === FLAVOR_PROFILE_SCHEMA_VERSION ||
-      currentVersion === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
-      currentVersion === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
-      currentVersion === DISPLAY_THEME_ACCENT_SCHEMA_VERSION)
-  ) {
+  if (canonicalPrefix) {
     validateCanonicalSchemaAtVersion(database, currentVersion);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === BUILTIN_SIMULATION_SCHEMA_VERSION
-  ) {
-    validateCanonicalSchemaAtVersion(database, currentVersion);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === FILL_CARD_BADGES_SCHEMA_VERSION
-  ) {
-    validateCanonicalSchemaAtVersion(database, currentVersion);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === OUTBOUND_DESTINATIONS_SCHEMA_VERSION
-  ) {
-    validateCanonicalSchemaAtVersion(database, currentVersion);
-  } else if (isCanonicalMigrationPrefix(migrations) && currentVersion === TAP_WARS_SCHEMA_VERSION) {
-    validateCanonicalSchemaAtVersion(database, currentVersion);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === DISPLAY_FONT_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateDisplayFontLifecycleSchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateTelemetryDisabledLifecycleSchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === DISPLAY_CUSTOM_ACCENT_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateDisplayCustomAccentSchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === TAP_CARD_DISPLAY_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateTapCardDisplaySchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === BREW_STORY_SENSORY_MYSTERY_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateBrewStorySensoryMysterySchema(database);
-  } else if (isCanonicalMigrationPrefix(migrations) && currentVersion === DISPLAY_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateDisplaySchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === HEALTH_MAINTENANCE_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateHealthMaintenanceSchema(database);
-  } else if (
-    isCanonicalMigrationPrefix(migrations) &&
-    currentVersion === FORECASTING_SCHEMA_VERSION
-  ) {
-    validateFoundationLedgerStructure(database);
-    validateForecastingSchema(database);
-  } else if (currentVersion === TELEMETRY_EPOCHS_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateTelemetryEpochsSchema(database);
-  } else if (currentVersion === FORENSIC_QC_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateTelemetrySchema(database);
-  } else if (currentVersion === TELEMETRY_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateTelemetryV7Schema(database);
-  } else if (currentVersion === TAPS_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateTapsSchema(database);
-  } else if (currentVersion === FILLS_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateFillsSchema(database);
-  } else if (currentVersion === BEVERAGES_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateBeveragesSchema(database);
-  } else if (currentVersion === PHYSICAL_KEGS_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validatePhysicalKegsSchema(database);
-  } else if (currentVersion === SECURITY_ACTIVITY_OUTBOX_SCHEMA_VERSION) {
-    validateFoundationLedgerStructure(database);
-    validateSecurityActivityOutboxSchema(database);
-  } else if (currentVersion === FOUNDATION_SCHEMA_VERSION) {
-    validateFoundationSchema(database);
-  }
-
-  if (isCanonicalMigrationPrefix(migrations)) {
-    validateRequiredCanonicalState(database, currentVersion);
   }
 }
