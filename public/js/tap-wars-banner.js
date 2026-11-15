@@ -89,6 +89,7 @@ export function patchTapWarsBanner(banner, war) {
   setText(banner.querySelector("[data-tap-wars-message]"), war.statusLabel);
   for (const side of [war.side1, war.side2]) {
     setText(banner.querySelector(`[data-tap-wars-side="${side.side}"]`), side.title);
+    setText(banner.querySelector(`[data-tap-wars-tap="${side.side}"]`), `Tap ${side.tapNumber}`);
     setText(
       banner.querySelector(`[data-tap-wars-percent="${side.side}"]`),
       side.percentage === null ? "—" : `${side.percentage}%`,

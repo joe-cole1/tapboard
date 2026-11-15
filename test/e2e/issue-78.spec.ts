@@ -128,16 +128,38 @@ test("Tap Wars votes live-update stable cards, pause safely, and publish a froze
     await page.setViewportSize(viewport);
     const geometry = await banner.evaluate((node) => {
       const bounds = node.getBoundingClientRect();
+      const bar = node.querySelector("[data-tap-wars-meter]")?.getBoundingClientRect();
+      const labels = [...node.querySelectorAll("[data-tap-wars-label]")].map((label) =>
+        label.getBoundingClientRect(),
+      );
+      const [first, second] = labels;
       return {
         overflow: node.scrollWidth > node.clientWidth + 1,
         left: bounds.left,
         right: bounds.right,
+        labelsInsideBar:
+          bar !== undefined &&
+          labels.length === 2 &&
+          labels.every(
+            (label) =>
+              label.width > 0 &&
+              label.left >= bar.left - 1 &&
+              label.right <= bar.right + 1 &&
+              label.top >= bar.top - 1 &&
+              label.bottom <= bar.bottom + 1,
+          ),
+        labelsApart: first !== undefined && second !== undefined && first.right <= second.left + 1,
       };
     });
     expect(geometry.overflow).toBe(false);
     expect(geometry.left).toBeGreaterThanOrEqual(-1);
     expect(geometry.right).toBeLessThanOrEqual(viewport.width + 1);
+    // Each side's name and percentage sit inside the bar, one at each end, without overlapping.
+    expect(geometry.labelsInsideBar).toBe(true);
+    expect(geometry.labelsApart).toBe(true);
   }
+  await expect(banner.locator('[data-tap-wars-label="1"]')).toContainText(war.side1.title);
+  await expect(banner.locator('[data-tap-wars-label="2"]')).toContainText("—");
   await page.setViewportSize({ width: 1280, height: 720 });
   const order = await page
     .locator("[data-tap-grid] > [data-tap-id]")

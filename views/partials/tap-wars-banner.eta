@@ -16,10 +16,10 @@
     <strong id="tap-wars-headline" data-tap-wars-status><%= headline %></strong>
     <span data-tap-wars-message><%= war ? war.statusLabel : "" %></span>
   </div>
-  <div class="tap-wars-banner__matchup">
-    <div class="tap-wars-banner__label-block"><div class="tap-wars-banner__names"><b data-tap-wars-side="1"><%= war?.side1?.title || "" %></b><span aria-hidden="true">vs</span><b data-tap-wars-side="2"><%= war?.side2?.title || "" %></b></div><div class="tap-wars-banner__percentages" aria-hidden="true"><em data-tap-wars-percent="1"><%= war ? (noVotes ? "—" : percent(war.side1)) : "" %></em><span>–</span><em data-tap-wars-percent="2"><%= war ? (noVotes ? "—" : percent(war.side2)) : "" %></em></div></div>
-    <div class="tap-wars-meter<% if (noVotes) { %> is-neutral<% } %>" role="img" data-tap-wars-meter aria-label="<%= meterLabel %>">
-      <svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect data-tap-wars-meter-side="1" x="0" y="0" width="<%= width1 %>" height="10" /><rect data-tap-wars-meter-side="2" x="<%= width1 %>" y="0" width="<%= width2 %>" height="10" /><line data-tap-wars-meter-divider x1="<%= width1 %>" y1="0" x2="<%= width1 %>" y2="10" visibility="<%= divider %>" /></svg>
+  <div class="tap-wars-meter tap-wars-banner__meter<% if (noVotes) { %> is-neutral<% } %>" role="img" data-tap-wars-meter aria-label="<%= meterLabel %>">
+    <svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect data-tap-wars-meter-side="1" x="0" y="0" width="<%= width1 %>" height="10" /><rect data-tap-wars-meter-side="2" x="<%= width1 %>" y="0" width="<%= width2 %>" height="10" /><line data-tap-wars-meter-divider x1="<%= width1 %>" y1="0" x2="<%= width1 %>" y2="10" visibility="<%= divider %>" /></svg>
+    <div class="tap-wars-banner__labels" aria-hidden="true">
+      <% for (const n of [1, 2]) { const side = war?.["side" + n]; %><span class="tap-wars-banner__label" data-tap-wars-label="<%= n %>"><b class="tap-wars-banner__title" data-tap-wars-side="<%= n %>"><%= side?.title || "" %></b><b class="tap-wars-banner__tap" data-tap-wars-tap="<%= n %>"><%= side ? "Tap " + side.tapNumber : "" %></b><span>·</span><em data-tap-wars-percent="<%= n %>"><%= side ? (noVotes ? "—" : percent(side)) : "" %></em></span><% } %>
     </div>
   </div>
   <button type="button" class="secondary tap-wars-banner__results" data-tap-wars-results aria-haspopup="dialog">View results</button>
