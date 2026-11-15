@@ -892,4 +892,23 @@ export function resolveDisplayColor(input: unknown, srmValue?: unknown): string 
   return displayColorForSrm(srm) ?? SAFE_DISPLAY_COLOR;
 }
 
+/**
+ * The colour every surface (public card and Admin previews) shows for a
+ * beverage: an explicit #RRGGBB wins, otherwise a beer's SRM, otherwise the
+ * safe default. SRM only describes beer, so other types never use it.
+ */
+export function beverageDisplayColor(presentation: {
+  readonly displayColor: unknown;
+  readonly srm: unknown;
+  readonly beverageType: unknown;
+}): string {
+  const isBeer =
+    typeof presentation.beverageType === "string" &&
+    presentation.beverageType.trim().toLowerCase() === "beer";
+  return resolveDisplayColor(
+    { displayColor: presentation.displayColor },
+    isBeer ? presentation.srm : null,
+  );
+}
+
 export { VESSEL_IDS };

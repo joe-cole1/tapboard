@@ -1,5 +1,5 @@
 import { VESSEL_IDS } from "../../story/index.ts";
-import { getVesselDescriptor } from "../../story/vessels.ts";
+import { beverageDisplayColor, getVesselDescriptor } from "../../story/vessels.ts";
 import {
   BEVERAGE_SENSORY_AXES,
   BEVERAGE_SENSORY_CANONICAL_MAX,
@@ -373,7 +373,7 @@ export function adminBeverageListItem(item: BeverageListRecord): Record<string, 
     beverageType: item.effectivePresentation.beverageType,
     style: item.effectivePresentation.style,
     abv: item.effectivePresentation.abv,
-    displayColor: safeColorForDisplay(item.effectivePresentation.displayColor),
+    displayColor: beverageDisplayColor(item.effectivePresentation),
     fillGlass: fillGlass === null ? null : vesselDisplayName(fillGlass),
     graphic: getVesselDescriptor(fillGlass ?? "pint_glass"),
     fillPercent: 100,
@@ -457,6 +457,7 @@ export function adminBeverageDetailDto(
     fg: effective.fg,
     srm: effective.srm,
     displayColor: safeColorForDisplay(effective.displayColor),
+    resolvedColor: beverageDisplayColor(effective),
     description: effective.description,
     fillGlass: safeVesselForDisplay(effective.fillGlass),
     manualDensityOverride: effective.manualDensityOverride,

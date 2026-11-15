@@ -1,10 +1,9 @@
 import { sendJson } from "../../../infrastructure/http/error-mapper.ts";
-import { searchAdminDestinations } from "../admin-search.ts";
 import { registerAdminGet } from "./http.ts";
 import { isActionableHealth } from "./presentation.ts";
-import { renderAdmin, adminNavItems } from "./layout.ts";
+import { renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier, healthCheckPresentation } from "./detector-presentation.ts";
-import { requestUrl, adminContext } from "./context.ts";
+import { adminContext } from "./context.ts";
 import type {
   RegisterOverviewPagesDependencies,
   RegisterAdminEventRoutesDependencies,
@@ -98,24 +97,6 @@ export function registerOverviewPages(dependencies: RegisterOverviewPagesDepende
         ],
       },
     );
-  });
-
-  registerAdminGet(dependencies, "/admin/jump", (request, response, context) => {
-    const rawQuery = requestUrl(request).searchParams.get("q") ?? "";
-    const jump = searchAdminDestinations({
-      query: rawQuery,
-      destinations: adminNavItems(),
-      services: {
-        taps: dependencies.tapService,
-        beverages: dependencies.beverageService,
-        fills: dependencies.fillService,
-        kegs: dependencies.kegService,
-        telemetry: dependencies.telemetryService,
-      },
-    });
-    renderAdmin(dependencies, response, request, context, "/admin/jump", "Jump", "/admin/jump", {
-      jump,
-    });
   });
 }
 

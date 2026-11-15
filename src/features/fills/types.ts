@@ -61,6 +61,7 @@ export interface AdminFillView {
   /** Safe admin-only presentation fields for the Keg Room card projection. */
   readonly fillGlass?: string | null;
   readonly displayColor?: string | null;
+  readonly srm?: number | null;
   readonly kegId: string;
   readonly kegNumber: number;
   readonly kegLabel: string | null;

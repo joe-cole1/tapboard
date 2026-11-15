@@ -373,7 +373,7 @@ Ephemeral, mutating smoke: use a disposable database and disposable Tap to exerc
 
 The initial public response contains the header, every enabled Tap card in Tap-number order, the reserved hidden Tap Wars slot, and the authoritative On Deck footer. Public refresh endpoints expose purpose-built projections only. Named SSE events carry dirty-target identifiers, not state snapshots; blocked clients have bounded coalesced queues and reconnect through a page-scoped authoritative reconciliation that patches surviving cards in place.
 
-Shared display defaults flow into sparse, strictly validated browser-local overrides stored at `tapboard.v2.display-preferences.v1` with record version `1`. A synchronous external head script applies allowlisted values before CSS to prevent theme flash. Storage failures and malformed values fall back to shared defaults, while the browser `storage` event synchronizes peer tabs.
+The Admin **Default theme** page (Display → Default theme) sets the name, theme, font, accent color and layout every display uses; **System → Units and readouts** sets units and serving temperature. Both write the same shared display settings. They flow into sparse, strictly validated browser-local overrides (Display → This display) stored at `tapboard.v2.display-preferences.v1` with record version `1`. A synchronous external head script applies allowlisted values before CSS to prevent theme flash. Storage failures and malformed values fall back to shared defaults, while the browser `storage` event synchronizes peer tabs.
 
 ### MANUAL DEV TEST — Issue #76
 

@@ -1,0 +1,31 @@
+<%
+  // it.options: ThemeCardOption[] (display-options.ts); it.selected: theme or "";
+  // it.inherit: add a "Use default" choice (This display).
+%>
+<fieldset class="display-choice">
+  <legend>Theme</legend>
+  <div class="display-theme-cards">
+    <% if (it.inherit) { %>
+      <label class="display-theme-card display-theme-card--inherit">
+        <input class="display-choice__input" type="radio" name="theme" value=""<% if (!it.selected) { %> checked<% } %> />
+        <span class="display-theme-card__name">Use default</span>
+      </label>
+    <% } %>
+    <% for (const option of it.options) { const width = 120 / option.scenes.length; %>
+      <label class="display-theme-card">
+        <input class="display-choice__input" type="radio" name="theme" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
+        <svg class="display-theme-card__art" viewBox="0 0 120 72" aria-hidden="true" focusable="false">
+          <% option.scenes.forEach((scene, index) => { const x = index * width; const inner = width - 36; %>
+            <rect x="<%= x %>" y="0" width="<%= width %>" height="72" fill="<%= scene.background %>" />
+            <rect x="<%= x + 10 %>" y="12" width="<%= width - 20 %>" height="48" rx="5" fill="<%= scene.surface %>" stroke="<%= scene.border %>" />
+            <rect x="<%= x + 18 %>" y="21" width="<%= inner * 0.7 %>" height="6" rx="3" fill="<%= scene.text %>" />
+            <rect x="<%= x + 18 %>" y="32" width="<%= inner * 0.4 %>" height="4" rx="2" fill="<%= scene.muted %>" />
+            <rect x="<%= x + 18 %>" y="44" width="<%= inner %>" height="6" rx="3" fill="<%= scene.secondary %>" opacity="0.35" />
+            <rect x="<%= x + 18 %>" y="44" width="<%= inner * 0.62 %>" height="6" rx="3" fill="<%= scene.accent %>" />
+          <% }) %>
+        </svg>
+        <span class="display-theme-card__name display-font-preview--<%= option.font %>"><%= option.label %></span>
+      </label>
+    <% } %>
+  </div>
+</fieldset>

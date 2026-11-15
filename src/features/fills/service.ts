@@ -145,6 +145,7 @@ export class FillService {
     readonly abv: number | null;
     readonly fillGlass: string | null;
     readonly displayColor: string | null;
+    readonly srm: number | null;
   } {
     const beverage = readBeverage(this.#database, beverageId);
     if (!beverage) {
@@ -155,6 +156,7 @@ export class FillService {
         abv: null,
         fillGlass: null,
         displayColor: null,
+        srm: null,
       };
     }
 
@@ -169,6 +171,7 @@ export class FillService {
           abv: pres.abv,
           fillGlass: pres.fillGlass,
           displayColor: pres.displayColor,
+          srm: pres.srm,
         };
       }
     } else {
@@ -183,6 +186,7 @@ export class FillService {
           abv: pres.abv,
           fillGlass: pres.fillGlass,
           displayColor: pres.displayColor,
+          srm: pres.srm,
         };
       }
     }
@@ -194,6 +198,7 @@ export class FillService {
       abv: null,
       fillGlass: null,
       displayColor: null,
+      srm: null,
     };
   }
 
@@ -216,6 +221,7 @@ export class FillService {
       beverageAbv: beveragePres.abv,
       fillGlass: beveragePres.fillGlass,
       displayColor: beveragePres.displayColor,
+      srm: beveragePres.srm,
       kegId: fill.kegId,
       kegNumber: keg ? keg.kegNumber : 0,
       kegLabel: keg ? keg.label : null,
@@ -240,6 +246,7 @@ export class FillService {
       beverageAbv: row.beverage_abv,
       fillGlass: row.fill_glass,
       displayColor: row.display_color,
+      srm: row.srm,
       kegId: row.keg_id,
       kegNumber: row.keg_number,
       kegLabel: row.keg_label,

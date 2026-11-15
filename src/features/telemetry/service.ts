@@ -44,7 +44,6 @@ import {
   readTelemetrySourceByCurrentMachineKeyId,
   readTelemetrySourceById,
   readTelemetrySourceByName,
-  searchTelemetrySources,
   updateTelemetrySettings,
   updateTelemetrySourceCurrentMachineKey,
   updateTelemetrySourceName,
@@ -485,22 +484,6 @@ export class TelemetryService {
 
   listActiveSources(): readonly TelemetrySourceWithKeyDetails[] {
     return this.listSourceRows(listActiveTelemetrySources(this.database));
-  }
-
-  /**
-   * Return a bounded, identity-only projection for authenticated Admin
-   * navigation.  Key descriptors and telemetry data are intentionally not
-   * resolved for this path.
-   */
-  searchAdminSources(
-    query: string,
-    limit = 20,
-  ): readonly { readonly id: string; readonly name: string; readonly disabledAt: string | null }[] {
-    return searchTelemetrySources(this.database, query, limit).map((row) => ({
-      id: row.id,
-      name: row.name,
-      disabledAt: row.disabled_at,
-    }));
   }
 
   listAdminSourcePage(query: TelemetryAdminSourcePageQuery = {}): TelemetryAdminSourcePage {

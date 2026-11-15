@@ -208,7 +208,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
 };
 
 /** "auto" follows the device light or dark setting using two named themes. */
-const AUTO_THEME = { dark: "modern_dark", light: "light_minimal" } as const;
+export const AUTO_THEME = { dark: "modern_dark", light: "light_minimal" } as const;
 
 /** Admin follows the device light or dark setting, independent of the public theme. */
 const ADMIN_PALETTES: Readonly<Record<"dark" | "light", DisplayPalette>> = {

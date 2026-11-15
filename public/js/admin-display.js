@@ -12,110 +12,45 @@ const form = document.querySelector("[data-display-preferences]");
 const status = document.querySelector("[data-display-preference-status]");
 const sharedForm = document.querySelector("[data-shared-display-form]");
 const preview = document.querySelector("[data-display-preview], .display-preview");
-const labels = {
-  theme: "Theme",
-  font: "Font",
-  accent: "Accent",
-  unitSystem: "Unit system",
-  showServingTemperature: "Serving temperature",
-  layoutMode: "Layout",
-};
-const humanize = (value) =>
-  value.replaceAll("_", " ").replace(/\b\w/gu, (letter) => letter.toUpperCase());
+const CUSTOM_ACCENT = /^#[0-9a-f]{6}$/u;
 
 function setStatus(message) {
   if (status) status.textContent = message;
 }
 
-function accentHex(value) {
-  const named = {
-    amber: "#fbc02d",
-    sky: "#38bdf8",
-    rose: "#fb7185",
-    cyan: "#00f0ff",
-    tan: "#c5a880",
-    orange: "#d97706",
-    blue: "#2563eb",
-  };
-  return /^#[0-9a-f]{6}$/u.test(value) ? value : (named[value] ?? "#fbc02d");
+/** The accent a form chooses: a named accent, the custom colour, or "" (use default). */
+function chosenAccent(target) {
+  const data = new FormData(target);
+  const accent = String(data.get("accent") ?? "");
+  return accent === "custom" ? String(data.get("accentCustom") ?? "").toLowerCase() : accent;
 }
 
-function addAccentPicker(target, name, value) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "display-accent-picker";
-  const text = document.createElement("input");
-  text.type = "text";
-  text.name = name;
-  text.value = value;
-  text.pattern = "#[0-9a-f]{6}|theme|amber|sky|rose|cyan|tan|orange|blue";
-  text.maxLength = 7;
-  text.autocomplete = "off";
-  text.dataset.accentValue = "true";
-  const color = document.createElement("input");
-  color.type = "color";
-  color.value = accentHex(value);
-  color.title = "Choose a custom accent color";
-  color.setAttribute("aria-label", "Custom accent color");
-  color.dataset.accentColor = "true";
-  const swatches = document.createElement("div");
-  swatches.className = "display-accent-swatches";
-  for (const option of fields.accent) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `display-accent-swatch display-accent-swatch--${option}`;
-    button.dataset.accentPreset = option;
-    button.title = humanize(option);
-    button.setAttribute("aria-label", humanize(option));
-    button.addEventListener("click", () => {
-      text.value = option;
-      color.value = accentHex(option);
-      text.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    swatches.append(button);
-  }
+// Picking a custom colour selects the Custom choice next to it.
+for (const color of document.querySelectorAll("[data-accent-custom-color]")) {
   color.addEventListener("input", () => {
-    text.value = color.value.toLowerCase();
-    text.dispatchEvent(new Event("change", { bubbles: true }));
+    const choice = color.closest("fieldset")?.querySelector("[data-accent-custom-choice]");
+    if (choice instanceof HTMLInputElement && !choice.checked) {
+      choice.checked = true;
+      choice.dispatchEvent(new Event("change", { bubbles: true }));
+    }
   });
-  text.addEventListener("change", () => {
-    const valueNow = text.value.trim().toLowerCase();
-    if (/^#[0-9a-f]{6}$/u.test(valueNow) || fields.accent.includes(valueNow))
-      color.value = accentHex(valueNow);
-  });
-  wrapper.append(text, color, swatches);
-  target.append(wrapper);
 }
 
 function syncPreviewFromForm() {
   if (!(sharedForm instanceof HTMLFormElement)) return;
   const data = new FormData(sharedForm);
-  const values = {
-    theme: String(data.get("theme") ?? "modern_dark"),
-    accent: String(data.get("accent") ?? "amber"),
-    font: "all",
-  };
+  const theme = String(data.get("theme") ?? "modern_dark");
+  const accent = chosenAccent(sharedForm);
+  const font = String(data.get("font") ?? "system");
   if (preview instanceof HTMLElement) {
-    preview.dataset.previewTheme = values.theme;
-    preview.dataset.previewAccent = values.accent;
-    preview.dataset.previewFont = String(data.get("font") ?? "system");
+    preview.dataset.previewTheme = theme;
+    preview.dataset.previewAccent = accent;
+    preview.dataset.previewFont = font;
   }
-  syncStylesheet(values);
+  syncStylesheet({ theme, accent, font: "all" });
 }
 
 if (sharedForm instanceof HTMLFormElement) {
-  const accent = sharedForm.querySelector('[name="accent"]');
-  const color = sharedForm.querySelector("[data-accent-color]");
-  if (accent instanceof HTMLInputElement && color instanceof HTMLInputElement) {
-    color.value = accentHex(accent.value);
-    for (const button of sharedForm.querySelectorAll("[data-accent-preset]")) {
-      button.addEventListener("click", () => {
-        const value = button.getAttribute("data-accent-preset") ?? "amber";
-        accent.value = value;
-        color.value = accentHex(value);
-        syncPreviewFromForm();
-      });
-    }
-  }
   sharedForm.addEventListener("input", syncPreviewFromForm);
   sharedForm.addEventListener("change", syncPreviewFromForm);
   syncPreviewFromForm();
@@ -126,17 +61,30 @@ function readFormOverrides() {
   const data = new FormData(form);
   const overrides = {};
   for (const [name, contract] of Object.entries(fields)) {
-    if (contract === "boolean") {
-      const control = form.querySelector(`[name="${name}"]`);
-      if (control instanceof HTMLInputElement && !control.indeterminate)
-        overrides[name] = control.checked;
-      continue;
-    }
-    const value = data.get(name);
-    if (value === null || value === "") continue;
-    overrides[name] = contract === "boolean" ? value === "true" : String(value);
+    const value = name === "accent" ? chosenAccent(form) : String(data.get(name) ?? "");
+    if (value === "") continue;
+    overrides[name] = contract === "boolean" ? value === "true" : value;
   }
   return overrides;
+}
+
+/** Check the controls that match this browser's stored overrides ("" means use default). */
+function showOverrides(current) {
+  if (!(form instanceof HTMLFormElement)) return;
+  for (const name of Object.keys(fields)) {
+    let value = current[name] === undefined ? "" : String(current[name]);
+    if (name === "accent" && CUSTOM_ACCENT.test(value)) {
+      const color = form.querySelector("[data-accent-custom-color]");
+      if (color instanceof HTMLInputElement) color.value = value;
+      value = "custom";
+    }
+    // Radios are checked one by one: a radio group's value setter ignores "" (Use default).
+    for (const control of form.querySelectorAll(`[name="${name}"]`)) {
+      if (control instanceof HTMLInputElement && control.type === "radio")
+        control.checked = control.value === value;
+      else if ("value" in control) control.value = value;
+    }
+  }
 }
 
 function commitLocal() {
@@ -154,58 +102,21 @@ function commitLocal() {
 }
 
 if (form instanceof HTMLFormElement) {
-  const current = read();
-  for (const [name, contract] of Object.entries(fields)) {
-    const label = document.createElement("label");
-    label.textContent = labels[name] ?? name;
-    if (name === "accent") {
-      addAccentPicker(label, name, current[name] ?? "");
-    } else if (contract === "boolean") {
-      const switchLabel = document.createElement("span");
-      switchLabel.className = "switch-control";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.name = name;
-      checkbox.value = "true";
-      checkbox.checked = current[name] === true;
-      checkbox.indeterminate = current[name] === undefined;
-      checkbox.dataset.inherit = "true";
-      switchLabel.append(checkbox, document.createElement("span"));
-      label.append(switchLabel);
-      checkbox.addEventListener("change", () => {
-        checkbox.indeterminate = false;
-        commitLocal();
-      });
-    } else {
-      const select = document.createElement("select");
-      select.name = name;
-      select.add(new Option("Inherit shared default", ""));
-      for (const option of contract) select.add(new Option(humanize(option), option));
-      select.value = current[name] === undefined ? "" : String(current[name]);
-      label.append(select);
-      select.addEventListener("change", commitLocal);
-    }
-    form.append(label);
-  }
+  showOverrides(read());
+  // The controls only work with JavaScript (they write browser storage), so they stay
+  // hidden until this script runs.
+  form.hidden = false;
+  form.addEventListener("change", commitLocal);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     commitLocal();
   });
-  form.querySelector('[name="accent"]')?.addEventListener("change", commitLocal);
 }
 
 document.querySelector("[data-reset-preferences]")?.addEventListener("click", () => {
   reset();
-  if (form instanceof HTMLFormElement) {
-    for (const control of form.querySelectorAll("select")) control.value = "";
-    for (const control of form.querySelectorAll('input[type="checkbox"]')) {
-      control.checked = false;
-      control.indeterminate = true;
-    }
-    const accent = form.querySelector('[name="accent"]');
-    if (accent instanceof HTMLInputElement) accent.value = "";
-  }
-  setStatus("This display now inherits all shared defaults.");
+  showOverrides({});
+  setStatus("This display now uses the default theme.");
 });
 
 const metricNames = {
@@ -260,32 +171,18 @@ function syncTapCardPreview() {
       metrics.hidden = rows.length === 0;
     }
   }
-  const shared = document.querySelector("[data-shared-display-form]");
+  // Units and serving temperature are set on the System page; the preview frame
+  // carries their saved values.
+  const previewUnit =
+    preview instanceof HTMLElement ? preview.dataset.previewUnitSystem : undefined;
+  const previewShowsTemperature =
+    preview instanceof HTMLElement
+      ? preview.dataset.previewShowServingTemperature !== "false"
+      : true;
   const remaining =
     metricForm instanceof HTMLFormElement
       ? metricForm.querySelector('[name="remainingMode"]')
       : null;
-  const unit = shared?.querySelector('[name="unitSystem"]');
-  const previewUnit =
-    unit instanceof HTMLElement &&
-    unit.tagName === "SELECT" &&
-    ["us", "metric"].includes(unit.value)
-      ? unit.value
-      : preview instanceof HTMLElement
-        ? preview.dataset.previewUnitSystem
-        : undefined;
-  const temperatureToggle = shared?.querySelector('[name="showServingTemperature"]');
-  const previewShowsTemperature =
-    temperatureToggle instanceof HTMLInputElement
-      ? temperatureToggle.checked
-      : preview instanceof HTMLElement
-        ? preview.dataset.previewShowServingTemperature !== "false"
-        : true;
-  if (preview instanceof HTMLElement) {
-    if (previewUnit === "us" || previewUnit === "metric")
-      preview.dataset.previewUnitSystem = previewUnit;
-    preview.dataset.previewShowServingTemperature = String(previewShowsTemperature);
-  }
   const mode =
     remaining instanceof HTMLElement && remaining.tagName === "SELECT" ? remaining.value : null;
   const readout = card.querySelector('[data-field="remaining-readout"]');

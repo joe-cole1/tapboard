@@ -37,7 +37,7 @@ async function saveSharedTapboardName(page: Page, name: string): Promise<void> {
   await page.goto("/admin/display/shared");
   const form = page.locator("form[data-shared-display-form]");
   await form.getByLabel("Tapboard name").fill(name);
-  await form.getByRole("button", { name: "Apply shared defaults" }).click();
+  await form.getByRole("button", { name: "Save Default Theme" }).click();
   await expect(page).toHaveURL(/\/admin\/display\/shared\?notice=/u);
 }
 
@@ -724,9 +724,9 @@ test("shared changes update inherited fields but retain explicit local overrides
   await login(admin);
   await admin.goto("/admin/display/shared");
   await admin.getByLabel("Tapboard name").fill("Shared renamed Tapboard");
-  await admin.getByLabel("Theme").first().selectOption("cyberpunk");
-  await admin.locator('input[name="accent"]').fill("blue");
-  await admin.getByRole("button", { name: "Apply shared defaults" }).click();
+  await admin.getByText("Cyberpunk", { exact: true }).click();
+  await admin.getByText("Blue", { exact: true }).click();
+  await admin.getByRole("button", { name: "Save Default Theme" }).click();
   await expect(display.locator("html")).toHaveAttribute("data-theme", "warm_pub");
   await expect(display.locator("html")).toHaveAttribute("data-accent", "blue");
   await expect(display.locator(".public-header h1")).toHaveText("Shared renamed Tapboard");

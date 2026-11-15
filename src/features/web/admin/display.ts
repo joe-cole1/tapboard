@@ -1,5 +1,12 @@
 import { displayStylesheetHref } from "../../display/palette.ts";
-import { DISPLAY_ACCENTS, DISPLAY_THEMES } from "../../display/types.ts";
+import {
+  displayAccentLabel,
+  displayAccentOptions,
+  displayFontLabel,
+  displayFontOptions,
+  displayThemeLabel,
+  displayThemeOptions,
+} from "./display-options.ts";
 import type { PublicTapCardMetricSettings } from "../../story/service.ts";
 import { safeDisplayResource, safeTapCardResource } from "../presenters/display.ts";
 import {
@@ -30,6 +37,11 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "/admin/display",
       {
         sharedDisplay,
+        defaultThemeSummary: {
+          theme: displayThemeLabel(sharedDisplay.theme),
+          accent: displayAccentLabel(sharedDisplay.accent),
+          font: displayFontLabel(sharedDisplay.font),
+        },
       },
     );
   });
@@ -53,12 +65,13 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       request,
       context,
       "/admin/display-shared",
-      "Shared defaults",
+      "Default theme",
       "/admin/display/shared",
       {
         sharedDisplay,
-        displayThemes: DISPLAY_THEMES,
-        displayAccents: DISPLAY_ACCENTS,
+        themeOptions: displayThemeOptions(),
+        fontOptions: displayFontOptions(),
+        accentOptions: displayAccentOptions(),
         tapCardSettings,
         previewTap,
         previewMetricCatalog: {
@@ -88,10 +101,14 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "This display",
       "/admin/display/this-display",
       {
+        themeOptions: displayThemeOptions(),
+        fontOptions: displayFontOptions(),
+        accentOptions: displayAccentOptions(),
+        // "all" loads every font face so the font cards render in their own fonts.
         displayStylesheetHref: displayStylesheetHref(
           sharedDisplay.theme,
           sharedDisplay.accent,
-          sharedDisplay.font,
+          "all",
         ),
       },
     );
@@ -104,21 +121,24 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
     "/admin/display/shared",
     "/admin/display/shared",
     (form, context) => {
+      // Units and serving temperature live on the System page; keep their current
+      // values. expectedRevision still rejects the save if either changed meanwhile.
+      const current = dependencies.displayService.getSettings();
       dependencies.displayService.updateSettings(
         {
           expectedRevision: Number(form.expectedRevision),
           tapboardName: form.tapboardName,
           theme: form.theme,
           font: form.font,
-          accent: form.accent,
-          unitSystem: form.unitSystem,
-          showServingTemperature: form.showServingTemperature === "true",
+          accent: form.accent === "custom" ? form.accentCustom?.toLowerCase() : form.accent,
+          unitSystem: current.unitSystem,
+          showServingTemperature: current.showServingTemperature,
           layoutMode: form.layoutMode,
         },
         actor(context),
       );
     },
-    "Shared display defaults saved.",
+    "Default theme saved.",
     {},
     {
       handle: (body, context) => {
@@ -165,6 +185,31 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
         "layoutMode",
       ]),
     },
+  );
+  // Units and serving temperature are edited on the System page but stored with the
+  // display settings; every other field keeps its current value.
+  registerAdminAction(
+    dependencies,
+    "/admin/system/units",
+    "/admin/system",
+    (form, context) => {
+      const current = dependencies.displayService.getSettings();
+      dependencies.displayService.updateSettings(
+        {
+          // Named apart from the System page's other expectedRevision fields.
+          expectedRevision: Number(form.expectedDisplayRevision),
+          tapboardName: current.tapboardName,
+          theme: current.theme,
+          font: current.font,
+          accent: current.accent,
+          unitSystem: form.unitSystem,
+          showServingTemperature: form.showServingTemperature === "true",
+          layoutMode: current.layoutMode,
+        },
+        actor(context),
+      );
+    },
+    "Units saved.",
   );
   registerAdminAction(
     dependencies,
