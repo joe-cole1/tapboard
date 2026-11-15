@@ -7,7 +7,7 @@
   <div class="page-actions"><a class="button primary button--small" href="<%= it.newKegHref %>">Add a Keg</a></div>
   <section class="admin-card" aria-labelledby="physical-keg-filters">
     <div class="section-heading"><div><h2 id="physical-keg-filters">Physical inventory</h2><p class="muted"><%= it.pagination.total %> Keg<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
-    <form class="admin-form admin-form--inline keg-room-filter-form" method="get" action="/admin/keg-room/kegs" role="search">
+    <form class="admin-form admin-form--inline config-grid keg-room-filter-form" method="get" action="/admin/keg-room/kegs" role="search">
       <label>Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Keg number or label" /></label>
       <label>Show <select name="status"><option value="active"<% if (it.query.status === "active") { %> selected<% } %>>Active</option><option value="inactive"<% if (it.query.status === "inactive") { %> selected<% } %>>Inactive</option><option value="all"<% if (it.query.status === "all") { %> selected<% } %>>All</option></select></label>
       <label>Sort <select name="sort"><option value="number"<% if (it.query.sort === "number") { %> selected<% } %>>Keg number</option><option value="label"<% if (it.query.sort === "label") { %> selected<% } %>>Label</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
@@ -23,7 +23,7 @@
           <tbody>
             <% for (const keg of it.kegs) { %>
               <tr class="admin-library-table__row">
-                <th class="beverage-list__beverage-cell" scope="row"><div class="beverage-list__preview keg-inventory__preview" aria-hidden="true"><svg class="keg-inventory__graphic" viewBox="0 0 80 96"><path class="keg-inventory__body" d="M18 19h44l5 11v43l-6 10H19l-6-10V30z"/><path class="keg-inventory__rim" d="M14 30h52M17 73h46"/><path class="keg-inventory__handle" d="M27 19v-6h26v6M32 13V8h16v5"/></svg></div><a class="beverage-list__name" href="/admin/keg-room/kegs/<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></a><span class="beverage-list__type">Physical inventory</span></th>
+                <th scope="row"><div class="beverage-list__identity"><div class="beverage-list__preview keg-inventory__preview" aria-hidden="true"><svg class="keg-inventory__graphic" viewBox="0 0 80 96"><path class="keg-inventory__body" d="M18 19h44l5 11v43l-6 10H19l-6-10V30z"/><path class="keg-inventory__rim" d="M14 30h52M17 73h46"/><path class="keg-inventory__handle" d="M27 19v-6h26v6M32 13V8h16v5"/></svg></div><a class="beverage-list__name" href="/admin/keg-room/kegs/<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></a><span class="beverage-list__type">Physical inventory</span></div></th>
                 <td><% if (keg.currentFillRecord) { %><a href="/admin/keg-room/fills/<%= keg.currentFillRecord.id %>"><%= keg.currentFillRecord.beverageName %></a><% } else { %><span class="muted">None</span><% } %></td>
                 <td><%= keg.capacityLabel %></td>
                 <td><%= keg.tareLabel %></td>

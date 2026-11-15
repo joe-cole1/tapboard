@@ -109,6 +109,14 @@
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   gap: var(--space-3);
 }
+/* Fields fill their grid column instead of keeping the browser's intrinsic input width. */
+.config-grid > label {
+  min-width: 0;
+}
+.config-grid > label > :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+}
 .admin-page .stack-form {
   max-width: none;
 }
@@ -816,6 +824,9 @@
   gap: var(--space-2);
 }
 .table-scroll {
+  /* Contains absolutely positioned content (such as .sr-only labels) so it scrolls with the
+     table instead of widening the page. */
+  position: relative;
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -832,6 +843,10 @@
 .admin-table tbody tr:last-child th,
 .admin-table tbody tr:last-child td {
   border-bottom: 0;
+}
+/* A long unbroken name in a link wraps instead of widening its column. */
+.admin-table td a:not(.button) {
+  overflow-wrap: anywhere;
 }
 .admin-detail-table {
   min-width: 34rem;
@@ -858,28 +873,13 @@
 .keg-room-table__actions details {
   margin: 0;
 }
-.keg-room-table__fill {
-  display: grid;
-  grid-template-columns: 4rem minmax(8rem, 1fr);
-  grid-template-rows: auto auto;
-  column-gap: var(--space-2-5);
-  align-items: center;
-}
-.keg-room-table__fill .beverage-list__name {
-  overflow-wrap: anywhere;
-}
+/* Columns come from .config-grid, so the fields wrap instead of Apply covering Sort. */
 .keg-room-filter-form {
   max-width: none;
-  grid-template-columns: minmax(14rem, 2fr) repeat(2, minmax(9rem, 1fr)) auto;
   align-items: end;
 }
-.keg-room-filter-form > label {
-  min-width: 0;
-}
-@media (max-width: 48rem) {
-  .keg-room-filter-form {
-    grid-template-columns: 1fr;
-  }
+.keg-room-filter-form > button {
+  justify-self: start;
 }
 .tap-list th,
 .tap-list td,
@@ -1532,9 +1532,11 @@
 .beverage-list__row:focus-within td {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
-.beverage-list__beverage-cell {
+/* The grid sits inside the row header: a grid <th> drops out of table column sizing. The 8rem
+   floor sets the column's minimum width, and long names wrap inside it. */
+.beverage-list__identity {
   display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
+  grid-template-columns: 4rem minmax(8rem, 1fr);
   grid-template-rows: auto auto;
   column-gap: var(--space-2-5);
   align-items: center;
@@ -1593,6 +1595,7 @@
   gap: var(--space-2);
   color: var(--text);
   font-weight: 750;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 .beverage-list__row:hover .beverage-list__name {
