@@ -36,14 +36,14 @@
         <tbody>
           <% for (const beverage of it.beverages) { %>
             <tr class="beverage-list__row" data-row-href="/admin/beverages/<%= beverage.id %>">
-              <th class="beverage-list__beverage-cell" scope="row">
+              <th scope="row"><div class="beverage-list__identity">
                 <div class="beverage-list__preview"><%~ include("/partials/fill-graphic", { tap: { id: `beverage-${beverage.id}`, graphic: beverage.graphic, title: beverage.name, accessibleLabel: `${beverage.name} vessel preview`, fillPercent: beverage.fillPercent, displayColor: beverage.displayColor, tapNumber: 0 } }) %></div>
                 <a class="beverage-list__name" href="/admin/beverages/<%= beverage.id %>">
                   <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="5"<% if (beverage.displayColor) { %> fill="<%= beverage.displayColor %>"<% } else { %> class="beverage-color-cue__fallback"<% } %> /></svg>
                   <span><%= beverage.name %></span>
                 </a>
                 <span class="beverage-list__type"><%= beverage.beverageType %><% if (beverage.fillGlass) { %> · <%= beverage.fillGlass %><% } %></span>
-              </th>
+              </div></th>
               <td><%= beverage.style || "—" %></td>
               <td><%= beverage.abv === null ? "—" : `${beverage.abv}%` %></td>
               <td><span class="status-badge status-badge--muted"><%= beverage.source %></span></td>
