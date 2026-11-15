@@ -552,6 +552,20 @@ void test("telemetry HTTP body caps and batch outcomes use the documented status
   );
   assert.equal(afterRejectedBodies.statusCode, 404);
   assert.equal(afterRejectedBodies.localPort, rejectedAuth.localPort);
+  for (const invalidTapNumber of ["0", "abc", "1.5"]) {
+    const invalidTap = await readJsonResponse(
+      await fetch(`${baseUrl}/api/v1/telemetry/taps/${invalidTapNumber}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          measured_at: "2026-08-14T12:00:00Z",
+          measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+        }),
+      }),
+    );
+    assert.equal(invalidTap.response.status, 400, invalidTapNumber);
+    assert.match(JSON.stringify(invalidTap.body), /validation\.invalid_value/);
+  }
 
   const first = await readJsonResponse(
     await fetch(`${baseUrl}/api/v1/telemetry/taps/1`, {

@@ -212,9 +212,9 @@ for (const [tapNumber, kegNumber, name] of [
 const measurementStart = Date.now();
 for (let index = 0; index < 5; index += 1) {
   telemetry.ingestSingle(source, 1, {
-    clientSampleId: `fixture-measurement-${index}`,
-    measuredAt: new Date(measurementStart + index * 250).toISOString(),
-    remainingVolume: { value: 12_000, unit: "ml" },
+    client_sample_id: `fixture-measurement-${index}`,
+    measured_at: new Date(measurementStart + index * 250).toISOString(),
+    measurement: { kind: "remaining_volume", value: 12_000, unit: "ml" },
     temperature: { value: 4, unit: "c" },
   });
 }

@@ -121,9 +121,9 @@ function sample(
 ) {
   h.set(at);
   return h.telemetryService.ingestSingle(source as never, 1, {
-    clientSampleId: id,
-    measuredAt: new Date(origin + at).toISOString(),
-    remainingVolume: { value: volume, unit: "ml" },
+    client_sample_id: id,
+    measured_at: new Date(origin + at).toISOString(),
+    measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
   });
 }
 function count(db: DatabaseConnection, table: string) {

@@ -597,10 +597,10 @@ void test("System raw pruning preserves unexpired durable receipts and hardware 
       reconnectHorizonSeconds: 3_600,
     });
     const sample = {
-      clientSampleId: "retention-retry",
-      measuredAt: OLD,
-      remainingVolume: { value: 10_000, unit: "ml" },
-    };
+      client_sample_id: "retention-retry",
+      measured_at: OLD,
+      measurement: { kind: "remaining_volume", value: 10_000, unit: "ml" },
+    } as const;
     const accepted = h.telemetryService.ingestSingle(domain.source, 1, sample);
     assert.equal(accepted.outcome, "accepted");
     h.setNow("2026-01-01T00:20:00.000Z");

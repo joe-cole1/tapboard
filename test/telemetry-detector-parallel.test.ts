@@ -106,9 +106,9 @@ function sample(
 ) {
   h.set(at);
   return h.telemetryService.ingestSingle(source, tap, {
-    clientSampleId: id,
-    measuredAt: new Date(origin + at).toISOString(),
-    remainingVolume: { value: volume, unit: "ml" },
+    client_sample_id: id,
+    measured_at: new Date(origin + at).toISOString(),
+    measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
   });
 }
 function setupTap(
@@ -148,9 +148,9 @@ function replayUsFloz(
     const timestamp = offset + at;
     h.set(timestamp);
     h.telemetryService.ingestSingle(source, tap, {
-      clientSampleId: `${label}-${tap}-${at}`,
-      measuredAt: new Date(origin + timestamp).toISOString(),
-      remainingVolume: { value: volume, unit: "us_fl_oz" },
+      client_sample_id: `${label}-${tap}-${at}`,
+      measured_at: new Date(origin + timestamp).toISOString(),
+      measurement: { kind: "remaining_volume", value: volume, unit: "us_fl_oz" },
     });
   }
 }
@@ -520,9 +520,9 @@ void test("accepted canonical readings use epoch snapshots and retain diagnostic
     // This is accepted telemetry (not a detector-private injection): total weight uses the epoch tare/density.
     h.set(0);
     h.telemetryService.ingestSingle(source, 1, {
-      clientSampleId: "weight",
-      measuredAt: new Date(origin).toISOString(),
-      totalWeight: { value: 150, unit: "g" },
+      client_sample_id: "weight",
+      measured_at: new Date(origin).toISOString(),
+      measurement: { kind: "total_weight", value: 150, unit: "g" },
     });
     let d = h.detector.diagnostics(tap.id);
     assert.equal(d.measurement?.canonical.kind, "total_weight");
@@ -531,9 +531,9 @@ void test("accepted canonical readings use epoch snapshots and retain diagnostic
     assert.equal(d.measurement?.publicVolumeMl, 50);
     h.set(10);
     h.telemetryService.ingestSingle(source, 1, {
-      clientSampleId: "over",
-      measuredAt: new Date(origin + 10).toISOString(),
-      remainingVolume: { value: 1_100, unit: "ml" },
+      client_sample_id: "over",
+      measured_at: new Date(origin + 10).toISOString(),
+      measurement: { kind: "remaining_volume", value: 1_100, unit: "ml" },
     });
     d = h.detector.diagnostics(tap.id);
     assert.equal(d.measurement?.interpretedVolumeMl, 1100);
@@ -551,9 +551,9 @@ void test("accepted canonical readings use epoch snapshots and retain diagnostic
     h.kegService.updateKeg(keg.id, { currentTareG: 120 });
     h.set(30);
     h.telemetryService.ingestSingle(source, 1, {
-      clientSampleId: "negative",
-      measuredAt: new Date(origin + 30).toISOString(),
-      totalWeight: { value: 100, unit: "g" },
+      client_sample_id: "negative",
+      measured_at: new Date(origin + 30).toISOString(),
+      measurement: { kind: "total_weight", value: 100, unit: "g" },
     });
     d = h.detector.diagnostics(tap.id);
     assert.equal(d.measurement?.interpretedVolumeMl, -20);

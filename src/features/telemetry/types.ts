@@ -6,12 +6,11 @@ export type TelemetryPrimaryKind = "total_weight" | "remaining_volume" | "fill_p
 export type MassUnit = "g" | "kg" | "oz" | "lb";
 export type VolumeUnit = "ml" | "l" | "us_fl_oz" | "us_gal";
 export type TemperatureUnit = "c" | "f";
-export type PercentageUnit = "percent" | "pct" | "%";
 
 /**
- * Machine-facing v1 request shapes.  These deliberately use the stable
- * snake_case wire contract; the camelCase shapes below are retained as the
- * service's internal ingestion port.
+ * Machine-facing v1 request shapes, in the stable snake_case wire contract.
+ * The service ingests these after the route (or simulation runner) has
+ * validated them once with `validateExternal*TelemetryPayload`.
  */
 export type ExternalTelemetryMeasurementInput =
   | {
@@ -287,26 +286,6 @@ export interface UpdateTelemetrySettingsInput {
   readonly receiptRetentionSeconds?: number;
   readonly rateLimitSamplesPerMinute?: number;
   readonly rateLimitBurstSamples?: number;
-}
-
-// --- External Ingestion Inputs ---
-
-export interface ExternalTelemetrySampleInput {
-  readonly clientSampleId?: string;
-  readonly measuredAt: string;
-  readonly totalWeight?: { readonly value: number; readonly unit: MassUnit };
-  readonly remainingVolume?: { readonly value: number; readonly unit: VolumeUnit };
-  readonly fillPercentage?: number | { readonly value: number; readonly unit?: PercentageUnit };
-  readonly temperature?: { readonly value: number; readonly unit: TemperatureUnit };
-}
-
-export interface ExternalBatchTelemetrySampleInput extends ExternalTelemetrySampleInput {
-  readonly tapNumber?: number;
-  readonly tapId?: string;
-}
-
-export interface ExternalBatchTelemetryInput {
-  readonly samples: readonly ExternalBatchTelemetrySampleInput[];
 }
 
 export interface NormalizedTelemetrySample {

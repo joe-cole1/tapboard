@@ -117,9 +117,9 @@ function sample(
 ) {
   h.set(at);
   return h.telemetryService.ingestSingle(source as never, tapNumber, {
-    clientSampleId: id,
-    measuredAt: new Date(origin + at).toISOString(),
-    remainingVolume: { value: volume, unit: "ml" },
+    client_sample_id: id,
+    measured_at: new Date(origin + at).toISOString(),
+    measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
   });
 }
 function count(h: ReturnType<typeof harness>, table: "telemetry_epochs" | "pours") {

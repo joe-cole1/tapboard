@@ -2,18 +2,16 @@ import { createHash } from "node:crypto";
 import { canonicalizeJson } from "../../shared/canonical-json.ts";
 import { ApplicationError } from "../../shared/errors.ts";
 import type {
-  ExternalTelemetrySampleInput,
   ExternalTelemetryRequestInput,
   MassUnit,
   NormalizedTelemetrySample,
-  PercentageUnit,
   TemperatureUnit,
   VolumeUnit,
 } from "./types.ts";
 import { TELEMETRY_NORMALIZATION_VERSION as NORMALIZATION_VERSION } from "./types.ts";
 
 export { canonicalizeJson };
-export type { MassUnit, VolumeUnit, TemperatureUnit, PercentageUnit, NormalizedTelemetrySample };
+export type { MassUnit, VolumeUnit, TemperatureUnit, NormalizedTelemetrySample };
 
 const CANONICAL_DECIMAL_PLACES = 6;
 
@@ -133,205 +131,44 @@ export function isValidClientSampleId(clientSampleId: unknown): boolean {
   return CLIENT_SAMPLE_ID_REGEX.test(clientSampleId);
 }
 
-function mapMachineRequestToInternal(
+/**
+ * Converts a wire sample that `validateExternalTelemetryPayload` has already
+ * accepted into canonical units (grams, millilitres, percent, Celsius).
+ */
+export function normalizeExternalTelemetrySample(
   input: ExternalTelemetryRequestInput,
-): ExternalTelemetrySampleInput {
-  const measurement = input.measurement;
-  if (!measurement || typeof measurement !== "object" || Array.isArray(measurement)) {
-    throw new ApplicationError({
-      category: "validation",
-      code: "telemetry.invalid_payload",
-      clientMessage: "Telemetry measurement must be a non-null object.",
-    });
-  }
-
+): NormalizedTelemetrySample {
+  const { isoString: measuredAt, measuredAtEpochMs } = parseRfc3339Timestamp(input.measured_at);
+  const { measurement } = input;
   const primary =
     measurement.kind === "total_weight"
-      ? { totalWeight: { value: measurement.value, unit: measurement.unit } }
+      ? {
+          totalMassG: roundCanonicalNumber(
+            measurement.value * MASS_FACTORS_TO_GRAMS[measurement.unit],
+          ),
+        }
       : measurement.kind === "remaining_volume"
-        ? { remainingVolume: { value: measurement.value, unit: measurement.unit } }
-        : {
-            fillPercentage: {
-              value: measurement.value,
-              unit: measurement.unit,
-            },
-          };
+        ? {
+            remainingVolumeMl: roundCanonicalNumber(
+              measurement.value * VOLUME_FACTORS_TO_MILLILITERS[measurement.unit],
+            ),
+          }
+        : { fillPercentage: roundCanonicalNumber(measurement.value) };
+  const temperature = input.temperature;
+  const temperatureC =
+    temperature === undefined
+      ? undefined
+      : roundCanonicalNumber(
+          temperature.unit === "c" ? temperature.value : ((temperature.value - 32) * 5) / 9,
+        );
 
   return {
     ...(input.client_sample_id !== undefined ? { clientSampleId: input.client_sample_id } : {}),
-    measuredAt: input.measured_at,
-    ...primary,
-    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-  };
-}
-
-export function normalizeExternalTelemetrySample(
-  input: ExternalTelemetrySampleInput | ExternalTelemetryRequestInput,
-): NormalizedTelemetrySample {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw new ApplicationError({
-      category: "validation",
-      code: "telemetry.invalid_payload",
-      clientMessage: "Telemetry sample payload must be a non-null object.",
-    });
-  }
-
-  const inputRecord = input as unknown as Readonly<Record<string, unknown>>;
-  const internalInput =
-    "measurement" in inputRecord || "measured_at" in inputRecord
-      ? mapMachineRequestToInternal(input as ExternalTelemetryRequestInput)
-      : (input as ExternalTelemetrySampleInput);
-
-  // 1. Validate clientSampleId
-  let clientSampleId: string | undefined;
-  if (internalInput.clientSampleId !== undefined) {
-    if (
-      typeof internalInput.clientSampleId !== "string" ||
-      !isValidClientSampleId(internalInput.clientSampleId)
-    ) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_client_sample_id",
-        clientMessage:
-          "Client sample ID must be 1-128 characters containing only alphanumeric characters, underscores, dashes, dots, colons, or slashes.",
-      });
-    }
-    clientSampleId = internalInput.clientSampleId;
-  }
-
-  // 2. Parse measuredAt
-  const { isoString: measuredAt, measuredAtEpochMs } = parseRfc3339Timestamp(
-    internalInput.measuredAt,
-  );
-
-  // 3. Normalize primary measurement
-  const hasWeight = internalInput.totalWeight !== undefined;
-  const hasVolume = internalInput.remainingVolume !== undefined;
-  const hasPercentage = internalInput.fillPercentage !== undefined;
-
-  const primaryCount = (hasWeight ? 1 : 0) + (hasVolume ? 1 : 0) + (hasPercentage ? 1 : 0);
-  if (primaryCount !== 1) {
-    throw new ApplicationError({
-      category: "validation",
-      code: "telemetry.invalid_primary_measurement",
-      clientMessage:
-        "Sample must contain exactly one primary measurement: totalWeight, remainingVolume, or fillPercentage.",
-    });
-  }
-
-  let totalMassG: number | undefined;
-  let remainingVolumeMl: number | undefined;
-  let fillPercentage: number | undefined;
-  let primaryKind: "total_weight" | "remaining_volume" | "fill_percentage";
-
-  if (internalInput.totalWeight !== undefined) {
-    primaryKind = "total_weight";
-    const { value, unit } = internalInput.totalWeight;
-    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_weight_value",
-        clientMessage: "Total weight value must be a non-negative finite number.",
-      });
-    }
-    if (typeof unit !== "string" || !(unit in MASS_FACTORS_TO_GRAMS)) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.unsupported_weight_unit",
-        clientMessage: `Unsupported total weight unit: '${String(unit)}'. Supported: g, kg, oz, lb.`,
-      });
-    }
-    const factor = MASS_FACTORS_TO_GRAMS[unit];
-    totalMassG = roundCanonicalNumber(value * factor);
-  } else if (internalInput.remainingVolume !== undefined) {
-    primaryKind = "remaining_volume";
-    const { value, unit } = internalInput.remainingVolume;
-    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_volume_value",
-        clientMessage: "Remaining volume value must be a non-negative finite number.",
-      });
-    }
-    if (typeof unit !== "string" || !(unit in VOLUME_FACTORS_TO_MILLILITERS)) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.unsupported_volume_unit",
-        clientMessage: `Unsupported remaining volume unit: '${String(unit)}'. Supported: ml, l, us_fl_oz, us_gal.`,
-      });
-    }
-    const factor = VOLUME_FACTORS_TO_MILLILITERS[unit];
-    remainingVolumeMl = roundCanonicalNumber(value * factor);
-  } else {
-    primaryKind = "fill_percentage";
-    const raw = internalInput.fillPercentage;
-    let pctValue: number;
-    if (typeof raw === "number") {
-      pctValue = raw;
-    } else if (raw && typeof raw === "object" && typeof raw.value === "number") {
-      pctValue = raw.value;
-    } else {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_percentage_value",
-        clientMessage: "Fill percentage must be a number or { value, unit? } object.",
-      });
-    }
-
-    if (!Number.isFinite(pctValue) || pctValue < 0 || pctValue > 100) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_percentage_range",
-        clientMessage: "Fill percentage must be a finite number between 0 and 100.",
-      });
-    }
-    fillPercentage = roundCanonicalNumber(pctValue);
-  }
-
-  // 4. Normalize temperature if present
-  let temperatureC: number | undefined;
-  if (internalInput.temperature !== undefined) {
-    const { value, unit } = internalInput.temperature;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.invalid_temperature_value",
-        clientMessage: "Temperature value must be a valid finite number.",
-      });
-    }
-
-    let tempConverted: number;
-    if (unit === "c") {
-      tempConverted = value;
-    } else if (unit === "f") {
-      tempConverted = ((value - 32) * 5) / 9;
-    } else {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.unsupported_temperature_unit",
-        clientMessage: `Unsupported temperature unit: '${String(unit)}'. Supported: c, f.`,
-      });
-    }
-
-    if (tempConverted < -273.15 || tempConverted > 1000) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "telemetry.temperature_out_of_bounds",
-        clientMessage: "Temperature is outside defensible range (-273.15C to 1000C).",
-      });
-    }
-    temperatureC = roundCanonicalNumber(tempConverted);
-  }
-
-  return {
-    ...(clientSampleId !== undefined ? { clientSampleId } : {}),
     measuredAt,
     measuredAtEpochMs,
     normalizationVersion: NORMALIZATION_VERSION,
-    primaryKind,
-    ...(totalMassG !== undefined ? { totalMassG } : {}),
-    ...(remainingVolumeMl !== undefined ? { remainingVolumeMl } : {}),
-    ...(fillPercentage !== undefined ? { fillPercentage } : {}),
+    primaryKind: measurement.kind,
+    ...primary,
     ...(temperatureC !== undefined ? { temperatureC } : {}),
   };
 }
