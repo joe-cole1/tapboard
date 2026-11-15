@@ -10,20 +10,16 @@ import {
   isValidClientSampleId,
   parseRfc3339Timestamp,
   type MassUnit,
-  type PercentageUnit,
   type TemperatureUnit,
   type VolumeUnit,
 } from "./normalization.ts";
 import type {
   AssignAuthorityInput,
   CreateTelemetrySourceInput,
-  ExternalBatchTelemetryInput,
-  ExternalBatchTelemetrySampleInput,
   ExternalBatchTelemetryRequestInput,
   ExternalBatchTelemetryRequestSampleInput,
   ExternalTelemetryMeasurementInput,
   ExternalTelemetryRequestInput,
-  ExternalTelemetrySampleInput,
   RenameTelemetrySourceInput,
   RotateTelemetrySourceInput,
   UpdateTelemetrySettingsInput,
@@ -34,7 +30,6 @@ const MAX_MACHINE_KEY_LABEL_LENGTH = 120;
 const VALID_MASS_UNITS = new Set<MassUnit>(["g", "kg", "oz", "lb"]);
 const VALID_VOLUME_UNITS = new Set<VolumeUnit>(["ml", "l", "us_fl_oz", "us_gal"]);
 const VALID_TEMP_UNITS = new Set<TemperatureUnit>(["c", "f"]);
-const VALID_PERCENT_UNITS = new Set<string>(["percent", "pct", "%"]);
 const VALID_EXTERNAL_PERCENT_UNIT = "percent" as const;
 const MAX_EXTERNAL_BATCH_SIZE = 100;
 
@@ -210,282 +205,6 @@ export function validateUpdateTelemetrySettingsInput(input: unknown): UpdateTele
     ...(rateLimitSamplesPerMinute !== undefined ? { rateLimitSamplesPerMinute } : {}),
     ...(rateLimitBurstSamples !== undefined ? { rateLimitBurstSamples } : {}),
   };
-}
-
-function parseClientSampleId(value: unknown, field = "clientSampleId"): string | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  if (typeof value !== "string") {
-    throw validationError(field, "must be a string or omitted");
-  }
-  const trimmed = value.trim();
-  if (trimmed.length === 0) {
-    return undefined;
-  }
-  if (trimmed.length > 128 || !isValidClientSampleId(trimmed)) {
-    throw validationError(
-      field,
-      "must be between 1 and 128 characters consisting of alphanumeric characters, dashes, underscores, dots, colons, or slashes",
-    );
-  }
-  return trimmed;
-}
-
-function parseTotalWeight(
-  value: unknown,
-  field = "totalWeight",
-): { readonly value: number; readonly unit: MassUnit } | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  const obj = requirePlainObject(value, field);
-  rejectUnknownKeys(obj, ["value", "unit"], field);
-
-  if (typeof obj.value !== "number" || !Number.isFinite(obj.value) || obj.value < 0) {
-    throw validationError(`${field}.value`, "must be a finite non-negative number");
-  }
-  if (typeof obj.unit !== "string" || !VALID_MASS_UNITS.has(obj.unit.toLowerCase() as MassUnit)) {
-    throw validationError(`${field}.unit`, "must be one of 'g', 'kg', 'oz', 'lb'");
-  }
-
-  return {
-    value: obj.value,
-    unit: obj.unit.toLowerCase() as MassUnit,
-  };
-}
-
-function parseRemainingVolume(
-  value: unknown,
-  field = "remainingVolume",
-): { readonly value: number; readonly unit: VolumeUnit } | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  const obj = requirePlainObject(value, field);
-  rejectUnknownKeys(obj, ["value", "unit"], field);
-
-  if (typeof obj.value !== "number" || !Number.isFinite(obj.value) || obj.value < 0) {
-    throw validationError(`${field}.value`, "must be a finite non-negative number");
-  }
-  if (
-    typeof obj.unit !== "string" ||
-    !VALID_VOLUME_UNITS.has(obj.unit.toLowerCase() as VolumeUnit)
-  ) {
-    throw validationError(`${field}.unit`, "must be one of 'ml', 'l', 'us_fl_oz', 'us_gal'");
-  }
-
-  return {
-    value: obj.value,
-    unit: obj.unit.toLowerCase() as VolumeUnit,
-  };
-}
-
-function parseFillPercentage(
-  value: unknown,
-  field = "fillPercentage",
-): number | { readonly value: number; readonly unit?: PercentageUnit } | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-
-  if (typeof value === "number") {
-    if (!Number.isFinite(value) || value < 0 || value > 100) {
-      throw validationError(field, "must be a finite number between 0 and 100");
-    }
-    return value;
-  }
-
-  const obj = requirePlainObject(value, field);
-  rejectUnknownKeys(obj, ["value", "unit"], field);
-
-  if (
-    typeof obj.value !== "number" ||
-    !Number.isFinite(obj.value) ||
-    obj.value < 0 ||
-    obj.value > 100
-  ) {
-    throw validationError(`${field}.value`, "must be a finite number between 0 and 100");
-  }
-  if (
-    obj.unit !== undefined &&
-    (typeof obj.unit !== "string" || !VALID_PERCENT_UNITS.has(obj.unit.toLowerCase()))
-  ) {
-    throw validationError(`${field}.unit`, "must be one of 'percent', 'pct', '%'");
-  }
-
-  return {
-    value: obj.value,
-    ...(obj.unit ? { unit: obj.unit.toLowerCase() as PercentageUnit } : {}),
-  };
-}
-
-function parseTemperature(
-  value: unknown,
-  field = "temperature",
-): { readonly value: number; readonly unit: TemperatureUnit } | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  const obj = requirePlainObject(value, field);
-  rejectUnknownKeys(obj, ["value", "unit"], field);
-
-  if (
-    typeof obj.value !== "number" ||
-    !Number.isFinite(obj.value) ||
-    obj.value < -100 ||
-    obj.value > 150
-  ) {
-    throw validationError(`${field}.value`, "must be a finite temperature number");
-  }
-  if (
-    typeof obj.unit !== "string" ||
-    !VALID_TEMP_UNITS.has(obj.unit.toLowerCase() as TemperatureUnit)
-  ) {
-    throw validationError(`${field}.unit`, "must be one of 'c', 'f'");
-  }
-
-  return {
-    value: obj.value,
-    unit: obj.unit.toLowerCase() as TemperatureUnit,
-  };
-}
-
-export function validateSingleTelemetryPayload(
-  input: unknown,
-  prefix = "body",
-): ExternalTelemetrySampleInput {
-  const obj = requirePlainObject(input, prefix);
-  rejectUnknownKeys(
-    obj,
-    [
-      "clientSampleId",
-      "measuredAt",
-      "totalWeight",
-      "remainingVolume",
-      "fillPercentage",
-      "temperature",
-    ],
-    prefix,
-  );
-
-  if (typeof obj.measuredAt !== "string" || obj.measuredAt.trim().length === 0) {
-    throw validationError(`${prefix}.measuredAt`, "must be a valid RFC3339 timestamp string");
-  }
-
-  // Validate timestamp RFC3339 syntax early
-  try {
-    parseRfc3339Timestamp(obj.measuredAt);
-  } catch (err) {
-    throw validationError(
-      `${prefix}.measuredAt`,
-      err instanceof Error ? err.message : "invalid RFC3339 timestamp",
-    );
-  }
-
-  const clientSampleId = parseClientSampleId(obj.clientSampleId, `${prefix}.clientSampleId`);
-  const totalWeight = parseTotalWeight(obj.totalWeight, `${prefix}.totalWeight`);
-  const remainingVolume = parseRemainingVolume(obj.remainingVolume, `${prefix}.remainingVolume`);
-  const fillPercentage = parseFillPercentage(obj.fillPercentage, `${prefix}.fillPercentage`);
-  const temperature = parseTemperature(obj.temperature, `${prefix}.temperature`);
-
-  // Assert exclusivity of primary measurement
-  const primaryCount =
-    (totalWeight !== undefined ? 1 : 0) +
-    (remainingVolume !== undefined ? 1 : 0) +
-    (fillPercentage !== undefined ? 1 : 0);
-
-  if (primaryCount === 0) {
-    throw validationError(
-      prefix,
-      "must provide exactly one primary measurement (totalWeight, remainingVolume, or fillPercentage)",
-    );
-  }
-  if (primaryCount > 1) {
-    throw validationError(
-      prefix,
-      "cannot provide more than one primary measurement (totalWeight, remainingVolume, and fillPercentage are mutually exclusive)",
-    );
-  }
-
-  return {
-    ...(clientSampleId !== undefined ? { clientSampleId } : {}),
-    measuredAt: obj.measuredAt.trim(),
-    ...(totalWeight !== undefined ? { totalWeight } : {}),
-    ...(remainingVolume !== undefined ? { remainingVolume } : {}),
-    ...(fillPercentage !== undefined ? { fillPercentage } : {}),
-    ...(temperature !== undefined ? { temperature } : {}),
-  };
-}
-
-export function validateBatchTelemetryPayload(
-  input: unknown,
-  maxBatchSize: number,
-): ExternalBatchTelemetryInput {
-  const obj = requirePlainObject(input, "body");
-  rejectUnknownKeys(obj, ["samples"], "body");
-
-  if (!Array.isArray(obj.samples)) {
-    throw validationError("body.samples", "must be an array");
-  }
-  if (obj.samples.length === 0) {
-    throw validationError("body.samples", "must contain at least 1 sample");
-  }
-  if (obj.samples.length > maxBatchSize) {
-    throw validationError(
-      "body.samples",
-      `must not contain more than ${maxBatchSize} samples (received ${obj.samples.length})`,
-    );
-  }
-
-  const samples: ExternalBatchTelemetrySampleInput[] = [];
-
-  for (let i = 0; i < obj.samples.length; i++) {
-    const item: unknown = obj.samples[i];
-    const prefix = `body.samples[${i}]`;
-    const itemObj = requirePlainObject(item, prefix);
-    rejectUnknownKeys(
-      itemObj,
-      [
-        "tapNumber",
-        "tapId",
-        "clientSampleId",
-        "measuredAt",
-        "totalWeight",
-        "remainingVolume",
-        "fillPercentage",
-        "temperature",
-      ],
-      prefix,
-    );
-
-    let tapNumber: number | undefined;
-    let tapId: string | undefined;
-
-    if (itemObj.tapNumber !== undefined && itemObj.tapId !== undefined) {
-      throw validationError(prefix, "must specify exactly one of tapNumber or tapId");
-    }
-    if (itemObj.tapNumber !== undefined) {
-      tapNumber = validateTapNumber(itemObj.tapNumber, `${prefix}.tapNumber`);
-    } else if (itemObj.tapId !== undefined) {
-      tapId = validateTapId(itemObj.tapId, `${prefix}.tapId`);
-    } else {
-      throw validationError(prefix, "must specify either tapNumber or tapId");
-    }
-
-    const sampleObject = { ...itemObj };
-    delete sampleObject.tapNumber;
-    delete sampleObject.tapId;
-    const baseSample = validateSingleTelemetryPayload(sampleObject, prefix);
-
-    samples.push({
-      ...baseSample,
-      ...(tapNumber !== undefined ? { tapNumber } : {}),
-      ...(tapId !== undefined ? { tapId } : {}),
-    });
-  }
-
-  return { samples };
 }
 
 // --- Machine-facing v1 boundary ---
@@ -671,34 +390,4 @@ export function validateExternalBatchTelemetryPayload(
   }
 
   return { samples };
-}
-
-export function mapExternalTelemetryPayloadToInternal(
-  input: ExternalTelemetryRequestInput,
-): ExternalTelemetrySampleInput {
-  const measurement = input.measurement;
-  const primary =
-    measurement.kind === "total_weight"
-      ? { totalWeight: { value: measurement.value, unit: measurement.unit } }
-      : measurement.kind === "remaining_volume"
-        ? { remainingVolume: { value: measurement.value, unit: measurement.unit } }
-        : { fillPercentage: { value: measurement.value, unit: measurement.unit } };
-
-  return {
-    ...(input.client_sample_id !== undefined ? { clientSampleId: input.client_sample_id } : {}),
-    measuredAt: input.measured_at,
-    ...primary,
-    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-  };
-}
-
-export function mapExternalBatchTelemetryPayloadToInternal(
-  input: ExternalBatchTelemetryRequestInput,
-): ExternalBatchTelemetryInput {
-  return {
-    samples: input.samples.map((sample) => ({
-      ...mapExternalTelemetryPayloadToInternal(sample),
-      tapNumber: sample.tap_number,
-    })),
-  };
 }

@@ -5,6 +5,7 @@ import {
   type DatabaseExecutor,
 } from "../../infrastructure/database/connection.ts";
 import { ApplicationError } from "../../shared/errors.ts";
+import { validationError } from "../../shared/validation.ts";
 import { appendActivity } from "../activity/operations.ts";
 import type { MachineKeyService } from "../machine-keys/service.ts";
 import {
@@ -52,13 +53,10 @@ import {
 } from "./repository.ts";
 import {
   validateAssignAuthorityInput,
-  validateBatchTelemetryPayload,
   validateCreateTelemetrySourceInput,
   validateRenameTelemetrySourceInput,
   validateRotateTelemetrySourceInput,
-  validateSingleTelemetryPayload,
   validateTapId,
-  validateTapNumber,
   validateTelemetrySourceId,
   validateUpdateTelemetrySettingsInput,
 } from "./telemetry-validation.ts";
@@ -68,6 +66,8 @@ import type {
   BatchIngestResult,
   BatchItemIngestResult,
   CreateTelemetrySourceInput,
+  ExternalBatchTelemetryRequestInput,
+  ExternalTelemetryRequestInput,
   RenameTelemetrySourceInput,
   RotateTelemetrySourceInput,
   SingleIngestResult,
@@ -765,12 +765,10 @@ export class TelemetryService {
 
   ingestSingle(
     source: TelemetrySource,
-    tapNumberRaw: unknown,
-    payloadRaw: unknown,
+    tapNumber: number,
+    payload: ExternalTelemetryRequestInput,
   ): SingleIngestResult {
-    const tapNumber = validateTapNumber(tapNumberRaw);
-    const validatedInput = validateSingleTelemetryPayload(payloadRaw);
-    const normalized = normalizeExternalTelemetrySample(validatedInput);
+    const normalized = normalizeExternalTelemetrySample(payload);
     const tap = findTapByNumber(this.database, tapNumber);
     if (!tap) {
       throw new ApplicationError({
@@ -796,9 +794,17 @@ export class TelemetryService {
     );
   }
 
-  ingestBatch(source: TelemetrySource, bodyRaw: unknown): BatchIngestResult {
-    const settings = this.getSettings();
-    const validatedBatch = validateBatchTelemetryPayload(bodyRaw, settings.maxBatchSize);
+  ingestBatch(
+    source: TelemetrySource,
+    batch: ExternalBatchTelemetryRequestInput,
+  ): BatchIngestResult {
+    const { maxBatchSize } = this.getSettings();
+    if (batch.samples.length > maxBatchSize) {
+      throw validationError(
+        "body.samples",
+        `must not contain more than ${maxBatchSize} samples (received ${batch.samples.length})`,
+      );
+    }
 
     // Preflight: resolve taps for all items
     interface PreflightItem {
@@ -812,37 +818,19 @@ export class TelemetryService {
 
     const preflightItems: PreflightItem[] = [];
 
-    for (let i = 0; i < validatedBatch.samples.length; i++) {
-      const item = validatedBatch.samples[i]!;
-      let tapId: string;
-      let tapNumber: number;
-
-      if (item.tapNumber !== undefined) {
-        const tap = findTapByNumber(this.database, item.tapNumber);
-        if (!tap) {
-          throw new ApplicationError({
-            category: "not_found",
-            code: "taps.tap_not_found",
-            clientMessage: `Tap #${item.tapNumber} not found.`,
-            details: { tapNumber: item.tapNumber, itemIndex: i },
-          });
-        }
-        tapId = tap.id;
-        tapNumber = tap.tapNumber;
-      } else {
-        const itemTapId = item.tapId!;
-        const tap = findTapById(this.database, itemTapId);
-        if (!tap) {
-          throw new ApplicationError({
-            category: "not_found",
-            code: "taps.tap_not_found",
-            clientMessage: `Tap with ID '${itemTapId}' not found.`,
-            details: { tapId: itemTapId, itemIndex: i },
-          });
-        }
-        tapId = tap.id;
-        tapNumber = tap.tapNumber;
+    for (let i = 0; i < batch.samples.length; i++) {
+      const item = batch.samples[i]!;
+      const tap = findTapByNumber(this.database, item.tap_number);
+      if (!tap) {
+        throw new ApplicationError({
+          category: "not_found",
+          code: "taps.tap_not_found",
+          clientMessage: `Tap #${item.tap_number} not found.`,
+          details: { tapNumber: item.tap_number, itemIndex: i },
+        });
       }
+      const tapId = tap.id;
+      const tapNumber = tap.tapNumber;
 
       const sample = normalizeExternalTelemetrySample(item);
       const identityKey = sample.clientSampleId
@@ -861,7 +849,7 @@ export class TelemetryService {
     }
 
     const receivedAt = this.clock();
-    this.runOpportunisticMaintenance(receivedAt, validatedBatch.samples.length);
+    this.runOpportunisticMaintenance(receivedAt, batch.samples.length);
     const results: BatchItemIngestResult[] = new Array<BatchItemIngestResult>(
       preflightItems.length,
     );

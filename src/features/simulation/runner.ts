@@ -1,9 +1,6 @@
 import { ApplicationError } from "../../shared/errors.ts";
 import type { AdminTapView } from "../taps/types.ts";
-import {
-  mapExternalTelemetryPayloadToInternal,
-  validateExternalTelemetryPayload,
-} from "../telemetry/telemetry-validation.ts";
+import { validateExternalTelemetryPayload } from "../telemetry/telemetry-validation.ts";
 import {
   listSensors,
   readFillVolume,
@@ -364,11 +361,7 @@ export class SimulationRunner {
           "source_key_unavailable",
           "The simulation sensor key was rotated or revoked. Review its telemetry source.",
         );
-      const result = telemetryService.ingestSingle(
-        source,
-        currentTap.tapNumber,
-        mapExternalTelemetryPayloadToInternal(payload),
-      );
+      const result = telemetryService.ingestSingle(source, currentTap.tapNumber, payload);
       if (result.outcome !== "accepted" || result.duplicate)
         throw conflict(
           "ingest_rejected",

@@ -24,9 +24,8 @@ import {
 } from "./detector-validation.ts";
 import type { TelemetryService } from "./service.ts";
 import {
-  mapExternalBatchTelemetryPayloadToInternal,
-  mapExternalTelemetryPayloadToInternal,
   validateTapId,
+  validateTapNumber,
   validateExternalBatchTelemetryPayload,
   validateExternalTelemetryPayload,
 } from "./telemetry-validation.ts";
@@ -141,12 +140,11 @@ export function registerTelemetryRoutes(dependencies: TelemetryRouteDependencies
     "/api/v1/telemetry/taps/:tapNumber",
     async (request: IncomingMessage, response: ServerResponse, params: Record<string, string>) => {
       const source = authenticateSource(request, telemetryService);
-      const tapNumber = Number(params.tapNumber);
       const body = await readJsonBody(request, { maxBytes: MAX_JSON_BODY_BYTES });
-      const externalPayload = validateExternalTelemetryPayload(body);
-      const internalPayload = mapExternalTelemetryPayloadToInternal(externalPayload);
+      const payload = validateExternalTelemetryPayload(body);
+      const tapNumber = validateTapNumber(Number(params.tapNumber));
 
-      const result = telemetryService.ingestSingle(source, tapNumber, internalPayload);
+      const result = telemetryService.ingestSingle(source, tapNumber, payload);
       sendJson(response, singleMachineStatus(result), singleMachineResult(result));
     },
   );
@@ -157,10 +155,9 @@ export function registerTelemetryRoutes(dependencies: TelemetryRouteDependencies
     async (request: IncomingMessage, response: ServerResponse) => {
       const source = authenticateSource(request, telemetryService);
       const body = await readJsonBody(request, { maxBytes: MAX_BATCH_JSON_BODY_BYTES });
-      const externalPayload = validateExternalBatchTelemetryPayload(body);
-      const internalPayload = mapExternalBatchTelemetryPayloadToInternal(externalPayload);
+      const payload = validateExternalBatchTelemetryPayload(body);
 
-      const result = telemetryService.ingestBatch(source, internalPayload);
+      const result = telemetryService.ingestBatch(source, payload);
       sendJson(response, 200, batchMachineResult(result));
     },
   );
