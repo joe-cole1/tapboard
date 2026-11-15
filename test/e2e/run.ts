@@ -46,10 +46,15 @@ async function terminate(child: ChildProcess): Promise<void> {
 let exitCode = 1;
 try {
   await waitForServer();
-  const playwright = spawn(process.execPath, ["node_modules/@playwright/test/cli.js", "test"], {
-    stdio: "inherit",
-    env: { ...process.env, TAPBOARD_E2E_EXTERNAL_SERVER: "1" },
-  });
+  // Extra arguments (for example `--last-failed`) go to `playwright test`.
+  const playwright = spawn(
+    process.execPath,
+    ["node_modules/@playwright/test/cli.js", "test", ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+      env: { ...process.env, TAPBOARD_E2E_EXTERNAL_SERVER: "1" },
+    },
+  );
   exitCode = await new Promise<number>((resolve) => {
     playwright.once("exit", (code) => resolve(code ?? 1));
   });
