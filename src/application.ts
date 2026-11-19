@@ -795,6 +795,7 @@ class FoundationApplication implements Application {
         forecastService,
         healthService,
         displayService,
+        logger: this.#logger,
       });
       storyServiceRef.current = storyService;
       const publicTapWarsService: PublicTapWarsService = createPublicTapWarsService({

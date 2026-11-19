@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ApplicationError } from "../src/shared/errors.ts";
+import { createLogger, type Logger } from "../src/shared/logging.ts";
 import { PublicStoryService } from "../src/features/story/service.ts";
 import type { PublicStoryServiceDependencies } from "../src/features/story/service.ts";
 import type { AdminTapView, TapAssignmentMysteryConfig } from "../src/features/taps/types.ts";
@@ -59,12 +60,15 @@ function fixture(
   options: {
     readonly tapCardMetricSettings?: TapCardMetricSettings;
     readonly displaySettingsFailure?: boolean;
+    readonly detectorFailure?: Error;
+    readonly logger?: Logger;
     readonly now?: Date;
     readonly flavorBatch?: Record<string, unknown>;
     readonly presentationPatch?: Partial<EffectiveBeveragePresentation>;
     readonly overrideFlags?: Partial<BrewfatherPresentationOverrides>;
   } = {},
 ) {
+  let currentNow = options.now;
   let tap: AdminTapView = {
     id: TAP_ID,
     tapNumber: 7,
@@ -251,37 +255,40 @@ function fixture(
       }),
     },
     detectorService: {
-      diagnostics: () => ({
-        tapId: TAP_ID,
-        epoch: {
-          id: "secret-epoch-id",
-          sourceId: "secret-detector-source-id",
-          fillId: FILL_ID,
-          assignmentId: ASSIGNMENT_ID,
-          kegId: "secret-keg-id",
-          startedAt: "2026-08-02T00:00:00.000Z",
-          configVersion: "secret-config-version",
-          arbitrationGroupId: null,
-          snapshots: {
-            capacityMl: 19000,
-            tareG: 4000,
-            densityGPerMl: 1,
-            densitySource: "fallback",
-            normalizationVersion: 1,
-            detectorConfig: { secret: "private config" },
+      diagnostics: () => {
+        if (options.detectorFailure !== undefined) throw options.detectorFailure;
+        return {
+          tapId: TAP_ID,
+          epoch: {
+            id: "secret-epoch-id",
+            sourceId: "secret-detector-source-id",
+            fillId: FILL_ID,
+            assignmentId: ASSIGNMENT_ID,
+            kegId: "secret-keg-id",
+            startedAt: "2026-08-02T00:00:00.000Z",
+            configVersion: "secret-config-version",
+            arbitrationGroupId: null,
+            snapshots: {
+              capacityMl: 19000,
+              tareG: 4000,
+              densityGPerMl: 1,
+              densitySource: "fallback",
+              normalizationVersion: 1,
+              detectorConfig: { secret: "private config" },
+            },
           },
-        },
-        detector: { phase: "waiting_for_measurement", waitingForMeasurement: false },
-        measurement: {
-          id: "secret-measurement-id",
-          measuredAt: "2026-08-03T00:00:00.000Z",
-          canonical: { kind: "mass", value: 12000, temperatureC: 4.5 },
-          interpretedVolumeMl: 12000,
-          stabilizedVolumeMl: 12000,
-          publicVolumeMl: 12000,
-          diagnosticCode: null,
-        },
-      }),
+          detector: { phase: "waiting_for_measurement", waitingForMeasurement: false },
+          measurement: {
+            id: "secret-measurement-id",
+            measuredAt: "2026-08-03T00:00:00.000Z",
+            canonical: { kind: "mass", value: 12000, temperatureC: 4.5 },
+            interpretedVolumeMl: 12000,
+            stabilizedVolumeMl: 12000,
+            publicVolumeMl: 12000,
+            diagnosticCode: null,
+          },
+        };
+      },
     },
     forecastService: {
       getPublicForecastSummary: () => ({
@@ -338,7 +345,8 @@ function fixture(
             : [{ checkId: "low_keg", state: lowKeg.state, severity: lowKeg.severity }],
       }),
     },
-    now: options.now === undefined ? undefined : () => options.now!,
+    now: currentNow === undefined ? undefined : () => currentNow!,
+    logger: options.logger,
     ...(options.tapCardMetricSettings === undefined && options.displaySettingsFailure !== true
       ? {}
       : {
@@ -375,6 +383,9 @@ function fixture(
     },
     setLowKeg: (state: string, severity: string) => {
       lowKeg = { state, severity };
+    },
+    setNow: (value: Date) => {
+      currentNow = value;
     },
     getRecipeSnapshotsCalls: () => getRecipeSnapshotsCalls,
     getAssignmentMysteryCalls: () => getAssignmentMysteryCalls,
@@ -553,6 +564,114 @@ void test("Tap metric preferences intersect with Mystery redaction and fail clos
 
   const failed = fixture({ displaySettingsFailure: true });
   assert.deepEqual(failed.service.getCard(TAP_ID)?.metrics, []);
+});
+
+function capturedLogger() {
+  const lines: string[] = [];
+  const logger = createLogger({ sink: (line) => lines.push(line) });
+  const records = () =>
+    lines.map(
+      (line) =>
+        JSON.parse(line) as { level: string; message: string; context: Record<string, unknown> },
+    );
+  return { lines, logger, records };
+}
+
+void test("degraded public projections warn once per operation and tap per interval", () => {
+  const SENSITIVE = "secret-exception-text /data/tapboard.sqlite3";
+  const { lines, logger, records } = capturedLogger();
+  const start = new Date("2026-08-03T12:00:00.000Z");
+  const { service, setNow } = fixture({
+    detectorFailure: new Error(SENSITIVE),
+    logger,
+    now: start,
+  });
+
+  const card = service.getCard(TAP_ID);
+  assert.ok(card);
+  assert.equal(card.title, "Secret Beverage Name");
+  assert.equal(card.waitingForMeasurement, true);
+  assert.equal(card.remainingVolumeMl, null);
+  assert.ok(service.getStory(TAP_ID));
+  assert.equal(service.listCards().length, 1);
+
+  assert.deepEqual(
+    records().map(({ level, message, context }) => ({ level, message, context })),
+    [
+      {
+        level: "warn",
+        message: "Public story projection degraded",
+        context: {
+          operation: "story.detector_diagnostics",
+          tapId: TAP_ID,
+          code: "internal.unexpected",
+          category: "internal",
+        },
+      },
+    ],
+  );
+  for (const line of lines) assert.ok(!line.includes("secret-exception-text"));
+
+  setNow(new Date(start.getTime() + 15 * 60_000 - 1));
+  service.getCard(TAP_ID);
+  assert.equal(lines.length, 1);
+
+  setNow(new Date(start.getTime() + 15 * 60_000));
+  service.getCard(TAP_ID);
+  assert.equal(lines.length, 2);
+});
+
+void test("degraded projection warnings carry application error codes per operation", () => {
+  const { records, logger } = capturedLogger();
+  const { service } = fixture({
+    detectorFailure: new ApplicationError({
+      category: "unavailable",
+      code: "detector.unavailable",
+      clientMessage: "secret-client-message",
+    }),
+    displaySettingsFailure: true,
+    logger,
+    now: new Date("2026-08-03T12:00:00.000Z"),
+  });
+
+  assert.deepEqual(service.getCard(TAP_ID)?.metrics, []);
+  assert.deepEqual(
+    records().map((record) => [record.level, record.context]),
+    [
+      [
+        "warn",
+        {
+          operation: "story.detector_diagnostics",
+          tapId: TAP_ID,
+          code: "detector.unavailable",
+          category: "unavailable",
+        },
+      ],
+      [
+        "warn",
+        {
+          operation: "story.display_settings",
+          tapId: TAP_ID,
+          code: "internal.unexpected",
+          category: "internal",
+        },
+      ],
+    ],
+  );
+  assert.ok(!JSON.stringify(records()).includes("secret-client-message"));
+});
+
+void test("a throwing logger never changes the degraded public projection", () => {
+  const fail = () => {
+    throw new Error("logger down");
+  };
+  const { service } = fixture({
+    detectorFailure: new Error("detector down"),
+    logger: { debug: fail, info: fail, warn: fail, error: fail },
+  });
+  const card = service.getCard(TAP_ID);
+  assert.ok(card);
+  assert.equal(card.waitingForMeasurement, true);
 });
 
 void test("exact disabled assignment titles stay safe while cards remain unavailable", () => {
