@@ -171,7 +171,10 @@ export interface HealthEvaluationInput {
   /** Retired Taps skip health evaluation entirely. */
   readonly retired?: boolean;
   readonly tapId?: string;
+  /** When the Tap's level source was assigned; null when it has none. */
   readonly authorityChangedAtMs: number | null;
+  /** When the Tap's condition source (serving temperature) was assigned; null when it has none. */
+  readonly temperatureAuthorityChangedAtMs: number | null;
   readonly latestMeasurement?: HealthAuthoritativeMeasurement | null;
   /** Explicit scale freshness input; null intentionally suppresses alias fallback. */
   readonly latestScaleMeasurement?: HealthAuthoritativeMeasurement | null;

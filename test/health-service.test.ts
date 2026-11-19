@@ -604,7 +604,8 @@ void test("epoch state isolates health measurement evidence from a prior source 
       epochStartedAt,
       epochStartedAt,
     );
-    upsertTapTelemetryAuthority(database, tap.id, sourceId, priorAt);
+    upsertTapTelemetryAuthority(database, tap.id, "level", sourceId, priorAt);
+    upsertTapTelemetryAuthority(database, tap.id, "condition", sourceId, priorAt);
     insertTelemetryMeasurement(database, {
       id: priorMeasurementId,
       source_id: sourceId,

@@ -19,10 +19,11 @@ import {
   levelReading,
   normalizeExternalTelemetrySample,
   readingValue,
+  registeredMetric,
   type NormalizedTelemetrySample,
 } from "./normalization.ts";
 import { InMemoryTelemetryRateLimiter } from "./rate-limiter.ts";
-import { TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
+import { TELEMETRY_AUTHORITY_ROLES, TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
 import {
   countTapTelemetryAuthoritiesForSource,
   deleteTapTelemetryAuthority,
@@ -34,6 +35,7 @@ import {
   listAllSourceTapStatuses,
   listSourceTapStatusesForTap,
   listTapTelemetryAuthorities,
+  listTapTelemetryAuthoritiesForTap,
   listActiveTelemetrySources,
   listTelemetrySources,
   countTelemetrySourcesPage,
@@ -67,6 +69,7 @@ import {
 import type {
   AcceptedTelemetryExtensionPort,
   AssignAuthorityInput,
+  AuthorityChangedEvent,
   BatchIngestResult,
   BatchItemIngestResult,
   CreateTelemetrySourceInput,
@@ -76,7 +79,9 @@ import type {
   RotateTelemetrySourceInput,
   SingleIngestResult,
   TapTelemetryAuthority,
+  TapTelemetryAuthorityRow,
   TelemetryAuthorityExtensionPort,
+  TelemetryAuthorityRole,
   TelemetryRateLimiter,
   TelemetrySettings,
   TelemetrySource,
@@ -102,6 +107,21 @@ function boundedAdminSourceQuery(value: unknown): string {
     characters.pop();
   }
   return characters.join("");
+}
+
+function mapTapAuthority(
+  tapId: string,
+  rows: readonly TapTelemetryAuthorityRow[],
+): TapTelemetryAuthority {
+  const role = (name: TelemetryAuthorityRole) => {
+    const row = rows.find((candidate) => candidate.tap_id === tapId && candidate.role === name);
+    return row === undefined ? null : { sourceId: row.source_id, changedAt: row.changed_at };
+  };
+  return { tapId, level: role("level"), condition: role("condition") };
+}
+
+function readTapAuthority(database: DatabaseExecutor, tapId: string): TapTelemetryAuthority {
+  return mapTapAuthority(tapId, listTapTelemetryAuthoritiesForTap(database, tapId));
 }
 
 function mapTelemetrySource(row: {
@@ -544,34 +564,25 @@ export class TelemetryService {
 
   // --- Authority Management ---
 
-  getTapAuthority(tapIdRaw: string): TapTelemetryAuthority | undefined {
-    const tapId = validateTapId(tapIdRaw);
-    const row = readTapTelemetryAuthority(this.database, tapId);
-    if (!row) {
-      return undefined;
-    }
-    return {
-      tapId: row.tap_id,
-      sourceId: row.source_id,
-      changedAt: row.changed_at,
-    };
+  getTapAuthority(tapIdRaw: string): TapTelemetryAuthority {
+    return readTapAuthority(this.database, validateTapId(tapIdRaw));
   }
 
   listAuthorities(): readonly TapTelemetryAuthority[] {
     const rows = listTapTelemetryAuthorities(this.database);
-    return rows.map((r) => ({
-      tapId: r.tap_id,
-      sourceId: r.source_id,
-      changedAt: r.changed_at,
-    }));
+    return [...new Set(rows.map((row) => row.tap_id))].map((tapId) => mapTapAuthority(tapId, rows));
   }
 
+  /**
+   * Sets both role sources of a Tap in one transaction. Each changed role is written, logged and
+   * announced to the extensions; only a `level` change needs a fresh baseline.
+   */
   setTapAuthority(
     tapIdRaw: string,
     inputRaw: unknown,
     options: TelemetryActorOptions = {},
   ): {
-    readonly authority: TapTelemetryAuthority | null;
+    readonly authority: TapTelemetryAuthority;
     readonly requiresFreshBaseline: boolean;
   } {
     const tapId = validateTapId(tapIdRaw);
@@ -587,92 +598,83 @@ export class TelemetryService {
         });
       }
 
-      if (input.sourceId !== null) {
-        const source = readTelemetrySourceById(this.database, input.sourceId);
-        if (!source) {
-          throw new ApplicationError({
-            category: "not_found",
-            code: "telemetry.source_not_found",
-            clientMessage: "Telemetry source not found.",
-            details: { sourceId: input.sourceId },
-          });
-        }
-        if (source.disabled_at !== null) {
-          throw new ApplicationError({
-            category: "conflict",
-            code: "telemetry.source_disabled",
-            clientMessage: "Disabled telemetry sources cannot be assigned to a Tap.",
-            details: { sourceId: input.sourceId },
-          });
-        }
-      }
-
-      const current = readTapTelemetryAuthority(this.database, tapId);
-      const currentSourceId = current ? current.source_id : null;
-
-      if (currentSourceId === input.sourceId) {
-        return {
-          authority: current
-            ? {
-                tapId: current.tap_id,
-                sourceId: current.source_id,
-                changedAt: current.changed_at,
-              }
-            : null,
-          requiresFreshBaseline: false,
-        };
+      const requested: Readonly<Record<TelemetryAuthorityRole, string | null>> = {
+        level: input.levelSourceId,
+        condition: input.conditionSourceId,
+      };
+      for (const sourceId of new Set(Object.values(requested))) {
+        if (sourceId !== null) this.assertAssignableSource(sourceId);
       }
 
       const nowIso = this.clock().toISOString();
-
-      if (input.sourceId === null) {
-        deleteTapTelemetryAuthority(this.database, tapId);
-      } else {
-        upsertTapTelemetryAuthority(this.database, tapId, input.sourceId, nowIso);
+      const events: AuthorityChangedEvent[] = [];
+      for (const role of TELEMETRY_AUTHORITY_ROLES) {
+        const previousSourceId = readTapTelemetryAuthority(this.database, tapId, role)?.source_id;
+        const newSourceId = requested[role];
+        if ((previousSourceId ?? null) === newSourceId) continue;
+        if (newSourceId === null) deleteTapTelemetryAuthority(this.database, tapId, role);
+        else upsertTapTelemetryAuthority(this.database, tapId, role, newSourceId, nowIso);
+        events.push({
+          tapId,
+          role,
+          previousSourceId: previousSourceId ?? null,
+          newSourceId,
+          changedAt: nowIso,
+          requiresFreshBaseline: role === "level",
+        });
       }
 
-      const authorityEvent = {
-        tapId,
-        previousSourceId: currentSourceId,
-        newSourceId: input.sourceId,
-        changedAt: nowIso,
-        requiresFreshBaseline: true,
-      } as const;
-      assertSynchronousCompletion(
-        this.authorityExtensionPort.onAuthorityChanged(this.database, authorityEvent),
-        "Telemetry authority extensions",
-      );
-
-      appendActivity(
-        this.database,
-        {
-          category: "domain",
-          action: "entity_changed",
-          actorType: options.actorType ?? "operator",
-          ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
-          ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
-          entityType: "tap",
-          entityId: tapId,
-          details: {
-            previousSourceId: currentSourceId,
-            newSourceId: input.sourceId,
+      // Every role is written before any extension runs, so each sees the final authority.
+      for (const event of events) {
+        assertSynchronousCompletion(
+          this.authorityExtensionPort.onAuthorityChanged(this.database, event),
+          "Telemetry authority extensions",
+        );
+        appendActivity(
+          this.database,
+          {
+            category: "domain",
+            action: "entity_changed",
+            actorType: options.actorType ?? "operator",
+            ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
+            ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
+            entityType: "tap",
+            entityId: tapId,
+            details: {
+              role: event.role,
+              previousSourceId: event.previousSourceId,
+              newSourceId: event.newSourceId,
+            },
           },
-        },
-        { now: this.clock },
-      );
+          { now: this.clock },
+        );
+      }
 
       return {
-        authority:
-          input.sourceId !== null
-            ? {
-                tapId,
-                sourceId: input.sourceId,
-                changedAt: nowIso,
-              }
-            : null,
-        requiresFreshBaseline: true,
+        authority: readTapAuthority(this.database, tapId),
+        requiresFreshBaseline: events.some((event) => event.requiresFreshBaseline),
       };
     });
+  }
+
+  private assertAssignableSource(sourceId: string): void {
+    const source = readTelemetrySourceById(this.database, sourceId);
+    if (!source) {
+      throw new ApplicationError({
+        category: "not_found",
+        code: "telemetry.source_not_found",
+        clientMessage: "Telemetry source not found.",
+        details: { sourceId },
+      });
+    }
+    if (source.disabled_at !== null) {
+      throw new ApplicationError({
+        category: "conflict",
+        code: "telemetry.source_disabled",
+        clientMessage: "Disabled telemetry sources cannot be assigned to a Tap.",
+        details: { sourceId },
+      });
+    }
   }
 
   // --- Telemetry Settings ---
@@ -1058,9 +1060,20 @@ export class TelemetryService {
         details: { tapId, tapNumber },
       });
     }
-    // 4. Check Authority
-    const authority = readTapTelemetryAuthority(db, tapId);
-    if (!authority || authority.source_id !== source.id) {
+    // 4. Check Authority. Keep the readings whose role this source holds on the Tap and drop
+    // the rest, so a multi-sensor device keeps working after its roles are split. A sample
+    // left with nothing is a durable rejection. The digest above covers the whole sample, so
+    // a retry stays an exact duplicate.
+    const heldRoles = new Set(
+      listTapTelemetryAuthoritiesForTap(db, tapId)
+        .filter((row) => row.source_id === source.id)
+        .map((row) => row.role),
+    );
+    const readings = sample.readings.filter((reading) => {
+      const role = registeredMetric(reading.metric).role;
+      return role === "recorded" ? heldRoles.size > 0 : heldRoles.has(role);
+    });
+    if (readings.length === 0) {
       return this.rejectWithReceipt(
         db,
         source.id,
@@ -1129,8 +1142,9 @@ export class TelemetryService {
       );
     }
 
-    // 8. Accept Sample
-    return this.acceptSample(db, source.id, tap.id, sample, payloadDigest, receivedAtIso);
+    // 8. Accept the authorized readings
+    const accepted = readings.length === sample.readings.length ? sample : { ...sample, readings };
+    return this.acceptSample(db, source.id, tap.id, accepted, payloadDigest, receivedAtIso);
   }
 
   private rejectWithReceipt(

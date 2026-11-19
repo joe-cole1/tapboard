@@ -1014,6 +1014,7 @@ void test("an exact v1 database upgrades to v22 with all ledger entries", (conte
         { version: 25, name: "display-theme-format" },
         { version: 26, name: "display-theme-accent" },
         { version: 27, name: "telemetry-readings" },
+        { version: 28, name: "telemetry-role-authority" },
       ],
     );
   } finally {
@@ -2422,16 +2423,16 @@ void test("telemetry schema enforces source uniqueness, authority foreign keys, 
     database.execute(`
       INSERT INTO taps (id, tap_number, name, enabled, first_used_at, retired_at, created_at, updated_at)
       VALUES ('t1111111-1111-4111-8111-111111111111', 1, 'Tap 1', 1, NULL, NULL, '2026-08-14T00:00:00.000Z', '2026-08-14T00:00:00.000Z');
-      INSERT INTO tap_telemetry_authority (tap_id, source_id, changed_at)
-      VALUES ('t1111111-1111-4111-8111-111111111111', 's1111111-1111-4111-8111-111111111111', '2026-08-14T00:00:00.000Z');
+      INSERT INTO tap_telemetry_authority (tap_id, role, source_id, changed_at)
+      VALUES ('t1111111-1111-4111-8111-111111111111', 'level', 's1111111-1111-4111-8111-111111111111', '2026-08-14T00:00:00.000Z');
     `);
 
-    // Duplicate authority for same tap is rejected (tap_id is PK)
+    // Duplicate authority for the same Tap and role is rejected ((tap_id, role) is the PK)
     assert.throws(
       () =>
         database.execute(`
-          INSERT INTO tap_telemetry_authority (tap_id, source_id, changed_at)
-          VALUES ('t1111111-1111-4111-8111-111111111111', 's1111111-1111-4111-8111-111111111111', '2026-08-14T00:00:00.000Z');
+          INSERT INTO tap_telemetry_authority (tap_id, role, source_id, changed_at)
+          VALUES ('t1111111-1111-4111-8111-111111111111', 'level', 's1111111-1111-4111-8111-111111111111', '2026-08-14T00:00:00.000Z');
         `),
       /UNIQUE constraint failed/,
     );

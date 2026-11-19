@@ -30,7 +30,10 @@ async function setup(context: test.TestContext, hooks: { onOpenSimulation?: () =
     machineKeyService: createMachineKeyService(db),
   });
   const source = telemetry.createSource({ name: "Real hardware", label: "Real source" });
-  telemetry.setTapAuthority(tap.id, { sourceId: source.source.id });
+  telemetry.setTapAuthority(tap.id, {
+    levelSourceId: source.source.id,
+    conditionSourceId: source.source.id,
+  });
   db.close();
   const config = {
     host: "127.0.0.1",

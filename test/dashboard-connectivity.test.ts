@@ -85,7 +85,13 @@ function harness(
     },
     tapService: { listTaps: () => signals.taps },
     telemetryService: {
-      getTapAuthority: () => (signals.hasAuthority ? { sourceId: "source-1" } : undefined),
+      getTapAuthority: (tapId: string) => ({
+        tapId,
+        level: signals.hasAuthority
+          ? { sourceId: "source-1", changedAt: "2026-01-01T00:00:00Z" }
+          : null,
+        condition: null,
+      }),
     },
     healthService: {
       getAdminOverview: () => {

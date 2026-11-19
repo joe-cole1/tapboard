@@ -10,9 +10,16 @@ device or bridge side. The machine contract is [`openapi/telemetry-v1.json`](../
 1. In Admin, open **Integrations → Telemetry** and use **Create a telemetry source**. Give it a
    name (for example `Keg scale 1`). The machine key (`tbk_…`) is shown **once**; store it in
    the device or bridge configuration, not in a shared document.
-2. Open the Tap in Admin (**Taps → the Tap → Telemetry authority**), choose the source under
-   **Authoritative source**, and save. A Tap has at most one authoritative source; readings from
-   any other source are rejected as `telemetry.not_authoritative`.
+2. Open the Tap in Admin (**Taps → the Tap → Telemetry authority**), choose a **Level source**
+   (the scale: keg level and pours) and a **Condition source** (temperature), and save. One
+   device can hold both roles; a separate probe can hold the condition role for a Tap whose scale
+   is another device. Changing the level source needs a fresh baseline; changing the condition
+   source does not.
+   - Tapboard keeps only the readings whose role the sending source holds on that Tap and
+     ignores the rest, so a scale that also reports temperature keeps working after you give the
+     condition role to a probe.
+   - A sample with no reading of a role the source holds is rejected as
+     `telemetry.not_authoritative`.
 3. Rotating the key (source page → **Key actions**) issues a new secret and revokes the old one.
    The source, its Tap assignments, and its idempotency history are kept.
 
@@ -103,7 +110,7 @@ each result carries its own `outcome` and `code`.
 | Code                             | Cause                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `telemetry.accepted`             | Stored                                                                                                             |
-| `telemetry.not_authoritative`    | This source is not the Tap's authoritative source                                                                  |
+| `telemetry.not_authoritative`    | This source holds no role on the Tap for any reading in the sample                                                 |
 | `telemetry.tap_retired`          | The Tap is retired                                                                                                 |
 | `telemetry.future_timestamp`     | `measured_at` is more than 300 s ahead of Tapboard's clock (default)                                               |
 | `telemetry.stale_timestamp`      | `measured_at` is older than the 6 h reconnect horizon (default)                                                    |
@@ -142,8 +149,8 @@ curl -sS -X POST "$TAPBOARD_URL/api/v1/telemetry/batch" \
   -d "{\"samples\":[{\"tap_number\":1,\"client_sample_id\":\"curl-$(date -u +%s)-b1\",\"measured_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"readings\":[{\"metric\":\"remaining_volume\",\"value\":12.5,\"unit\":\"l\"}]},{\"tap_number\":2,\"client_sample_id\":\"curl-$(date -u +%s)-b2\",\"measured_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"readings\":[{\"metric\":\"fill_percentage\",\"value\":64,\"unit\":\"percent\"},{\"metric\":\"temperature\",\"value\":4.1,\"unit\":\"c\"}]}]}"
 ```
 
-The batch needs the source to be authoritative for both Taps. A sample for a Tap it isn't
-authoritative for comes back as `telemetry.not_authoritative` in its result.
+The batch needs the source to hold a role on both Taps. A sample for a Tap where it holds no
+role for any of the sample's readings comes back as `telemetry.not_authoritative` in its result.
 
 ### ESP32 (Arduino) posting directly
 
@@ -292,7 +299,7 @@ migration; see [architecture.md](../architecture.md).
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 401                                                   | The header is `Authorization: Bearer tbk_…` with the whole key; the key wasn't rotated; the source isn't disabled       |
 | 404                                                   | The URL's tap number matches a Tap in Admin                                                                             |
-| 409 `telemetry.not_authoritative`                     | The Tap's **Authoritative source** is this source                                                                       |
+| 409 `telemetry.not_authoritative`                     | The Tap's **Level source** or **Condition source** is this source, matching the readings it sends                       |
 | 409 `telemetry.future_timestamp` or `stale_timestamp` | The device clock (NTP) and that `measured_at` is UTC or carries its offset                                              |
 | 409 `telemetry.out_of_order`                          | Each sample's `measured_at` is newer than the last one from this source for the Tap, including temperature-only samples |
 | 409 `telemetry.idempotency_conflict`                  | `client_sample_id` is unique per sample, not reused for new values                                                      |

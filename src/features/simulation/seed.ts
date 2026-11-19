@@ -141,7 +141,11 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
         { name: `Simulation sensor ${number}` },
         actor,
       );
-      telemetryService.setTapAuthority(tap.id, { sourceId: source.id }, actor);
+      telemetryService.setTapAuthority(
+        tap.id,
+        { levelSourceId: source.id, conditionSourceId: source.id },
+        actor,
+      );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);
       insertSensor(database, {
         tapId: tap.id,

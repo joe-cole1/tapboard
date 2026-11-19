@@ -1,6 +1,7 @@
 import type { DatabaseExecutor } from "../../infrastructure/database/connection.ts";
 import type {
   TapTelemetryAuthorityRow,
+  TelemetryAuthorityRole,
   TelemetryIngestReceiptRow,
   TelemetryMeasurementRow,
   TelemetrySettingsRow,
@@ -226,7 +227,7 @@ export function countTapTelemetryAuthoritiesForSource(
   return (
     database
       .prepare<[string], { readonly count: number }>(
-        `SELECT COUNT(*) AS count
+        `SELECT COUNT(DISTINCT tap_id) AS count
          FROM tap_telemetry_authority
          WHERE source_id = ?`,
       )
@@ -239,37 +240,56 @@ export function countTapTelemetryAuthoritiesForSource(
 export function readTapTelemetryAuthority(
   database: DatabaseExecutor,
   tapId: string,
+  role: TelemetryAuthorityRole,
 ): TapTelemetryAuthorityRow | undefined {
   return database
+    .prepare<[string, string], TapTelemetryAuthorityRow>(
+      `SELECT tap_id, role, source_id, changed_at
+       FROM tap_telemetry_authority
+       WHERE tap_id = ? AND role = ?`,
+    )
+    .get(tapId, role);
+}
+
+export function listTapTelemetryAuthoritiesForTap(
+  database: DatabaseExecutor,
+  tapId: string,
+): readonly TapTelemetryAuthorityRow[] {
+  return database
     .prepare<[string], TapTelemetryAuthorityRow>(
-      `SELECT tap_id, source_id, changed_at
+      `SELECT tap_id, role, source_id, changed_at
        FROM tap_telemetry_authority
        WHERE tap_id = ?`,
     )
-    .get(tapId);
+    .all(tapId);
 }
 
 export function upsertTapTelemetryAuthority(
   database: DatabaseExecutor,
   tapId: string,
+  role: TelemetryAuthorityRole,
   sourceId: string,
   changedAt: string,
 ): void {
   database
-    .prepare<[string, string, string]>(
-      `INSERT INTO tap_telemetry_authority (tap_id, source_id, changed_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(tap_id) DO UPDATE SET
+    .prepare<[string, string, string, string]>(
+      `INSERT INTO tap_telemetry_authority (tap_id, role, source_id, changed_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(tap_id, role) DO UPDATE SET
          source_id = excluded.source_id,
          changed_at = excluded.changed_at`,
     )
-    .run(tapId, sourceId, changedAt);
+    .run(tapId, role, sourceId, changedAt);
 }
 
-export function deleteTapTelemetryAuthority(database: DatabaseExecutor, tapId: string): boolean {
+export function deleteTapTelemetryAuthority(
+  database: DatabaseExecutor,
+  tapId: string,
+  role: TelemetryAuthorityRole,
+): boolean {
   const result = database
-    .prepare<[string]>(`DELETE FROM tap_telemetry_authority WHERE tap_id = ?`)
-    .run(tapId);
+    .prepare<[string, string]>(`DELETE FROM tap_telemetry_authority WHERE tap_id = ? AND role = ?`)
+    .run(tapId, role);
   return result.changes > 0;
 }
 
@@ -278,9 +298,9 @@ export function listTapTelemetryAuthorities(
 ): readonly TapTelemetryAuthorityRow[] {
   return database
     .prepare<[], TapTelemetryAuthorityRow>(
-      `SELECT tap_id, source_id, changed_at
+      `SELECT tap_id, role, source_id, changed_at
        FROM tap_telemetry_authority
-       ORDER BY changed_at ASC`,
+       ORDER BY changed_at ASC, tap_id ASC, role ASC`,
     )
     .all();
 }

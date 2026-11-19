@@ -138,7 +138,10 @@ function createAuthorizedTap(
     ...(options.enabled === undefined ? {} : { enabled: options.enabled }),
   });
   const { source, initialToken } = harness.telemetryService.createSource({ name: sourceName });
-  harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  harness.telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   return { tap, source, initialToken };
 }
 
@@ -463,7 +466,10 @@ void test("telemetry source disable revokes only the owned key and preserves saf
     });
     const activeSource = harness.telemetryService.createSource({ name: "Stay active" });
     const historyTap = harness.tapService.createTap({ tapNumber: 1, name: "History tap" });
-    harness.telemetryService.setTapAuthority(historyTap.id, { sourceId: created.source.id });
+    harness.telemetryService.setTapAuthority(historyTap.id, {
+      levelSourceId: created.source.id,
+      conditionSourceId: created.source.id,
+    });
     const historySample = harness.telemetryService.ingestSingle(
       rotated.source,
       1,
@@ -474,7 +480,10 @@ void test("telemetry source disable revokes only the owned key and preserves saf
       }),
     );
     assert.equal(historySample.outcome, "accepted");
-    harness.telemetryService.setTapAuthority(historyTap.id, { sourceId: null });
+    harness.telemetryService.setTapAuthority(historyTap.id, {
+      levelSourceId: null,
+      conditionSourceId: null,
+    });
     const measurementsBefore = countRows(harness.database, "telemetry_measurements");
     const receiptsBefore = countRows(harness.database, "telemetry_ingest_receipts");
     const statusBefore = countRows(harness.database, "telemetry_source_tap_status");
@@ -547,12 +556,14 @@ void test("telemetry source disable revokes only the owned key and preserves saf
       listActivity(harness.database).map((activity) => activity.id),
     );
     const disabledTap = harness.tapService.createTap({ tapNumber: 2, name: "Disabled source tap" });
-    assert.throws(() =>
-      harness.database
-        .prepare<[string, string, string]>(
-          "INSERT INTO tap_telemetry_authority (tap_id, source_id, changed_at) VALUES (?, ?, ?)",
-        )
-        .run(disabledTap.id, created.source.id, disabled.updatedAt),
+    assert.throws(
+      () =>
+        harness.database
+          .prepare<[string, string, string]>(
+            "INSERT INTO tap_telemetry_authority (tap_id, role, source_id, changed_at) VALUES (?, 'level', ?, ?)",
+          )
+          .run(disabledTap.id, created.source.id, disabled.updatedAt),
+      /disabled telemetry sources cannot be Tap authority/,
     );
     assert.throws(
       () => harness.telemetryService.disableSource(created.source.id),
@@ -574,7 +585,10 @@ void test("telemetry source disable is blocked before writes when a Tap authorit
   try {
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const created = harness.telemetryService.createSource({ name: "In use" });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: created.source.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: created.source.id,
+      conditionSourceId: created.source.id,
+    });
     const sourceBefore = harness.telemetryService.getSourceById(created.source.id);
     const before = new Set(listActivity(harness.database).map((activity) => activity.id));
     assert.throws(() => harness.telemetryService.disableSource(created.source.id), /assigned/);
@@ -628,38 +642,83 @@ void test("tap authority can be assigned and cleared, triggering TelemetryAuthor
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const { source } = harness.telemetryService.createSource({ name: "ESP32 Source 1" });
 
-    // Initial state: no authority
-    assert.equal(harness.telemetryService.getTapAuthority(tap.id), undefined);
+    const { source: probe } = harness.telemetryService.createSource({ name: "Probe" });
 
-    // Assign authority
+    // Initial state: no authority
+    assert.deepEqual(harness.telemetryService.getTapAuthority(tap.id), {
+      tapId: tap.id,
+      level: null,
+      condition: null,
+    });
+
+    // Assign one source to both roles: one event per role, and a fresh baseline.
     const assignResult = harness.telemetryService.setTapAuthority(tap.id, {
-      sourceId: source.id,
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
     });
     assert.equal(assignResult.requiresFreshBaseline, true);
-    assert.equal(assignResult.authority?.sourceId, source.id);
+    assert.equal(assignResult.authority.level?.sourceId, source.id);
+    assert.equal(assignResult.authority.condition?.sourceId, source.id);
 
-    assert.equal(harness.authorityEvents.length, 1);
-    assert.equal(harness.authorityEvents[0]?.tapId, tap.id);
-    assert.equal(harness.authorityEvents[0]?.previousSourceId, null);
-    assert.equal(harness.authorityEvents[0]?.newSourceId, source.id);
+    assert.deepEqual(
+      harness.authorityEvents.map(({ tapId, role, previousSourceId, newSourceId }) => ({
+        tapId,
+        role,
+        previousSourceId,
+        newSourceId,
+      })),
+      [
+        { tapId: tap.id, role: "level", previousSourceId: null, newSourceId: source.id },
+        { tapId: tap.id, role: "condition", previousSourceId: null, newSourceId: source.id },
+      ],
+    );
+    assert.equal(harness.authorityEvents[0]?.requiresFreshBaseline, true);
+    assert.equal(harness.authorityEvents[1]?.requiresFreshBaseline, false);
 
     // Re-assign same authority returns requiresFreshBaseline: false
     const idempotentResult = harness.telemetryService.setTapAuthority(tap.id, {
-      sourceId: source.id,
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
     });
     assert.equal(idempotentResult.requiresFreshBaseline, false);
-    assert.equal(harness.authorityEvents.length, 1); // No new event
+    assert.equal(harness.authorityEvents.length, 2); // No new event
+
+    // Moving only the condition role needs no fresh baseline.
+    const splitResult = harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: probe.id,
+    });
+    assert.equal(splitResult.requiresFreshBaseline, false);
+    assert.equal(splitResult.authority.level?.sourceId, source.id);
+    assert.equal(splitResult.authority.condition?.sourceId, probe.id);
+    assert.equal(harness.authorityEvents.length, 3);
+    assert.equal(harness.authorityEvents[2]?.role, "condition");
+    assert.equal(harness.authorityEvents[2]?.previousSourceId, source.id);
+    assert.equal(harness.authorityEvents[2]?.newSourceId, probe.id);
 
     // Clear authority
     const clearResult = harness.telemetryService.setTapAuthority(tap.id, {
-      sourceId: null,
+      levelSourceId: null,
+      conditionSourceId: "",
     });
     assert.equal(clearResult.requiresFreshBaseline, true);
-    assert.equal(clearResult.authority, null);
+    assert.deepEqual(clearResult.authority, { tapId: tap.id, level: null, condition: null });
 
-    assert.equal(harness.authorityEvents.length, 2);
-    assert.equal(harness.authorityEvents[1]?.previousSourceId, source.id);
-    assert.equal(harness.authorityEvents[1]?.newSourceId, null);
+    assert.equal(harness.authorityEvents.length, 5);
+    assert.equal(harness.authorityEvents[3]?.role, "level");
+    assert.equal(harness.authorityEvents[3]?.previousSourceId, source.id);
+    assert.equal(harness.authorityEvents[3]?.newSourceId, null);
+    assert.equal(harness.authorityEvents[4]?.previousSourceId, probe.id);
+
+    // Both role fields are required.
+    assert.throws(
+      () => harness.telemetryService.setTapAuthority(tap.id, { levelSourceId: source.id }),
+      /invalid value/,
+    );
+    assert.throws(
+      () => harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id }),
+      /invalid value/,
+    );
   } finally {
     harness.database.close();
   }
@@ -725,7 +784,10 @@ void test("single sample ingestion accepts authoritative telemetry, registers fi
   try {
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const { source } = harness.telemetryService.createSource({ name: "Scale 1" });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
 
     assert.equal(harness.tapService.getTap(tap.id).firstUsedAt, null);
 
@@ -806,7 +868,10 @@ void test("telemetry attribution captures active assignment ID only if measuredA
   try {
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const { source } = harness.telemetryService.createSource({ name: "Scale 1" });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
 
     const keg = harness.kegService.createKeg({
       kegNumber: 10,
@@ -914,7 +979,10 @@ void test("telemetry rejects non-authoritative sources, future skew, stale recon
     const { source: unauthSource } = harness.telemetryService.createSource({
       name: "Rogue Source",
     });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: authSource.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: authSource.id,
+      conditionSourceId: authSource.id,
+    });
 
     // 1. Non-authoritative source
     const nonAuthResult = harness.telemetryService.ingestSingle(
@@ -999,7 +1067,10 @@ void test("telemetry rate limiter enforces burst and refill rates without durabl
   try {
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const { source } = harness.telemetryService.createSource({ name: "Scale 1" });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
 
     // Set tight rate limit: burst 2, 60 samples/minute (1 sample/sec)
     harness.telemetryService.updateSettings({
@@ -1086,8 +1157,14 @@ void test("batch ingestion handles preflight resolution, deterministic sorting, 
     const tap2 = harness.tapService.createTap({ tapNumber: 2, name: "Tap 2" });
     const { source } = harness.telemetryService.createSource({ name: "Batch Source" });
 
-    harness.telemetryService.setTapAuthority(tap1.id, { sourceId: source.id });
-    harness.telemetryService.setTapAuthority(tap2.id, { sourceId: source.id });
+    harness.telemetryService.setTapAuthority(tap1.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
+    harness.telemetryService.setTapAuthority(tap2.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
 
     // Batch contains:
     // index 0: Tap 2 measured at 12:00:02
@@ -1206,7 +1283,10 @@ void test("retention pruning cleans raw measurements at raw_retention and receip
   try {
     const tap = harness.tapService.createTap({ tapNumber: 1, name: "Tap 1" });
     const { source } = harness.telemetryService.createSource({ name: "Scale 1" });
-    harness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+    harness.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
 
     // Configure: raw retention 6h (21600s), receipt retention 24h (86400s)
     harness.telemetryService.updateSettings({
@@ -1330,7 +1410,7 @@ void test("source credentials are show-once, source identity survives rotation, 
     const rotated = harness.telemetryService.rotateSourceKey(source.id, { label: "new key" });
     assert.equal(rotated.source.id, source.id);
     assert.notEqual(rotated.source.currentMachineKeyId, source.currentMachineKeyId);
-    assert.equal(harness.telemetryService.getTapAuthority(tap.id)?.sourceId, source.id);
+    assert.equal(harness.telemetryService.getTapAuthority(tap.id).level?.sourceId, source.id);
     assert.equal(harness.telemetryService.authenticateSourceToken(initialToken), undefined);
 
     const authenticatedAfterRotation = harness.telemetryService.authenticateSourceToken(
@@ -1390,7 +1470,8 @@ void test("authority no-ops are inert, hooks receive the executor, and failed au
     const first = harness.telemetryService.createSource({ name: "Authority A" });
     const second = harness.telemetryService.createSource({ name: "Authority B" });
     const assigned = harness.telemetryService.setTapAuthority(tap.id, {
-      sourceId: first.source.id,
+      levelSourceId: first.source.id,
+      conditionSourceId: first.source.id,
     });
     assert.equal(assigned.requiresFreshBaseline, true);
     assert.strictEqual(hookDatabases[0], harness.database);
@@ -1399,7 +1480,8 @@ void test("authority no-ops are inert, hooks receive the executor, and failed au
     const activityBeforeNoop = countRows(harness.database, "activity_log");
     const hookCountBeforeNoop = events.length;
     const noOp = harness.telemetryService.setTapAuthority(tap.id, {
-      sourceId: first.source.id,
+      levelSourceId: first.source.id,
+      conditionSourceId: first.source.id,
     });
     assert.equal(noOp.requiresFreshBaseline, false);
     assert.equal(events.length, hookCountBeforeNoop);
@@ -1408,10 +1490,16 @@ void test("authority no-ops are inert, hooks receive the executor, and failed au
     const activityBeforeFailure = countRows(harness.database, "activity_log");
     failOnSourceId = second.source.id;
     assert.throws(
-      () => harness.telemetryService.setTapAuthority(tap.id, { sourceId: second.source.id }),
+      () =>
+        harness.telemetryService.setTapAuthority(tap.id, {
+          levelSourceId: second.source.id,
+          conditionSourceId: second.source.id,
+        }),
       /authority hook failed/,
     );
-    assert.equal(harness.telemetryService.getTapAuthority(tap.id)?.sourceId, first.source.id);
+    const afterFailure = harness.telemetryService.getTapAuthority(tap.id);
+    assert.equal(afterFailure.level?.sourceId, first.source.id);
+    assert.equal(afterFailure.condition?.sourceId, first.source.id);
     assert.equal(countRows(harness.database, "activity_log"), activityBeforeFailure);
     assert.equal(events.at(-1)?.newSourceId, second.source.id);
   } finally {
@@ -1491,10 +1579,18 @@ void test("Promise-like telemetry extensions are rejected synchronously and roll
     const tap = authorityHarness.tapService.createTap({ tapNumber: 1 });
     const { source } = authorityHarness.telemetryService.createSource({ name: "Async Authority" });
     assert.throws(
-      () => authorityHarness.telemetryService.setTapAuthority(tap.id, { sourceId: source.id }),
+      () =>
+        authorityHarness.telemetryService.setTapAuthority(tap.id, {
+          levelSourceId: source.id,
+          conditionSourceId: source.id,
+        }),
       /Telemetry authority extensions must complete synchronously/,
     );
-    assert.equal(authorityHarness.telemetryService.getTapAuthority(tap.id), undefined);
+    assert.deepEqual(authorityHarness.telemetryService.getTapAuthority(tap.id), {
+      tapId: tap.id,
+      level: null,
+      condition: null,
+    });
   } finally {
     authorityHarness.database.close();
   }
@@ -1677,7 +1773,10 @@ void test("idempotency namespaces, semantic duplicates, conflicts, stable reject
   try {
     const tap1 = createAuthorizedTap(harness, 1, "Identity Source A");
     const tap2 = harness.tapService.createTap({ tapNumber: 2, name: "Tap 2" });
-    harness.telemetryService.setTapAuthority(tap2.id, { sourceId: tap1.source.id });
+    harness.telemetryService.setTapAuthority(tap2.id, {
+      levelSourceId: tap1.source.id,
+      conditionSourceId: tap1.source.id,
+    });
     const tap3 = createAuthorizedTap(harness, 3, "Identity Source B");
 
     const first = harness.telemetryService.ingestSingle(
@@ -1938,7 +2037,10 @@ void test("batch validation is all-or-nothing, ordered by canonical time, and re
   try {
     const tap1 = createAuthorizedTap(harness, 1, "Batch Source");
     const tap2 = harness.tapService.createTap({ tapNumber: 2, name: "Tap 2" });
-    harness.telemetryService.setTapAuthority(tap2.id, { sourceId: tap1.source.id });
+    harness.telemetryService.setTapAuthority(tap2.id, {
+      levelSourceId: tap1.source.id,
+      conditionSourceId: tap1.source.id,
+    });
     const before = telemetryCounts(harness.database);
     const validItem = {
       tap_number: 1,

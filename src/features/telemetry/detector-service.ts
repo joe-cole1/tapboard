@@ -281,7 +281,8 @@ export class DetectorService
   }
 
   onAuthorityChanged(database: DatabaseExecutor, event: AuthorityChangedEvent): void {
-    if (event.previousSourceId === event.newSourceId) return;
+    // Only the level source feeds the detector; a condition change keeps the epoch.
+    if (event.role !== "level" || event.previousSourceId === event.newSourceId) return;
     const at = asEpochMs(event.changedAt);
     this.#close(database, event.tapId, "source_changed", at);
     const assignment = findActiveAssignmentByTapId(database, event.tapId);
@@ -745,7 +746,7 @@ export class DetectorService
     const epoch: TelemetryEpoch = {
       id,
       tapId,
-      sourceId: readTapTelemetryAuthority(database, tapId)?.source_id ?? null,
+      sourceId: readTapTelemetryAuthority(database, tapId, "level")?.source_id ?? null,
       fillId,
       assignmentId,
       kegId: keg.id,

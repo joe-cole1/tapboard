@@ -107,7 +107,10 @@ function setup(h: ReturnType<typeof harness>) {
   });
   const fill = h.fillService.createFill({ beverageId: beverage.beverage.id, kegId: keg.id });
   const source = h.telemetryService.createSource({ name: "scale" }).source;
-  h.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  h.telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   h.detector.setTapOverride(tap.id, fastConfig());
   h.set(1000);
   const assignment = h.tapService.assignFill(tap.id, { fillId: fill.id }).assignment;

@@ -55,8 +55,16 @@ export interface TelemetrySourceWithKeyRow {
   readonly current_machine_key_revoked_at: string | null;
 }
 
+/**
+ * The roles a Tap assigns to sources: `level` (keg level and pours) and `condition`
+ * (temperature and other condition metrics). `recorded` metrics need no role of their own.
+ */
+export const TELEMETRY_AUTHORITY_ROLES = ["level", "condition"] as const;
+export type TelemetryAuthorityRole = (typeof TELEMETRY_AUTHORITY_ROLES)[number];
+
 export interface TapTelemetryAuthorityRow {
   readonly tap_id: string;
+  readonly role: TelemetryAuthorityRole;
   readonly source_id: string;
   readonly changed_at: string;
 }
@@ -172,10 +180,16 @@ export interface TelemetryAdminSourcePage {
   readonly state: TelemetryAdminSourceState;
 }
 
-export interface TapTelemetryAuthority {
-  readonly tapId: string;
+export interface TapTelemetryRoleAuthority {
   readonly sourceId: string;
   readonly changedAt: string;
+}
+
+/** A Tap's sources by role; null where the role has no source. */
+export interface TapTelemetryAuthority {
+  readonly tapId: string;
+  readonly level: TapTelemetryRoleAuthority | null;
+  readonly condition: TapTelemetryRoleAuthority | null;
 }
 
 export interface TelemetrySettings {
@@ -258,7 +272,8 @@ export interface RotateTelemetrySourceInput {
 }
 
 export interface AssignAuthorityInput {
-  readonly sourceId: string | null;
+  readonly levelSourceId: string | null;
+  readonly conditionSourceId: string | null;
 }
 
 export interface UpdateTelemetrySettingsInput {
@@ -328,12 +343,14 @@ export interface BatchIngestResult {
   readonly results: readonly BatchItemIngestResult[];
 }
 
+/** One role's source changed on a Tap. Only a `level` change needs a fresh baseline. */
 export interface AuthorityChangedEvent {
   readonly tapId: string;
+  readonly role: TelemetryAuthorityRole;
   readonly previousSourceId: string | null;
   readonly newSourceId: string | null;
   readonly changedAt: string;
-  readonly requiresFreshBaseline: true;
+  readonly requiresFreshBaseline: boolean;
 }
 
 export interface TelemetryAuthorityExtensionPort {

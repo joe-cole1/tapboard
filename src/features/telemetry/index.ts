@@ -7,7 +7,7 @@ export {
   parseRfc3339Timestamp,
   type NormalizedTelemetrySample,
 } from "./normalization.ts";
-export { TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
+export { TELEMETRY_AUTHORITY_ROLES, TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
 export {
   TELEMETRY_METRICS,
   telemetryMetric,
@@ -86,7 +86,9 @@ export type {
   SingleIngestResult,
   TapTelemetryAuthority,
   TapTelemetryAuthorityRow,
+  TapTelemetryRoleAuthority,
   TelemetryAuthorityExtensionPort,
+  TelemetryAuthorityRole,
   TelemetryIngestReceipt,
   TelemetryIngestReceiptRow,
   TelemetryMeasurement,

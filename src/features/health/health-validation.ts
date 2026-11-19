@@ -299,6 +299,7 @@ export function validateHealthEvaluationInput(value: unknown): HealthEvaluationI
       "retired",
       "tapId",
       "authorityChangedAtMs",
+      "temperatureAuthorityChangedAtMs",
       "latestMeasurement",
       "latestScaleMeasurement",
       "latestTemperatureMeasurement",
@@ -335,5 +336,10 @@ export function validateHealthEvaluationInput(value: unknown): HealthEvaluationI
   }
   if (object.authorityChangedAtMs !== null)
     finiteNumber(object.authorityChangedAtMs, "authorityChangedAtMs");
+  if (!Object.hasOwn(object, "temperatureAuthorityChangedAtMs")) {
+    throw invalid("temperatureAuthorityChangedAtMs", "is required");
+  }
+  if (object.temperatureAuthorityChangedAtMs !== null)
+    finiteNumber(object.temperatureAuthorityChangedAtMs, "temperatureAuthorityChangedAtMs");
   return value as HealthEvaluationInput;
 }

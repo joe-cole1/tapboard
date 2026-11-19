@@ -58,6 +58,7 @@ function input(overrides: Partial<HealthEvaluationInput> = {}): HealthEvaluation
     enabled: true,
     retired: false,
     authorityChangedAtMs: NOW - 60_000,
+    temperatureAuthorityChangedAtMs: NOW - 60_000,
     latestMeasurement: measurement(),
     currentEpoch: epoch(),
     ...overrides,
@@ -223,6 +224,7 @@ void test("scale uses authority age and measurement time, not receipt time", () 
     validateHealthEvaluationInput({
       nowMs: NOW,
       authorityChangedAtMs: NOW,
+      temperatureAuthorityChangedAtMs: NOW,
       latestScaleMeasurement: null,
     }).latestScaleMeasurement,
     null,

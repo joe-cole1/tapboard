@@ -66,7 +66,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "Durable operational rejections (not_authoritative, tap_retired, stale, future, or out_of_order) are recorded as receipts. out_of_order means measured_at is not newer than the source's latest accepted sample for the tap, whatever readings either carried. A non-durable/no-effect idempotency_conflict means the same identity was submitted with a different payload and no new receipt or measurement is written.",
+            "description": "Durable operational rejections (not_authoritative, tap_retired, stale, future, or out_of_order) are recorded as receipts. A Tap assigns a level source and a condition source; an accepted sample keeps only the readings whose metric role the source holds on the Tap and ignores the rest, and not_authoritative means none of the sample's readings has such a role. out_of_order means measured_at is not newer than the source's latest accepted sample for the tap, whatever readings either carried. A non-durable/no-effect idempotency_conflict means the same identity was submitted with a different payload and no new receipt or measurement is written.",
             "content": {
               "application/json": {
                 "schema": {

@@ -66,21 +66,27 @@ export function renderTapDetail(
     .map((source) => ({ id: source.id, name: source.name }));
   const sourceNames = new Map(telemetrySources.map((source) => [source.id, source.name]));
 
-  let authoritySourceId = "";
-  let authorityName = "None";
+  let levelSourceId = "";
+  let conditionSourceId = "";
+  let authoritySummary = "No sources assigned";
   try {
     const authority = dependencies.telemetryService.getTapAuthority(id);
-    authoritySourceId = authority?.sourceId ?? "";
-    authorityName =
-      authority === undefined
-        ? "None"
-        : (sourceNames.get(authority.sourceId) ?? "Configured source");
+    levelSourceId = authority.level?.sourceId ?? "";
+    conditionSourceId = authority.condition?.sourceId ?? "";
+    const name = (sourceId: string) =>
+      sourceId === "" ? "none" : (sourceNames.get(sourceId) ?? "configured source");
+    if (levelSourceId !== "" || conditionSourceId !== "") {
+      authoritySummary =
+        levelSourceId === conditionSourceId
+          ? `Level and condition: ${name(levelSourceId)}`
+          : `Level: ${name(levelSourceId)} · Condition: ${name(conditionSourceId)}`;
+    }
   } catch (error) {
     reportFailure(error, {
       operation: "admin.tap.authority",
       ...(dependencies.logger ? { logger: dependencies.logger } : {}),
     });
-    authorityName = "Unavailable";
+    authoritySummary = "Unavailable";
   }
 
   let detectorFields: readonly Record<string, unknown>[] = [];
@@ -311,7 +317,12 @@ export function renderTapDetail(
                 },
           mystery,
         },
-        telemetry: { authorityName, authoritySourceId, sources: telemetrySources },
+        telemetry: {
+          authoritySummary,
+          levelSourceId,
+          conditionSourceId,
+          sources: telemetrySources,
+        },
         detector: { fields: detectorFields, groups: detectorGroups },
         health: { overview: healthOverview, sections: healthSections },
         display: { tapCard },
