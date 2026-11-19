@@ -16,6 +16,7 @@ import {
 } from "../src/features/telemetry/repositories/detector.ts";
 import {
   insertTelemetryMeasurement,
+  upsertSourceTapReading,
   upsertSourceTapStatus,
   upsertTapTelemetryAuthority,
 } from "../src/features/telemetry/repository.ts";
@@ -638,6 +639,18 @@ void test("epoch state isolates health measurement evidence from a prior source 
       captured_fill_id: null,
       updated_at: evaluationAt,
     });
+    // Ingest records each reading's latest value with the sample's attribution.
+    upsertSourceTapReading(database, {
+      source_id: sourceId,
+      tap_id: tap.id,
+      metric: "temperature",
+      value: 4,
+      measurement_id: priorMeasurementId,
+      captured_assignment_id: null,
+      measured_at: evaluationAt,
+      measured_at_epoch_ms: evaluationAtMs,
+      received_at: evaluationAt,
+    });
     const epoch: CreateTelemetryEpoch = {
       id: epochId,
       tapId: tap.id,
@@ -737,6 +750,22 @@ void test("epoch state isolates health measurement evidence from a prior source 
       captured_assignment_id: assignmentId,
       captured_fill_id: fillId,
       updated_at: evaluationAt,
+    });
+    database
+      .prepare<[string, string]>(
+        "DELETE FROM telemetry_source_tap_readings WHERE source_id = ? AND tap_id = ?",
+      )
+      .run(sourceId, tap.id);
+    upsertSourceTapReading(database, {
+      source_id: sourceId,
+      tap_id: tap.id,
+      metric: "temperature",
+      value: 4,
+      measurement_id: currentMeasurementId,
+      captured_assignment_id: assignmentId,
+      measured_at: evaluationAt,
+      measured_at_epoch_ms: evaluationAtMs,
+      received_at: evaluationAt,
     });
     const currentState = readTelemetryEpochState(database, epoch.id);
     if (currentState === undefined) throw new Error("detector state fixture disappeared");

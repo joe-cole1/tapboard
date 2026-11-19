@@ -274,6 +274,10 @@ After the normal rebuild without deleting the data volume, verify `/healthz` is 
 
 After merging, rebuild and recreate the development container without deleting its volume; confirm `/healthz` is healthy. Use a development fixture or local fake Brewfather transport: defer a linked batch response, unlink or delete its Beverage, then release the response and verify the obsolete source profile/recipe is not restored. Repeat with a missing/error response and confirm a replacement link keeps its own state. Verify normal sync still updates linked data, disabled accounts do not degrade the public header, and enabled stale/error links show Partial. Oversized, malformed, stalled, and retried response checks are covered by automated fake-transport tests; no production Brewfather writes are needed.
 
+## Telemetry devices
+
+Scales, probes, and bridges post readings to `/api/v1/telemetry` with a telemetry source key. [docs/telemetry-clients.md](docs/telemetry-clients.md) covers creating a source, the two payload forms, the registered metrics, `curl`, ESP32, and Home Assistant examples, and bridging an off-the-shelf device. The contract is [`openapi/telemetry-v1.json`](openapi/telemetry-v1.json).
+
 ## System administration
 
 Open **Admin → System** for application readiness/version, local storage and delivery counts, a category-filtered Activity Log, calculation defaults, retention settings, and active Admin sessions. These are normal forms that work without JavaScript. Activity pages are capped at 50 entries with stable time/ID pagination; diagnostics never fetch an external service or expose credentials, private notes, raw payloads, or configured endpoints.
@@ -357,7 +361,7 @@ After the normal non-destructive rebuild (`docker compose -f compose.dev.yaml up
 
 ## Issue #75 health and Tap maintenance
 
-Health checks use the exact IDs `low_keg`, `scale_availability`, `suspected_leak`, `serving_temperature`, and `line_cleaning_due`. Typed global defaults flow into nullable per-Tap overrides. `low_keg` and `scale_availability` are enabled by default; leak, serving-temperature, and line-cleaning checks are opt-in. Scale availability reads the latest accepted measurement from the current authoritative source/Tap status independently of serving-epoch state; low-keg, leak, and serving-temperature retain current-epoch provenance isolation. Disabled Taps evaluate; retired Taps skip with deterministic incident resolution.
+Health checks use the exact IDs `low_keg`, `scale_availability`, `suspected_leak`, `serving_temperature`, and `line_cleaning_due`. Typed global defaults flow into nullable per-Tap overrides. `low_keg` and `scale_availability` are enabled by default; leak, serving-temperature, and line-cleaning checks are opt-in. Scale availability reads the latest accepted measurement from the current authoritative source/Tap status independently of serving-epoch state; low-keg, leak, and serving-temperature retain current-epoch provenance isolation. Serving temperature reads the latest temperature reading, which a device may send without a keg level. Disabled Taps evaluate; retired Taps skip with deterministic incident resolution.
 
 Current health state is rebuildable and separate from durable incidents/transitions. Acknowledgement does not resolve or hide an incident, and bounded cooldown suppresses repeated incident side effects rather than health truth. Resolved incidents are retained for 365 days and pruned in batches of at most 100; open incidents, current state, and Tap `first_used_at` are never pruned. Tap line maintenance is append-only, due dates are server-derived, `line_cleaned` establishes the line-cleaning baseline only, and private notes are Admin maintenance detail. Durable incidents and maintenance atomically set Tap `first_used_at`.
 

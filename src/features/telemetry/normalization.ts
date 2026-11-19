@@ -1,17 +1,17 @@
 import { createHash } from "node:crypto";
 import { canonicalizeJson } from "../../shared/canonical-json.ts";
 import { ApplicationError } from "../../shared/errors.ts";
+import { telemetryMetric } from "./metrics.ts";
 import type {
   ExternalTelemetryRequestInput,
-  MassUnit,
+  NormalizedTelemetryReading,
   NormalizedTelemetrySample,
-  TemperatureUnit,
-  VolumeUnit,
+  TelemetryPrimaryKind,
 } from "./types.ts";
 import { TELEMETRY_NORMALIZATION_VERSION as NORMALIZATION_VERSION } from "./types.ts";
 
 export { canonicalizeJson };
-export type { MassUnit, VolumeUnit, TemperatureUnit, NormalizedTelemetrySample };
+export type { NormalizedTelemetrySample };
 
 const CANONICAL_DECIMAL_PLACES = 6;
 
@@ -21,20 +21,6 @@ const RFC3339_EXPLICIT_OFFSET_REGEX =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/;
 
 const CLIENT_SAMPLE_ID_REGEX = /^[A-Za-z0-9_.:\/-]{1,128}$/;
-
-const MASS_FACTORS_TO_GRAMS: Record<MassUnit, number> = {
-  g: 1,
-  kg: 1000,
-  oz: 28.349523125,
-  lb: 453.59237,
-};
-
-const VOLUME_FACTORS_TO_MILLILITERS: Record<VolumeUnit, number> = {
-  ml: 1,
-  l: 1000,
-  us_fl_oz: 29.5735295625,
-  us_gal: 3785.411784,
-};
 
 export function roundCanonicalNumber(
   value: number,
@@ -131,61 +117,82 @@ export function isValidClientSampleId(clientSampleId: unknown): boolean {
   return CLIENT_SAMPLE_ID_REGEX.test(clientSampleId);
 }
 
+function registeredMetric(metric: string) {
+  const definition = telemetryMetric(metric);
+  if (definition === undefined) {
+    throw new Error(`Telemetry metric '${metric}' is not registered`);
+  }
+  return definition;
+}
+
 /**
- * Converts a wire sample that `validateExternalTelemetryPayload` has already
- * accepted into canonical units (grams, millilitres, percent, Celsius).
+ * Converts a wire sample that `validateExternalTelemetryPayload` has already accepted into
+ * each metric's canonical unit (grams, millilitres, percent, Celsius, ...).
  */
 export function normalizeExternalTelemetrySample(
   input: ExternalTelemetryRequestInput,
 ): NormalizedTelemetrySample {
   const { isoString: measuredAt, measuredAtEpochMs } = parseRfc3339Timestamp(input.measured_at);
-  const { measurement } = input;
-  const primary =
-    measurement.kind === "total_weight"
-      ? {
-          totalMassG: roundCanonicalNumber(
-            measurement.value * MASS_FACTORS_TO_GRAMS[measurement.unit],
-          ),
-        }
-      : measurement.kind === "remaining_volume"
-        ? {
-            remainingVolumeMl: roundCanonicalNumber(
-              measurement.value * VOLUME_FACTORS_TO_MILLILITERS[measurement.unit],
-            ),
-          }
-        : { fillPercentage: roundCanonicalNumber(measurement.value) };
-  const temperature = input.temperature;
-  const temperatureC =
-    temperature === undefined
-      ? undefined
-      : roundCanonicalNumber(
-          temperature.unit === "c" ? temperature.value : ((temperature.value - 32) * 5) / 9,
-        );
+  const readings = input.readings
+    .map(({ metric, value, unit }) => {
+      const convert = registeredMetric(metric).units[unit];
+      if (convert === undefined) {
+        throw new Error(`Telemetry unit '${unit}' is not registered for '${metric}'`);
+      }
+      return { metric, value: roundCanonicalNumber(convert(value)) };
+    })
+    .sort((left, right) => (left.metric < right.metric ? -1 : left.metric > right.metric ? 1 : 0));
 
   return {
     ...(input.client_sample_id !== undefined ? { clientSampleId: input.client_sample_id } : {}),
     measuredAt,
     measuredAtEpochMs,
     normalizationVersion: NORMALIZATION_VERSION,
-    primaryKind: measurement.kind,
-    ...primary,
-    ...(temperatureC !== undefined ? { temperatureC } : {}),
+    readings,
   };
 }
 
+/** The sample's level reading (validation guarantees at most one), or undefined. */
+export function levelReading(
+  sample: NormalizedTelemetrySample,
+): (NormalizedTelemetryReading & { readonly metric: TelemetryPrimaryKind }) | undefined {
+  const reading = sample.readings.find(({ metric }) => registeredMetric(metric).role === "level");
+  return reading as (NormalizedTelemetryReading & { metric: TelemetryPrimaryKind }) | undefined;
+}
+
+export function readingValue(sample: NormalizedTelemetrySample, metric: string): number | null {
+  return sample.readings.find((reading) => reading.metric === metric)?.value ?? null;
+}
+
+/**
+ * Hashes the sample's meaning, not its wire form, so a retried sample deduplicates however it
+ * was spelled. Metrics with a legacy column keep their historical key; any other metric goes
+ * under `readings`, which is omitted when empty so digests from before the registry are
+ * unchanged.
+ */
 export function computeSemanticPayloadDigest(
   sample: NormalizedTelemetrySample,
   tapId: string,
 ): string {
+  const legacy: Record<string, number | null> = {
+    fill_percentage: null,
+    remaining_volume_ml: null,
+    temperature_c: null,
+    total_mass_g: null,
+  };
+  const others: Record<string, number> = {};
+  for (const { metric, value } of sample.readings) {
+    const column = registeredMetric(metric).column;
+    if (column === undefined) others[metric] = value;
+    else legacy[column] = value;
+  }
   const canonicalObject = {
-    fill_percentage: sample.fillPercentage ?? null,
+    ...legacy,
     measured_at_epoch_ms: sample.measuredAtEpochMs,
     normalization_version: NORMALIZATION_VERSION,
-    primary_kind: sample.primaryKind,
-    remaining_volume_ml: sample.remainingVolumeMl ?? null,
+    primary_kind: levelReading(sample)?.metric ?? null,
+    ...(Object.keys(others).length > 0 ? { readings: others } : {}),
     tap_id: tapId,
-    temperature_c: sample.temperatureC ?? null,
-    total_mass_g: sample.totalMassG ?? null,
   };
 
   const jsonString = canonicalizeJson(canonicalObject);

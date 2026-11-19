@@ -7,18 +7,17 @@ import {
   requirePlainObject,
 } from "../../shared/validation.ts";
 import {
-  isValidClientSampleId,
-  parseRfc3339Timestamp,
-  type MassUnit,
-  type TemperatureUnit,
-  type VolumeUnit,
-} from "./normalization.ts";
+  telemetryMetric,
+  telemetryMetricNames,
+  type TelemetryMetricDefinition,
+} from "./metrics.ts";
+import { isValidClientSampleId, parseRfc3339Timestamp } from "./normalization.ts";
 import type {
   AssignAuthorityInput,
   CreateTelemetrySourceInput,
   ExternalBatchTelemetryRequestInput,
   ExternalBatchTelemetryRequestSampleInput,
-  ExternalTelemetryMeasurementInput,
+  ExternalTelemetryReadingInput,
   ExternalTelemetryRequestInput,
   RenameTelemetrySourceInput,
   RotateTelemetrySourceInput,
@@ -27,11 +26,9 @@ import type {
 
 const MAX_SOURCE_NAME_LENGTH = 120;
 const MAX_MACHINE_KEY_LABEL_LENGTH = 120;
-const VALID_MASS_UNITS = new Set<MassUnit>(["g", "kg", "oz", "lb"]);
-const VALID_VOLUME_UNITS = new Set<VolumeUnit>(["ml", "l", "us_fl_oz", "us_gal"]);
-const VALID_TEMP_UNITS = new Set<TemperatureUnit>(["c", "f"]);
-const VALID_EXTERNAL_PERCENT_UNIT = "percent" as const;
 const MAX_EXTERNAL_BATCH_SIZE = 100;
+/** Metric names this format may be echoed back in an error message. */
+const ECHOABLE_METRIC_REGEX = /^[a-z0-9_]{1,64}$/;
 
 export function validateTelemetrySourceId(value: unknown, field = "id"): string {
   return requireUuid(value, field);
@@ -237,17 +234,96 @@ function parseExternalMeasuredAt(value: unknown, field: string): string {
   return value;
 }
 
-function parseExternalMeasurement(
-  value: unknown,
-  field: string,
-): ExternalTelemetryMeasurementInput {
+function quotedList(values: readonly string[]): string {
+  return values.map((value) => `'${value}'`).join(", ");
+}
+
+function unitReason(definition: TelemetryMetricDefinition): string {
+  const units = Object.keys(definition.units);
+  return units.length === 1
+    ? `must be exactly '${units[0]}'`
+    : `must be one of ${quotedList(units)}`;
+}
+
+function outOfBoundsReason(definition: TelemetryMetricDefinition, value: number): string | null {
+  const { min, max } = definition;
+  if ((min === undefined || value >= min) && (max === undefined || value <= max)) return null;
+  if (min !== undefined && max !== undefined) return `must be between ${min} and ${max}`;
+  if (min === 0) return "must be non-negative";
+  return min !== undefined ? `must be at least ${min}` : `must be at most ${max}`;
+}
+
+/** Legacy `measurement`: the v1 check order and messages are part of the wire contract. */
+function parseExternalMeasurement(value: unknown, field: string): ExternalTelemetryReadingInput {
   const obj = requirePlainObject(value, field);
   rejectUnknownKeys(obj, ["kind", "value", "unit"], field);
 
+  const kindReason = `must be one of ${quotedList(telemetryMetricNames("level"))}`;
   if (typeof obj.kind !== "string") {
+    throw validationError(`${field}.kind`, kindReason);
+  }
+  if (typeof obj.value !== "number" || !Number.isFinite(obj.value)) {
+    throw validationError(`${field}.value`, "must be a finite number");
+  }
+  if (obj.unit === undefined || typeof obj.unit !== "string") {
+    throw validationError(`${field}.unit`, "is required");
+  }
+  const definition = telemetryMetric(obj.kind);
+  if (definition?.role !== "level") {
+    throw validationError(`${field}.kind`, kindReason);
+  }
+  const boundsReason = outOfBoundsReason(definition, obj.value);
+  if (boundsReason !== null) {
+    throw validationError(`${field}.value`, boundsReason);
+  }
+  if (!Object.hasOwn(definition.units, obj.unit)) {
+    throw validationError(`${field}.unit`, unitReason(definition));
+  }
+  return { metric: obj.kind, value: obj.value, unit: obj.unit };
+}
+
+/** Legacy `temperature`: the v1 check order and messages are part of the wire contract. */
+function parseExternalTemperature(
+  value: unknown,
+  field: string,
+): ExternalTelemetryReadingInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const definition = telemetryMetric("temperature")!;
+  const obj = requirePlainObject(value, field);
+  rejectUnknownKeys(obj, ["value", "unit"], field);
+  if (obj.value === undefined || typeof obj.value !== "number" || !Number.isFinite(obj.value)) {
+    throw validationError(`${field}.value`, "must be a finite number");
+  }
+  const boundsReason = outOfBoundsReason(definition, obj.value);
+  if (boundsReason !== null) {
+    throw validationError(`${field}.value`, boundsReason);
+  }
+  if (obj.unit === undefined || typeof obj.unit !== "string") {
+    throw validationError(`${field}.unit`, "is required");
+  }
+  if (!Object.hasOwn(definition.units, obj.unit)) {
+    throw validationError(`${field}.unit`, unitReason(definition));
+  }
+  return { metric: "temperature", value: obj.value, unit: obj.unit };
+}
+
+function parseExternalReading(value: unknown, field: string): ExternalTelemetryReadingInput {
+  const obj = requirePlainObject(value, field);
+  rejectUnknownKeys(obj, ["metric", "value", "unit"], field);
+  const registered = `use one of ${quotedList(telemetryMetricNames())}`;
+  if (typeof obj.metric !== "string") {
+    throw validationError(`${field}.metric`, `must be a registered metric name; ${registered}`);
+  }
+  const metric = obj.metric;
+  const definition = telemetryMetric(metric);
+  if (definition === undefined) {
     throw validationError(
-      `${field}.kind`,
-      "must be one of 'total_weight', 'remaining_volume', 'fill_percentage'",
+      `${field}.metric`,
+      ECHOABLE_METRIC_REGEX.test(metric)
+        ? `'${metric}' is not a registered metric; ${registered}`
+        : `must be a registered metric name; ${registered}`,
     );
   }
   if (typeof obj.value !== "number" || !Number.isFinite(obj.value)) {
@@ -256,74 +332,50 @@ function parseExternalMeasurement(
   if (obj.unit === undefined || typeof obj.unit !== "string") {
     throw validationError(`${field}.unit`, "is required");
   }
-
-  switch (obj.kind) {
-    case "total_weight":
-      if (obj.value < 0) {
-        throw validationError(`${field}.value`, "must be non-negative");
-      }
-      if (!VALID_MASS_UNITS.has(obj.unit as MassUnit)) {
-        throw validationError(`${field}.unit`, "must be one of 'g', 'kg', 'oz', 'lb'");
-      }
-      return {
-        kind: "total_weight",
-        value: obj.value,
-        unit: obj.unit as MassUnit,
-      };
-    case "remaining_volume":
-      if (obj.value < 0) {
-        throw validationError(`${field}.value`, "must be non-negative");
-      }
-      if (!VALID_VOLUME_UNITS.has(obj.unit as VolumeUnit)) {
-        throw validationError(`${field}.unit`, "must be one of 'ml', 'l', 'us_fl_oz', 'us_gal'");
-      }
-      return {
-        kind: "remaining_volume",
-        value: obj.value,
-        unit: obj.unit as VolumeUnit,
-      };
-    case "fill_percentage":
-      if (obj.value < 0 || obj.value > 100) {
-        throw validationError(`${field}.value`, "must be between 0 and 100");
-      }
-      if (obj.unit !== VALID_EXTERNAL_PERCENT_UNIT) {
-        throw validationError(`${field}.unit`, "must be exactly 'percent'");
-      }
-      return {
-        kind: "fill_percentage",
-        value: obj.value,
-        unit: VALID_EXTERNAL_PERCENT_UNIT,
-      };
-    default:
-      throw validationError(
-        `${field}.kind`,
-        "must be one of 'total_weight', 'remaining_volume', 'fill_percentage'",
-      );
+  if (!Object.hasOwn(definition.units, obj.unit)) {
+    throw validationError(`${field}.unit`, `${unitReason(definition)} for '${metric}'`);
   }
+  const boundsReason = outOfBoundsReason(definition, obj.value);
+  if (boundsReason !== null) {
+    throw validationError(`${field}.value`, `${boundsReason} for '${metric}'`);
+  }
+  return { metric, value: obj.value, unit: obj.unit };
 }
 
-function parseExternalTemperature(
+function parseExternalReadings(
   value: unknown,
   field: string,
-): { readonly value: number; readonly unit: TemperatureUnit } | undefined {
-  if (value === undefined) {
-    return undefined;
+): readonly ExternalTelemetryReadingInput[] {
+  const maxReadings = telemetryMetricNames().length;
+  if (!Array.isArray(value)) {
+    throw validationError(field, "must be an array");
   }
-  const obj = requirePlainObject(value, field);
-  rejectUnknownKeys(obj, ["value", "unit"], field);
-  if (obj.value === undefined || typeof obj.value !== "number" || !Number.isFinite(obj.value)) {
-    throw validationError(`${field}.value`, "must be a finite number");
+  if (value.length < 1 || value.length > maxReadings) {
+    throw validationError(field, `must contain between 1 and ${maxReadings} readings`);
   }
-  if (obj.value < -100 || obj.value > 150) {
-    throw validationError(`${field}.value`, "must be between -100 and 150");
+  const readings: ExternalTelemetryReadingInput[] = [];
+  let level: string | undefined;
+  for (let index = 0; index < value.length; index += 1) {
+    const readingField = `${field}[${index}]`;
+    const reading = parseExternalReading(value[index], readingField);
+    if (readings.some(({ metric }) => metric === reading.metric)) {
+      throw validationError(
+        `${readingField}.metric`,
+        `repeats '${reading.metric}'; a sample carries each metric at most once`,
+      );
+    }
+    if (telemetryMetric(reading.metric)!.role === "level") {
+      if (level !== undefined) {
+        throw validationError(
+          `${readingField}.metric`,
+          `'${reading.metric}' is a second keg-level reading after '${level}'; a sample carries at most one`,
+        );
+      }
+      level = reading.metric;
+    }
+    readings.push(reading);
   }
-  if (obj.unit === undefined || typeof obj.unit !== "string") {
-    throw validationError(`${field}.unit`, "is required");
-  }
-  if (!VALID_TEMP_UNITS.has(obj.unit as TemperatureUnit)) {
-    throw validationError(`${field}.unit`, "must be one of 'c', 'f'");
-  }
-  return { value: obj.value, unit: obj.unit as TemperatureUnit };
+  return readings;
 }
 
 export function validateExternalTelemetryPayload(
@@ -331,21 +383,40 @@ export function validateExternalTelemetryPayload(
   prefix = "body",
 ): ExternalTelemetryRequestInput {
   const obj = requirePlainObject(input, prefix);
-  rejectUnknownKeys(obj, ["client_sample_id", "measured_at", "measurement", "temperature"], prefix);
+  rejectUnknownKeys(
+    obj,
+    ["client_sample_id", "measured_at", "measurement", "temperature", "readings"],
+    prefix,
+  );
+  const readingsForm = obj.readings !== undefined;
+  if (readingsForm && (obj.measurement !== undefined || obj.temperature !== undefined)) {
+    throw validationError(
+      prefix,
+      "must use either 'measurement' (with optional 'temperature') or 'readings', not both",
+    );
+  }
 
   const measuredAt = parseExternalMeasuredAt(obj.measured_at, `${prefix}.measured_at`);
-  const measurement = parseExternalMeasurement(obj.measurement, `${prefix}.measurement`);
+  let readings: readonly ExternalTelemetryReadingInput[];
+  if (readingsForm) {
+    readings = parseExternalReadings(obj.readings, `${prefix}.readings`);
+  } else {
+    const measurement = parseExternalMeasurement(obj.measurement, `${prefix}.measurement`);
+    readings = [measurement];
+  }
   const clientSampleId = parseExternalClientSampleId(
     obj.client_sample_id,
     `${prefix}.client_sample_id`,
   );
-  const temperature = parseExternalTemperature(obj.temperature, `${prefix}.temperature`);
+  if (!readingsForm) {
+    const temperature = parseExternalTemperature(obj.temperature, `${prefix}.temperature`);
+    if (temperature !== undefined) readings = [...readings, temperature];
+  }
 
   return {
     ...(clientSampleId !== undefined ? { client_sample_id: clientSampleId } : {}),
     measured_at: measuredAt,
-    measurement,
-    ...(temperature !== undefined ? { temperature } : {}),
+    readings,
   };
 }
 
@@ -370,7 +441,7 @@ export function validateExternalBatchTelemetryPayload(
     const item = requirePlainObject(obj.samples[index], prefix);
     rejectUnknownKeys(
       item,
-      ["tap_number", "client_sample_id", "measured_at", "measurement", "temperature"],
+      ["tap_number", "client_sample_id", "measured_at", "measurement", "temperature", "readings"],
       prefix,
     );
     if (

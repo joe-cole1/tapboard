@@ -516,6 +516,19 @@ function temperatureValue(measurement: HealthAuthoritativeMeasurement | null): n
   return finite(measurement?.tempC);
 }
 
+/**
+ * A temperature reading is current until it is as old as the scale-freshness window. Health
+ * and the public display share this rule, so a probe that stops reporting stops being shown.
+ */
+export function temperatureIsFresh(
+  measuredAtMs: number,
+  nowMs: number,
+  config: HealthConfig,
+): boolean {
+  const ageMs = nowMs - measuredAtMs;
+  return ageMs >= 0 && ageMs < fallbackScaleDegradedMs(config);
+}
+
 /** Evaluate canonical Celsius temperature with continuous-valid evidence timing. */
 export function evaluateServingTemperature(
   input: HealthEvaluationInput,
@@ -539,7 +552,8 @@ export function evaluateServingTemperature(
       false,
     );
   }
-  const measurement = latestMeasurement(input);
+  // Temperature has its own input: it may arrive in samples without a keg-level reading.
+  const measurement = input.latestTemperatureMeasurement ?? null;
   if (!measurementIsUsable(measurement) || temperatureValue(measurement) === null) {
     return result(
       id,
@@ -555,7 +569,7 @@ export function evaluateServingTemperature(
   }
   const measuredAtMs = measurement!.measuredAtMs;
   const ageMs = input.nowMs - measuredAtMs;
-  if (ageMs < 0 || ageMs >= fallbackScaleDegradedMs(config)) {
+  if (!temperatureIsFresh(measuredAtMs, input.nowMs, config)) {
     return result(
       id,
       "degraded",

@@ -16,7 +16,9 @@ import {
 } from "../taps/repository.ts";
 import {
   computeSemanticPayloadDigest,
+  levelReading,
   normalizeExternalTelemetrySample,
+  readingValue,
   type NormalizedTelemetrySample,
 } from "./normalization.ts";
 import { InMemoryTelemetryRateLimiter } from "./rate-limiter.ts";
@@ -26,6 +28,7 @@ import {
   deleteTapTelemetryAuthority,
   disableTelemetrySource,
   insertTelemetryMeasurement,
+  insertTelemetryReadings,
   insertTelemetryReceipt,
   insertTelemetrySource,
   listAllSourceTapStatuses,
@@ -39,7 +42,7 @@ import {
   pruneReceiptsOlderThan,
   readReceiptByClientSampleId,
   readReceiptByFallbackIdentity,
-  readSourceTapStatus,
+  readSourceTapWatermark,
   readTapTelemetryAuthority,
   readTelemetrySettings,
   readTelemetrySourceByCurrentMachineKeyId,
@@ -48,6 +51,7 @@ import {
   updateTelemetrySettings,
   updateTelemetrySourceCurrentMachineKey,
   updateTelemetrySourceName,
+  upsertSourceTapReading,
   upsertSourceTapStatus,
   upsertTapTelemetryAuthority,
 } from "./repository.ts";
@@ -1110,9 +1114,10 @@ export class TelemetryService {
       );
     }
 
-    // 7. Check Watermark & Out of Order
-    const currentStatus = readSourceTapStatus(db, source.id, tapId);
-    if (currentStatus && sample.measuredAtEpochMs <= currentStatus.latest_measured_at_epoch_ms) {
+    // 7. Check Watermark & Out of Order. The watermark covers every metric, so a level sample
+    // cannot be older than a temperature-only sample the same source already sent.
+    const watermark = readSourceTapWatermark(db, source.id, tapId);
+    if (watermark !== null && sample.measuredAtEpochMs <= watermark) {
       return this.rejectWithReceipt(
         db,
         source.id,
@@ -1190,7 +1195,17 @@ export class TelemetryService {
       }
     }
 
-    // Persist the immutable raw measurement first.
+    const level = levelReading(sample);
+    // The legacy value columns still hold the metrics that existed before the registry.
+    const legacyValues = {
+      primary_kind: level?.metric ?? null,
+      total_mass_g: readingValue(sample, "total_weight"),
+      remaining_volume_ml: readingValue(sample, "remaining_volume"),
+      fill_percentage: readingValue(sample, "fill_percentage"),
+      temperature_c: readingValue(sample, "temperature"),
+    };
+
+    // Persist the immutable raw measurement and its readings first.
     insertTelemetryMeasurement(db, {
       id: measurementId,
       source_id: sourceId,
@@ -1199,38 +1214,50 @@ export class TelemetryService {
       measured_at_epoch_ms: sample.measuredAtEpochMs,
       received_at: receivedAtIso,
       normalization_version: TELEMETRY_NORMALIZATION_VERSION,
-      primary_kind: sample.primaryKind,
-      total_mass_g: sample.totalMassG ?? null,
-      remaining_volume_ml: sample.remainingVolumeMl ?? null,
-      fill_percentage: sample.fillPercentage ?? null,
-      temperature_c: sample.temperatureC ?? null,
+      ...legacyValues,
       captured_assignment_id: capturedAssignmentId,
       captured_fill_id: capturedFillId,
       created_at: receivedAtIso,
     });
+    insertTelemetryReadings(db, measurementId, sample.readings);
 
-    // Advance latest status with a database-level monotonic guard. If a
-    // concurrent writer won after the pre-check, abort the whole transaction
-    // instead of leaving a partially accepted sample behind.
-    const statusChanged = upsertSourceTapStatus(db, {
-      source_id: sourceId,
-      tap_id: tapId,
-      latest_measurement_id: measurementId,
-      latest_measured_at: sample.measuredAt,
-      latest_measured_at_epoch_ms: sample.measuredAtEpochMs,
-      latest_received_at: receivedAtIso,
-      normalization_version: TELEMETRY_NORMALIZATION_VERSION,
-      primary_kind: sample.primaryKind,
-      total_mass_g: sample.totalMassG ?? null,
-      remaining_volume_ml: sample.remainingVolumeMl ?? null,
-      fill_percentage: sample.fillPercentage ?? null,
-      temperature_c: sample.temperatureC ?? null,
-      captured_assignment_id: capturedAssignmentId,
-      captured_fill_id: capturedFillId,
-      updated_at: receivedAtIso,
-    });
-    if (!statusChanged) {
-      throw new Error("Telemetry status monotonic guard rejected an accepted sample");
+    // Advance the latest readings, and for a level sample the latest status, with
+    // database-level monotonic guards. If a concurrent writer won after the pre-check, abort
+    // the whole transaction instead of leaving a partially accepted sample behind.
+    for (const reading of sample.readings) {
+      const readingChanged = upsertSourceTapReading(db, {
+        source_id: sourceId,
+        tap_id: tapId,
+        metric: reading.metric,
+        value: reading.value,
+        measurement_id: measurementId,
+        captured_assignment_id: capturedAssignmentId,
+        measured_at: sample.measuredAt,
+        measured_at_epoch_ms: sample.measuredAtEpochMs,
+        received_at: receivedAtIso,
+      });
+      if (!readingChanged) {
+        throw new Error("Telemetry reading monotonic guard rejected an accepted sample");
+      }
+    }
+    if (level !== undefined) {
+      const statusChanged = upsertSourceTapStatus(db, {
+        source_id: sourceId,
+        tap_id: tapId,
+        latest_measurement_id: measurementId,
+        latest_measured_at: sample.measuredAt,
+        latest_measured_at_epoch_ms: sample.measuredAtEpochMs,
+        latest_received_at: receivedAtIso,
+        normalization_version: TELEMETRY_NORMALIZATION_VERSION,
+        ...legacyValues,
+        primary_kind: level.metric,
+        captured_assignment_id: capturedAssignmentId,
+        captured_fill_id: capturedFillId,
+        updated_at: receivedAtIso,
+      });
+      if (!statusChanged) {
+        throw new Error("Telemetry status monotonic guard rejected an accepted sample");
+      }
     }
 
     // first_used_at records the first committed/received operation time, not
@@ -1238,11 +1265,7 @@ export class TelemetryService {
     registerTapFirstUse(db, tapId, receivedAtIso);
 
     const primaryMeasurement =
-      sample.primaryKind === "total_weight"
-        ? { kind: sample.primaryKind, value: sample.totalMassG! }
-        : sample.primaryKind === "remaining_volume"
-          ? { kind: sample.primaryKind, value: sample.remainingVolumeMl! }
-          : { kind: sample.primaryKind, value: sample.fillPercentage! };
+      level === undefined ? null : { kind: level.metric, value: level.value };
 
     // Invoke the accepted extension synchronously after all projections but
     // before the receipt is finalized. Hook failure rolls back every write.
@@ -1254,7 +1277,7 @@ export class TelemetryService {
       receivedAt: receivedAtIso,
       normalizationVersion: TELEMETRY_NORMALIZATION_VERSION,
       primaryMeasurement,
-      temperatureC: sample.temperatureC ?? null,
+      temperatureC: legacyValues.temperature_c,
       capturedAssignmentId,
       capturedFillId,
     } as const;

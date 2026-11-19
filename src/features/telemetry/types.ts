@@ -2,43 +2,25 @@ import type { DatabaseExecutor } from "../../infrastructure/database/connection.
 
 export const TELEMETRY_NORMALIZATION_VERSION = 1;
 
+/** The level metrics: the only values `primary_kind` columns accept. */
 export type TelemetryPrimaryKind = "total_weight" | "remaining_volume" | "fill_percentage";
-export type MassUnit = "g" | "kg" | "oz" | "lb";
-export type VolumeUnit = "ml" | "l" | "us_fl_oz" | "us_gal";
-export type TemperatureUnit = "c" | "f";
 
-/**
- * Machine-facing v1 request shapes, in the stable snake_case wire contract.
- * The service ingests these after the route (or simulation runner) has
- * validated them once with `validateExternal*TelemetryPayload`.
- */
-export type ExternalTelemetryMeasurementInput =
-  | {
-      readonly kind: "total_weight";
-      readonly value: number;
-      readonly unit: MassUnit;
-    }
-  | {
-      readonly kind: "remaining_volume";
-      readonly value: number;
-      readonly unit: VolumeUnit;
-    }
-  | {
-      readonly kind: "fill_percentage";
-      readonly value: number;
-      readonly unit: "percent";
-    };
-
-export interface ExternalTelemetryTemperatureInput {
+/** One reading in wire units, with its metric and unit already checked against the registry. */
+export interface ExternalTelemetryReadingInput {
+  readonly metric: string;
   readonly value: number;
-  readonly unit: TemperatureUnit;
+  readonly unit: string;
 }
 
+/**
+ * A validated machine-facing v1 sample. Both wire forms (`measurement` plus optional
+ * `temperature`, or `readings`) become this one shape in `validateExternal*TelemetryPayload`,
+ * which the route (or simulation runner) calls once before the service ingests it.
+ */
 export interface ExternalTelemetryRequestInput {
   readonly client_sample_id?: string;
   readonly measured_at: string;
-  readonly measurement: ExternalTelemetryMeasurementInput;
-  readonly temperature?: ExternalTelemetryTemperatureInput;
+  readonly readings: readonly ExternalTelemetryReadingInput[];
 }
 
 export interface ExternalBatchTelemetryRequestSampleInput extends ExternalTelemetryRequestInput {
@@ -116,7 +98,8 @@ export interface TelemetryMeasurementRow {
   readonly measured_at_epoch_ms: number;
   readonly received_at: string;
   readonly normalization_version: number;
-  readonly primary_kind: string;
+  /** The level metric, or null for a sample with no level reading. */
+  readonly primary_kind: string | null;
   readonly total_mass_g: number | null;
   readonly remaining_volume_ml: number | null;
   readonly fill_percentage: number | null;
@@ -231,7 +214,7 @@ export interface TelemetryMeasurement {
   readonly measuredAtEpochMs: number;
   readonly receivedAt: string;
   readonly normalizationVersion: number;
-  readonly primaryKind: TelemetryPrimaryKind;
+  readonly primaryKind: TelemetryPrimaryKind | null;
   readonly totalMassG: number | null;
   readonly remainingVolumeMl: number | null;
   readonly fillPercentage: number | null;
@@ -288,16 +271,32 @@ export interface UpdateTelemetrySettingsInput {
   readonly rateLimitBurstSamples?: number;
 }
 
+/** One reading in its metric's canonical unit. */
+export interface NormalizedTelemetryReading {
+  readonly metric: string;
+  readonly value: number;
+}
+
 export interface NormalizedTelemetrySample {
   readonly clientSampleId?: string;
   readonly measuredAt: string;
   readonly measuredAtEpochMs: number;
   readonly normalizationVersion: 1;
-  readonly primaryKind: TelemetryPrimaryKind;
-  readonly totalMassG?: number;
-  readonly remainingVolumeMl?: number;
-  readonly fillPercentage?: number;
-  readonly temperatureC?: number;
+  /** Sorted by metric; at most one level reading. */
+  readonly readings: readonly NormalizedTelemetryReading[];
+}
+
+export interface TelemetrySourceTapReadingRow {
+  readonly source_id: string;
+  readonly tap_id: string;
+  readonly metric: string;
+  readonly value: number;
+  readonly measurement_id: string | null;
+  /** The assignment the sample was attributed to; null when it had none. */
+  readonly captured_assignment_id: string | null;
+  readonly measured_at: string;
+  readonly measured_at_epoch_ms: number;
+  readonly received_at: string;
 }
 
 // --- Results & Extension Ports ---
@@ -348,10 +347,11 @@ export interface AcceptedSampleEvent {
   readonly measuredAt: string;
   readonly receivedAt: string;
   readonly normalizationVersion: 1;
+  /** The sample's level reading; null for a sample that carries only other readings. */
   readonly primaryMeasurement: {
     readonly kind: TelemetryPrimaryKind;
     readonly value: number;
-  };
+  } | null;
   readonly temperatureC: number | null;
   readonly capturedAssignmentId: string | null;
   readonly capturedFillId: string | null;

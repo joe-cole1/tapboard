@@ -10,6 +10,7 @@ import { DEFAULT_DETECTOR_CONFIG } from "../src/features/telemetry/detector-conf
 import { DetectorService } from "../src/features/telemetry/detector-service.ts";
 import { TelemetryService } from "../src/features/telemetry/service.ts";
 import { openDatabase } from "../src/infrastructure/database/connection.ts";
+import { validateExternalTelemetryPayload } from "../src/features/telemetry/telemetry-validation.ts";
 
 const origin = Date.parse("2026-01-01T00:00:00.000Z");
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -116,11 +117,15 @@ function sample(
   tapNumber = 1,
 ) {
   h.set(at);
-  return h.telemetryService.ingestSingle(source as never, tapNumber, {
-    client_sample_id: id,
-    measured_at: new Date(origin + at).toISOString(),
-    measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
-  });
+  return h.telemetryService.ingestSingle(
+    source as never,
+    tapNumber,
+    validateExternalTelemetryPayload({
+      client_sample_id: id,
+      measured_at: new Date(origin + at).toISOString(),
+      measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
+    }),
+  );
 }
 function count(h: ReturnType<typeof harness>, table: "telemetry_epochs" | "pours") {
   return h.database.prepare<[], { readonly n: number }>(`SELECT count(*) AS n FROM ${table}`).get()!

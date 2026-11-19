@@ -313,6 +313,8 @@ export class DetectorService
   }
 
   onAcceptedSample(database: DatabaseExecutor, event: AcceptedSampleEvent): void {
+    // A sample without a keg-level reading (temperature alone) never touches epochs.
+    if (event.primaryMeasurement === null) return;
     if (event.capturedAssignmentId === null || event.capturedFillId === null) return;
     const epoch = readOpenTelemetryEpochForTap(database, event.tapId);
     const measuredAt = asEpochMs(event.measuredAt);

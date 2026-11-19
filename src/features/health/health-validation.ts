@@ -301,6 +301,7 @@ export function validateHealthEvaluationInput(value: unknown): HealthEvaluationI
       "authorityChangedAtMs",
       "latestMeasurement",
       "latestScaleMeasurement",
+      "latestTemperatureMeasurement",
       "latestAuthoritativeMeasurement",
       "measurement",
       "currentEpoch",
