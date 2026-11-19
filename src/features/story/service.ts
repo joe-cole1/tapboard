@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 
 import { isApplicationError } from "../../shared/errors.ts";
+import type { Logger } from "../../shared/logging.ts";
 import type { BeverageDetailResult, BeverageService } from "../beverages/service.ts";
 import type {
   BeverageSourceRecipeSnapshot,
@@ -47,6 +48,7 @@ import { mysteryVisibilityPolicy } from "./visibility.ts";
 import { beverageDisplayColor, resolveVessel } from "./vessels.ts";
 
 const MAX_SOURCE_SNAPSHOTS = 5;
+const DEGRADED_WARNING_INTERVAL_MS = 15 * 60_000;
 const DEFAULT_COLOR = "#D97706";
 const DEFAULT_MYSTERY: TapAssignmentMysteryConfig = {
   enabled: false,
@@ -71,8 +73,20 @@ export interface PublicStoryServiceDependencies {
   readonly forecastService: ForecastService;
   readonly healthService: HealthService;
   readonly displayService?: DisplaySettingsService;
+  readonly logger?: Logger;
   readonly now?: () => Date;
 }
+
+type DegradedOperation =
+  | "story.detector_diagnostics"
+  | "story.forecast_summary"
+  | "story.health_aggregate"
+  | "story.health_badges"
+  | "story.display_settings"
+  | "story.pour_history"
+  | "story.recipe_snapshots";
+
+type DegradedSubject = { readonly tapId: string } | { readonly beverageId: string };
 
 interface StoryContext {
   readonly tap: AdminTapView;
@@ -334,10 +348,37 @@ function isFillNew(fillDate: string, now: Date): boolean {
 export class PublicStoryService {
   readonly #dependencies: PublicStoryServiceDependencies;
   readonly #now: () => Date;
+  readonly #lastDegradedWarningMs = new Map<string, number>();
 
   constructor(dependencies: PublicStoryServiceDependencies) {
     this.#dependencies = dependencies;
     this.#now = dependencies.now ?? (() => new Date());
+  }
+
+  /**
+   * Record that a projection fell back to a safe default. One sanitized warning
+   * per operation and subject per interval; exception text is never logged.
+   */
+  #degraded(operation: DegradedOperation, subject: DegradedSubject, error: unknown): void {
+    const logger = this.#dependencies.logger;
+    if (logger === undefined) return;
+    try {
+      const subjectId = "tapId" in subject ? subject.tapId : subject.beverageId;
+      const key = `${operation}\u0000${subjectId}`;
+      const nowMs = this.#now().getTime();
+      const lastMs = this.#lastDegradedWarningMs.get(key);
+      if (lastMs !== undefined && nowMs - lastMs < DEGRADED_WARNING_INTERVAL_MS) return;
+      this.#lastDegradedWarningMs.set(key, nowMs);
+      const expected = isApplicationError(error);
+      logger.warn("Public story projection degraded", {
+        operation,
+        ...subject,
+        code: expected ? error.code : "internal.unexpected",
+        category: expected ? error.category : "internal",
+      });
+    } catch {
+      // Diagnostics must never change what the public display shows.
+    }
   }
 
   listCards(): readonly PublicTapCardView[] {
@@ -541,8 +582,9 @@ export class PublicStoryService {
   ): readonly BeverageSourceRecipeSnapshot[] {
     try {
       return this.#dependencies.beverageService.getRecipeSnapshots(beverageId);
-    } catch {
+    } catch (error) {
       // A persisted current snapshot is sufficient for a cached Story.
+      this.#degraded("story.recipe_snapshots", { beverageId }, error);
     }
     return detail.recipeSnapshot === undefined ? [] : [detail.recipeSnapshot];
   }
@@ -588,8 +630,9 @@ export class PublicStoryService {
       capacityMl = finiteNumber(diagnostics.epoch?.snapshots.capacityMl);
       temperatureC = finiteNumber(diagnostics.measurement?.canonical.temperatureC);
       waitingForMeasurement = diagnostics.detector?.waitingForMeasurement ?? true;
-    } catch {
+    } catch (error) {
       // Identity remains useful when telemetry enhancement is unavailable.
+      this.#degraded("story.detector_diagnostics", { tapId: context.tap.id }, error);
     }
 
     let servingsRemaining: number | null = null;
@@ -600,8 +643,9 @@ export class PublicStoryService {
       );
       servingsRemaining = finiteNumber(forecast.servingsRemaining);
       daysRemaining = finiteNumber(forecast.days?.medianDays);
-    } catch {
+    } catch (error) {
       // Forecast absence must not blank Beverage/Fill identity.
+      this.#degraded("story.forecast_summary", { tapId: context.tap.id }, error);
     }
 
     return {
@@ -622,7 +666,8 @@ export class PublicStoryService {
       if (aggregate.state === "healthy") return "healthy";
       if (aggregate.severity === "warning" || aggregate.severity === "critical") return "degraded";
       return "unknown";
-    } catch {
+    } catch (error) {
+      this.#degraded("story.health_aggregate", { tapId }, error);
       return "unknown";
     }
   }
@@ -644,8 +689,9 @@ export class PublicStoryService {
       ) {
         badges.push("low");
       }
-    } catch {
+    } catch (error) {
       // Badge projection is additive; health failures must not blank the card.
+      this.#degraded("story.health_badges", { tapId: context.tap.id }, error);
     }
 
     if (
@@ -709,8 +755,9 @@ export class PublicStoryService {
     } else if (this.#dependencies.displayService !== undefined) {
       try {
         settings = this.#dependencies.displayService.getEffectiveTapCardSettings(tapId).settings;
-      } catch {
+      } catch (error) {
         // Display preference failures must not make configured-hidden metrics visible.
+        this.#degraded("story.display_settings", { tapId }, error);
         return [];
       }
     }
@@ -835,7 +882,7 @@ export class PublicStoryService {
           sources: guidance.sourceRecipes.map((recipe) => visibleRecipe(recipe, policy)!),
         }
       : null;
-    const history = this.#history(fill.id, visible(policy, "history"));
+    const history = this.#history(context.tap.id, fill.id, visible(policy, "history"));
     const title = policy.title ?? presentation.name;
 
     const currentFill: PublicStoryCurrentFillView = {
@@ -875,7 +922,11 @@ export class PublicStoryService {
     };
   }
 
-  #history(fillId: string, isVisible: boolean): readonly PublicStoryHistoryItem[] | null {
+  #history(
+    tapId: string,
+    fillId: string,
+    isVisible: boolean,
+  ): readonly PublicStoryHistoryItem[] | null {
     if (!isVisible) return null;
     try {
       const page = this.#dependencies.forecastService.getPourHistory(fillId, { limit: 50 });
@@ -884,7 +935,8 @@ export class PublicStoryService {
         .slice(0, 50)
         .map(safeHistoryItem)
         .filter((item): item is PublicStoryHistoryItem => item !== null);
-    } catch {
+    } catch (error) {
+      this.#degraded("story.pour_history", { tapId }, error);
       return null;
     }
   }
