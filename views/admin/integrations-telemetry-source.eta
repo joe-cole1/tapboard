@@ -19,7 +19,7 @@
   </section>
   <section class="admin-card" aria-labelledby="source-usage-heading">
     <h2 id="source-usage-heading">Usage</h2>
-    <p>Assign this source to a Tap’s telemetry authority, then send measurements to <code>POST /api/v1/telemetry/taps/{tapNumber}</code>.</p>
+    <p>Assign this source to a Tap as its level source, condition source, or both, then send measurements to <code>POST /api/v1/telemetry/taps/{tapNumber}</code>.</p>
     <p>Authenticate with the complete machine key in <code>Authorization: Bearer …</code>. The Key ID above is an audit reference only; it is not sent in the URL or request.</p>
   </section>
   <% if (it.source.disabledAt === null) { %>

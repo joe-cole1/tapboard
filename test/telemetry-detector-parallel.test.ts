@@ -132,7 +132,10 @@ function setupTap(
   });
   const fill = h.fillService.createFill({ beverageId: beverage.beverage.id, kegId: keg.id });
   h.detector.setTapOverride(tap.id, config);
-  h.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  h.telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   h.tapService.assignFill(tap.id, { fillId: fill.id });
   return { tap, keg, fill };
 }

@@ -199,7 +199,10 @@ void test("telemetry HTTP is Bearer-only, strict, and maps durable outcomes", as
 
   const source = telemetryService.getSourceById(created.source.id);
   assert.ok(source);
-  telemetryService.setTapAuthority(tap1.id, { sourceId: source.id });
+  telemetryService.setTapAuthority(tap1.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
 
   const sourceList = await readJsonResponse(
     await fetch(`${baseUrl}/api/admin/telemetry/sources`, { headers: { cookie } }),
@@ -333,7 +336,10 @@ void test("telemetry HTTP is Bearer-only, strict, and maps durable outcomes", as
   assert.equal(nonexistentTap.response.status, 404);
 
   const retiredTap = tapService.createTap({ tapNumber: 2, name: "Retired Machine Tap" });
-  telemetryService.setTapAuthority(retiredTap.id, { sourceId: source.id });
+  telemetryService.setTapAuthority(retiredTap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   tapService.retireTap(retiredTap.id);
   now = new Date("2026-08-14T12:00:01.000Z");
   const retired = await readJsonResponse(
@@ -508,7 +514,10 @@ void test("telemetry HTTP body caps and batch outcomes use the documented status
 
   const tap = tapService.createTap({ tapNumber: 1, name: "Batch Tap" });
   const sourceResult = telemetryService.createSource({ name: "Batch HTTP Source" });
-  telemetryService.setTapAuthority(tap.id, { sourceId: sourceResult.source.id });
+  telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: sourceResult.source.id,
+    conditionSourceId: sourceResult.source.id,
+  });
   telemetryService.updateSettings({
     maxBatchSize: 2,
     rateLimitBurstSamples: 2,

@@ -507,9 +507,14 @@ export class HealthService
     const global = readHealthGlobalConfig(database);
     const override = readHealthTapOverride(database, tap.id);
     const effective = resolveHealthConfig(global.config, override?.override).effective;
-    const authority = readTapTelemetryAuthority(database, tap.id);
+    // Scale-driven checks follow the level source; serving temperature follows the condition
+    // source, which may be another device.
+    const authority = readTapTelemetryAuthority(database, tap.id, "level");
     const authorityChangedAtMs =
       authority === undefined ? null : asMs(authority.changed_at, "changed_at");
+    const conditionAuthority = readTapTelemetryAuthority(database, tap.id, "condition");
+    const temperatureAuthorityChangedAtMs =
+      conditionAuthority === undefined ? null : asMs(conditionAuthority.changed_at, "changed_at");
     const epoch = readOpenTelemetryEpochForTap(database, tap.id);
     const epochState =
       epoch === undefined ? undefined : readTelemetryEpochState(database, epoch.id);
@@ -528,10 +533,10 @@ export class HealthService
     // derive a settled volume/phase. Scale freshness uses the dedicated source
     // status projection above even when the current epoch has no detector state.
     const temperatureReading = currentTapReading(
-      authority === undefined
+      conditionAuthority === undefined
         ? undefined
-        : readSourceTapReading(database, authority.source_id, tap.id, "temperature"),
-      authority,
+        : readSourceTapReading(database, conditionAuthority.source_id, tap.id, "temperature"),
+      conditionAuthority,
       epoch,
     );
     const latestTemperatureMeasurement =
@@ -583,10 +588,12 @@ export class HealthService
     const changedCheckIds: HealthCheckId[] = [];
     for (const checkId of HEALTH_CHECK_IDS) {
       const previous = readHealthCheckState(database, tap.id, checkId);
+      const checkAuthorityChangedAtMs =
+        checkId === "serving_temperature" ? temperatureAuthorityChangedAtMs : authorityChangedAtMs;
       const authorityReset =
         previous !== undefined &&
-        authorityChangedAtMs !== null &&
-        authorityChangedAtMs > previous.evaluatedAtMs;
+        checkAuthorityChangedAtMs !== null &&
+        checkAuthorityChangedAtMs > previous.evaluatedAtMs;
       const epochReset =
         previous !== undefined &&
         epoch !== undefined &&
@@ -597,6 +604,7 @@ export class HealthService
         retired: false,
         tapId: tap.id,
         authorityChangedAtMs,
+        temperatureAuthorityChangedAtMs,
         latestMeasurement: measurement,
         latestScaleMeasurement,
         latestTemperatureMeasurement,
@@ -1415,6 +1423,7 @@ export class HealthService
           retired: true,
           enabled: tap.enabled,
           authorityChangedAtMs: null,
+          temperatureAuthorityChangedAtMs: null,
         },
         DEFAULT_HEALTH_CONFIG,
       );

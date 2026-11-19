@@ -110,7 +110,10 @@ function setupDomain(h: ReturnType<typeof harness>) {
   const fill = h.fillService.createFill({ beverageId: beverage.beverage.id, kegId: keg.id });
   h.tapService.assignFill(tap.id, { fillId: fill.id });
   const source = h.telemetryService.createSource({ name: "Test scale" }).source;
-  h.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  h.telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   const epoch = readOpenTelemetryEpochForTap(h.database, tap.id)!;
   const pour = insertCompletedPourIdempotently(h.database, {
     id: id(90_000),
@@ -913,7 +916,7 @@ void test("System diagnostics expose fixed counts, storage metadata and safe out
     const diagnostics = h.system.getDiagnostics();
     assert.equal(diagnostics.counts.activity, 2);
     assert.equal(diagnostics.counts.sessions, 1);
-    assert.equal(diagnostics.storage.schemaVersion, 27);
+    assert.equal(diagnostics.storage.schemaVersion, 28);
     assert.ok(diagnostics.storage.pageSizeBytes > 0);
     assert.deepEqual(diagnostics.retention, {
       running: false,

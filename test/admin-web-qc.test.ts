@@ -358,6 +358,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const tapUpdateCalls: Array<{ id: unknown; input: unknown; actor: unknown }> = [];
   const tapCreateCalls: Array<{ input: unknown; actor: unknown }> = [];
   const telemetryDisableCalls: Array<{ id: unknown; actor: unknown }> = [];
+  const telemetryAuthorityCalls: Array<{ id: unknown; input: unknown; actor: unknown }> = [];
   const telemetryPageCalls: Array<{ q: string; state: string; page: number }> = [];
   const telemetrySources = [
     {
@@ -603,7 +604,16 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
           state: input.state,
         };
       },
-      getTapAuthority: () => undefined,
+      getTapAuthority: (tapId: string) => ({
+        tapId,
+        level: { sourceId: "telemetry-active-qc", changedAt: "2026-08-01T00:00:00.000Z" },
+        condition: null,
+      }),
+      setTapAuthority(id: unknown, input: unknown, actor: unknown) {
+        telemetryAuthorityCalls.push({ id, input, actor });
+        const values = input as { readonly levelSourceId?: string };
+        return { requiresFreshBaseline: values.levelSourceId !== "telemetry-active-qc" };
+      },
       createSource(input: unknown, _actor: unknown) {
         const values = input as { readonly name?: string; readonly label?: string };
         const source = telemetrySources[0]!;
@@ -909,6 +919,9 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   );
   assert.match(tapDetailHtml, /name="updatedAt"/);
   assert.match(tapDetailHtml, /Telemetry authority/);
+  assert.match(tapDetailHtml, /Level: QC telemetry source · Condition: none/);
+  assert.match(tapDetailHtml, /name="levelSourceId"/);
+  assert.match(tapDetailHtml, /name="conditionSourceId"/);
   assert.match(tapDetailHtml, /Mystery Tap reveal fields/);
   assert.match(tapDetailHtml, /Permanent deletion/);
   assert.match(tapDetailHtml, /class="admin-table admin-detail-table"/);
@@ -1150,6 +1163,32 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
       body: form(values, csrf),
     });
   }
+
+  // The no-JS form sets both role sources; only a level change asks for a fresh baseline.
+  const splitResponse = await post(`/admin/taps/${TAP_ID}/authority`, {
+    updatedAt: tap.updatedAt,
+    levelSourceId: "telemetry-active-qc",
+    conditionSourceId: "telemetry-created-qc",
+  });
+  assert.equal(splitResponse.status, 303);
+  assert.equal(
+    new URL(splitResponse.headers.get("location") ?? "", base).searchParams.get("notice"),
+    "Telemetry sources updated.",
+  );
+  assert.deepEqual(telemetryAuthorityCalls.at(-1), {
+    id: TAP_ID,
+    input: { levelSourceId: "telemetry-active-qc", conditionSourceId: "telemetry-created-qc" },
+    actor: { actorType: "admin", sessionId: SESSION_ID },
+  });
+  const clearedResponse = await post(`/admin/taps/${TAP_ID}/authority`, {
+    updatedAt: tap.updatedAt,
+    levelSourceId: "",
+    conditionSourceId: "",
+  });
+  assert.equal(
+    new URL(clearedResponse.headers.get("location") ?? "", base).searchParams.get("notice"),
+    "Telemetry sources updated; a fresh baseline is required.",
+  );
 
   const featuredResponse = await post(`/admin/fills/${onTapFill.id}/featured`, {
     featured: "false",

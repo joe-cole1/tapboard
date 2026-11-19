@@ -79,7 +79,10 @@ function setup(h: ReturnType<typeof harness>) {
   });
   const fill = h.fillService.createFill({ beverageId: beverage.beverage.id, kegId: keg.id });
   const source = h.telemetryService.createSource({ name: "scale" }).source;
-  h.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  h.telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   return { tap, keg, beverage, fill, source };
 }
 
@@ -388,12 +391,18 @@ void test("source and keg corrections transition epochs, while manual rebaseline
     h.set(1_000);
     const assignment = h.tapService.assignFill(tap.id, { fillId: fill.id }).assignment;
     const first = h.detector.diagnostics(tap.id).epoch!;
-    h.telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+    h.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source.id,
+      conditionSourceId: source.id,
+    });
     h.telemetryService.rotateSourceKey(source.id, { label: "rotated scale key" });
     assert.equal(h.detector.diagnostics(tap.id).epoch?.id, first.id);
     const source2 = h.telemetryService.createSource({ name: "scale two" }).source;
     h.set(1_100);
-    h.telemetryService.setTapAuthority(tap.id, { sourceId: source2.id });
+    h.telemetryService.setTapAuthority(tap.id, {
+      levelSourceId: source2.id,
+      conditionSourceId: source2.id,
+    });
     const afterSource = h.detector.diagnostics(tap.id).epoch!;
     assert.notEqual(afterSource.id, first.id);
     assert.equal(

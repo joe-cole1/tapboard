@@ -110,6 +110,10 @@ function hasAuthority(input: HealthEvaluationInput): boolean {
   return finite(input.authorityChangedAtMs) !== null;
 }
 
+function hasTemperatureAuthority(input: HealthEvaluationInput): boolean {
+  return finite(input.temperatureAuthorityChangedAtMs) !== null;
+}
+
 function isRetired(input: HealthEvaluationInput): boolean {
   return input.retired === true;
 }
@@ -539,7 +543,7 @@ export function evaluateServingTemperature(
   const config = validConfig(suppliedConfig);
   if (!config.serving_temperature.enabled) return disabledResult(id, input);
   const timers = timersFor(input);
-  if (!hasAuthority(input)) {
+  if (!hasTemperatureAuthority(input)) {
     return result(
       id,
       "not_configured",

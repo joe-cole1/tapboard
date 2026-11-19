@@ -304,7 +304,10 @@ function harness() {
   );
   const tap = tapService.createTap({ tapNumber: 1, name: "One" });
   const source = telemetryService.createSource({ name: "scale" }).source;
-  telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   const assign = () => {
     const keg = kegService.createKeg({ kegNumber: 1, capacityMl: 19_000, currentTareG: 4_000 });
     const beverage = beverageService.createCustomBeverage({
@@ -315,10 +318,10 @@ function harness() {
     const fill = fillService.createFill({ beverageId: beverage.beverage.id, kegId: keg.id });
     tapService.assignFill(tap.id, { fillId: fill.id });
   };
-  const send = (ms: number, body: Record<string, unknown>) => {
+  const send = (ms: number, body: Record<string, unknown>, from = source) => {
     now = origin + ms;
     return telemetryService.ingestSingle(
-      source,
+      from,
       1,
       validateExternalTelemetryPayload({ measured_at: at(ms), ...body }),
     );
@@ -497,6 +500,168 @@ void test("a probe that stops reporting stops showing its temperature while weig
   }
 });
 
+/** Adds a temperature probe and makes it the Tap's condition source; the scale keeps level. */
+function splitWithProbe(h: ReturnType<typeof harness>, ms: number) {
+  h.set(ms);
+  const probe = h.telemetryService.createSource({ name: "probe" }).source;
+  const result = h.telemetryService.setTapAuthority(h.tap.id, {
+    levelSourceId: h.source.id,
+    conditionSourceId: probe.id,
+  });
+  return { probe, result };
+}
+
+void test("a scale and a probe share one Tap: each source keeps only the readings of its role", () => {
+  const h = harness();
+  try {
+    h.assign();
+    const { probe } = splitWithProbe(h, 500);
+
+    // The scale's weight drives the epoch; its own temperature is dropped, not stored.
+    const scale = h.send(1_000, {
+      client_sample_id: "scale-1",
+      readings: [
+        { metric: "remaining_volume", value: 15_000, unit: "ml" },
+        { metric: "temperature", value: 10, unit: "c" },
+      ],
+    });
+    assert.equal(scale.outcome, "accepted");
+    assert.deepEqual(
+      h.rows(
+        "SELECT primary_kind, remaining_volume_ml, temperature_c FROM telemetry_measurements WHERE id = ?",
+        scale.acceptedMeasurementId,
+      ),
+      [{ primary_kind: "remaining_volume", remaining_volume_ml: 15_000, temperature_c: null }],
+    );
+    assert.deepEqual(
+      h.rows(
+        "SELECT metric FROM telemetry_readings WHERE measurement_id = ?",
+        scale.acceptedMeasurementId,
+      ),
+      [{ metric: "remaining_volume" }],
+    );
+    assert.equal(epochState(h)?.lastMeasurementId, scale.acceptedMeasurementId);
+    assert.equal(h.health.servingTemperatureC(h.tap.id), null);
+
+    // A retry of the scale sample, temperature included, is still an exact duplicate.
+    const retry = h.send(1_000, {
+      client_sample_id: "scale-1",
+      readings: [
+        { metric: "remaining_volume", value: 15_000, unit: "ml" },
+        { metric: "temperature", value: 10, unit: "c" },
+      ],
+    });
+    assert.equal(retry.duplicate, true);
+    assert.equal(retry.acceptedMeasurementId, scale.acceptedMeasurementId);
+
+    // The probe's temperature is the Tap's temperature during the open epoch.
+    const temperature = h.send(
+      2_000,
+      { readings: [{ metric: "temperature", value: 4, unit: "c" }] },
+      probe,
+    );
+    assert.equal(temperature.outcome, "accepted");
+    assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
+    assert.equal(h.temperatureCheck()?.evidence.temperatureC, 4);
+    assert.equal(h.temperatureCheck()?.reason, "temperature_normal");
+    assert.equal(epochState(h)?.lastMeasurementId, scale.acceptedMeasurementId);
+
+    // A sample with no reading of a role its source holds is a durable rejection.
+    const probeWeight = h.send(
+      3_000,
+      {
+        client_sample_id: "probe-weight",
+        measurement: { kind: "remaining_volume", value: 1, unit: "ml" },
+      },
+      probe,
+    );
+    assert.equal(probeWeight.code, "telemetry.not_authoritative");
+    const probeWeightRetry = h.send(
+      3_000,
+      {
+        client_sample_id: "probe-weight",
+        measurement: { kind: "remaining_volume", value: 1, unit: "ml" },
+      },
+      probe,
+    );
+    assert.equal(probeWeightRetry.duplicate, true);
+    assert.equal(probeWeightRetry.code, "telemetry.not_authoritative");
+    const scaleTemperature = h.send(4_000, {
+      readings: [{ metric: "temperature", value: 12, unit: "c" }],
+    });
+    assert.equal(scaleTemperature.code, "telemetry.not_authoritative");
+    assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
+    assert.equal(epochState(h)?.lastMeasurementId, scale.acceptedMeasurementId);
+  } finally {
+    h.database.close();
+  }
+});
+
+void test("changing the condition source keeps the epoch; changing the level source closes it", () => {
+  const h = harness();
+  try {
+    h.assign();
+    h.send(1_000, { measurement: { kind: "remaining_volume", value: 15_000, unit: "ml" } });
+    const before = readOpenTelemetryEpochForTap(h.database, h.tap.id);
+    assert.ok(before);
+
+    const { probe, result } = splitWithProbe(h, 2_000);
+    assert.equal(result.requiresFreshBaseline, false);
+    assert.equal(readOpenTelemetryEpochForTap(h.database, h.tap.id)?.id, before.id);
+
+    h.set(3_000);
+    const moved = h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: probe.id,
+      conditionSourceId: probe.id,
+    });
+    assert.equal(moved.requiresFreshBaseline, true);
+    const after = readOpenTelemetryEpochForTap(h.database, h.tap.id);
+    assert.ok(after);
+    assert.notEqual(after.id, before.id);
+    assert.equal(after.sourceId, probe.id);
+    assert.deepEqual(
+      h.rows<{ close_reason: string }>(
+        "SELECT close_reason FROM telemetry_epochs WHERE id = ?",
+        before.id,
+      ),
+      [{ close_reason: "source_changed" }],
+    );
+  } finally {
+    h.database.close();
+  }
+});
+
+void test("scale health follows the level source and serving temperature the condition source", () => {
+  const h = harness();
+  const check = (id: string) =>
+    listHealthCheckStates(h.database, h.tap.id).find(({ checkId }) => checkId === id);
+  try {
+    h.assign();
+    h.send(1_000, { measurement: { kind: "remaining_volume", value: 15_000, unit: "ml" } });
+    const scaleBefore = check("scale_availability");
+    assert.equal(scaleBefore?.state, "healthy");
+
+    // Moving only the condition role leaves the scale check as it was.
+    const { probe } = splitWithProbe(h, 2_000);
+    assert.equal(check("scale_availability")?.state, "healthy");
+    assert.equal(check("scale_availability")?.reason, "scale_fresh");
+    assert.equal(check("serving_temperature")?.reason, "temperature_invalid");
+
+    // With only a condition source, temperature is still checked; scale checks have no authority.
+    h.set(3_000);
+    h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: null,
+      conditionSourceId: probe.id,
+    });
+    h.send(4_000, { readings: [{ metric: "temperature", value: 4, unit: "c" }] }, probe);
+    assert.equal(check("scale_availability")?.reason, "no_authority");
+    assert.equal(check("serving_temperature")?.reason, "temperature_normal");
+    assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
+  } finally {
+    h.database.close();
+  }
+});
+
 void test("a newly registered metric is ingested and stored without a migration", () => {
   const metrics = TELEMETRY_METRICS as Record<string, TelemetryMetricDefinition>;
   metrics["humidity"] = {
@@ -571,7 +736,10 @@ void test("POST /api/v1/telemetry accepts a temperature-only readings sample and
   });
   const tap = tapService.createTap({ tapNumber: 3, name: "Three" });
   const { source, initialToken } = telemetryService.createSource({ name: "probe" });
-  telemetryService.setTapAuthority(tap.id, { sourceId: source.id });
+  telemetryService.setTapAuthority(tap.id, {
+    levelSourceId: source.id,
+    conditionSourceId: source.id,
+  });
   const address = await server.start("127.0.0.1", 0);
   const post = (body: unknown) =>
     fetch(`http://127.0.0.1:${address.port}/api/v1/telemetry/taps/3`, {

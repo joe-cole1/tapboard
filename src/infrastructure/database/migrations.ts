@@ -54,7 +54,9 @@ export const DISPLAY_THEME_ACCENT_SCHEMA_VERSION = 26;
 export const DISPLAY_THEME_ACCENT_MIGRATION_NAME = "display-theme-accent";
 export const TELEMETRY_READINGS_SCHEMA_VERSION = 27;
 export const TELEMETRY_READINGS_MIGRATION_NAME = "telemetry-readings";
-export const CURRENT_SCHEMA_VERSION = TELEMETRY_READINGS_SCHEMA_VERSION;
+export const TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION = 28;
+export const TELEMETRY_ROLE_AUTHORITY_MIGRATION_NAME = "telemetry-role-authority";
+export const CURRENT_SCHEMA_VERSION = TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4115,7 +4117,7 @@ function schemaStatements(sql: string, names: readonly string[]): string {
     return key !== undefined && wanted.has(key.slice(key.indexOf(":") + 1));
   });
   if (statements.length !== wanted.size) {
-    throw new Error("Telemetry readings migration could not find every schema statement");
+    throw new Error("Migration could not find every schema statement");
   }
   return statements.map((statement) => `${statement};`).join("\n");
 }
@@ -4137,26 +4139,28 @@ function validateTelemetryReadingsSchema(database: DatabaseExecutor): void {
     TELEMETRY_READINGS_SCHEMA_OBJECTS,
     `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}`,
     TELEMETRY_READINGS_SCHEMA_VERSION,
-    (schemaDatabase) => {
-      validateBuiltinSimulationColumns(schemaDatabase);
-      expectColumns(schemaDatabase, "telemetry_readings", [
-        { name: "measurement_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
-        { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
-        { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
-      ]);
-      expectColumns(schemaDatabase, "telemetry_source_tap_readings", [
-        { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
-        { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
-        { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 3 },
-        { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
-        { name: "measurement_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
-        { name: "captured_assignment_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
-        { name: "measured_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
-        { name: "measured_at_epoch_ms", type: "INTEGER", notnull: 1, dflt_value: null, pk: 0 },
-        { name: "received_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
-      ]);
-    },
+    validateTelemetryReadingsColumns,
   );
+}
+
+function validateTelemetryReadingsColumns(schemaDatabase: DatabaseExecutor): void {
+  validateBuiltinSimulationColumns(schemaDatabase);
+  expectColumns(schemaDatabase, "telemetry_readings", [
+    { name: "measurement_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+    { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+    { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+  ]);
+  expectColumns(schemaDatabase, "telemetry_source_tap_readings", [
+    { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+    { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+    { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 3 },
+    { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+    { name: "measurement_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
+    { name: "captured_assignment_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
+    { name: "measured_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+    { name: "measured_at_epoch_ms", type: "INTEGER", notnull: 1, dflt_value: null, pk: 0 },
+    { name: "received_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+  ]);
 }
 
 export const TELEMETRY_READINGS_MIGRATION: MigrationDefinition = {
@@ -4235,6 +4239,75 @@ export const TELEMETRY_READINGS_MIGRATION: MigrationDefinition = {
   },
 };
 
+/**
+ * v28 makes Tap authority per role (#169): at most one `level` source (keg level, pours) and
+ * one `condition` source (temperature and other condition metrics) per Tap. Every existing
+ * authority becomes the source for both roles with its original `changed_at`, so nothing
+ * changes until an operator splits them.
+ */
+export const TELEMETRY_ROLE_AUTHORITY_SCHEMA_SQL = `
+  CREATE TABLE tap_telemetry_authority (
+    tap_id TEXT NOT NULL REFERENCES taps(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('level', 'condition')),
+    source_id TEXT NOT NULL REFERENCES telemetry_sources(id) ON DELETE RESTRICT,
+    changed_at TEXT NOT NULL,
+    PRIMARY KEY (tap_id, role)
+  );
+`;
+
+const TELEMETRY_ROLE_AUTHORITY_SCHEMA_OBJECTS = TELEMETRY_READINGS_SCHEMA_OBJECTS;
+
+// The disabled-source guards reference tap_telemetry_authority. The two on the table go with
+// DROP TABLE; the one on telemetry_sources is dropped so the RENAME doesn't re-parse it against
+// a missing table. All three are recreated from their original SQL.
+const TAP_AUTHORITY_TRIGGERS = [
+  "trg_tap_telemetry_authority_no_disabled_insert",
+  "trg_tap_telemetry_authority_no_disabled_update",
+  "trg_telemetry_sources_no_disable_with_authority",
+] as const;
+
+function validateTelemetryRoleAuthoritySchema(database: DatabaseExecutor): void {
+  validateTelemetrySchemaDefinition(
+    database,
+    TELEMETRY_ROLE_AUTHORITY_SCHEMA_OBJECTS,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_ROLE_AUTHORITY_SCHEMA_SQL}`,
+    TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION,
+    (schemaDatabase) => {
+      validateTelemetryReadingsColumns(schemaDatabase);
+      expectColumns(schemaDatabase, "tap_telemetry_authority", [
+        { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        { name: "role", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+        { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "changed_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+    },
+  );
+}
+
+export const TELEMETRY_ROLE_AUTHORITY_MIGRATION: MigrationDefinition = {
+  version: TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION,
+  name: TELEMETRY_ROLE_AUTHORITY_MIGRATION_NAME,
+  apply(database) {
+    const indexSql = schemaStatements(TELEMETRY_SCHEMA_SQL, ["idx_tap_telemetry_authority_source"]);
+    const triggersSql = schemaStatements(TELEMETRY_DISABLED_LIFECYCLE_GUARDS_SQL, [
+      ...TAP_AUTHORITY_TRIGGERS,
+    ]);
+    database.execute(`
+      DROP TRIGGER trg_telemetry_sources_no_disable_with_authority;
+      ${TELEMETRY_ROLE_AUTHORITY_SCHEMA_SQL.replace("CREATE TABLE tap_telemetry_authority", "CREATE TABLE tap_telemetry_authority_v28")}
+      INSERT INTO tap_telemetry_authority_v28 (tap_id, role, source_id, changed_at)
+        SELECT tap_id, 'level', source_id, changed_at FROM tap_telemetry_authority
+        UNION ALL
+        SELECT tap_id, 'condition', source_id, changed_at FROM tap_telemetry_authority;
+      DROP TABLE tap_telemetry_authority;
+      ALTER TABLE tap_telemetry_authority_v28 RENAME TO tap_telemetry_authority;
+      ${indexSql}
+      ${triggersSql}
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4264,6 +4337,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   DISPLAY_THEME_FORMAT_MIGRATION,
   DISPLAY_THEME_ACCENT_MIGRATION,
   TELEMETRY_READINGS_MIGRATION,
+  TELEMETRY_ROLE_AUTHORITY_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4304,7 +4378,8 @@ function applyMigration(
         migration.version === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
         migration.version === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
         migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION ||
-        migration.version === TELEMETRY_READINGS_SCHEMA_VERSION)
+        migration.version === TELEMETRY_READINGS_SCHEMA_VERSION ||
+        migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4434,6 +4509,8 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateSystemAdministrationSchema(database);
   } else if (version === TELEMETRY_READINGS_SCHEMA_VERSION) {
     validateTelemetryReadingsSchema(database);
+  } else if (version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION) {
+    validateTelemetryRoleAuthoritySchema(database);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

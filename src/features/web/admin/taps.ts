@@ -323,13 +323,18 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
     "/admin/taps/:id/authority",
     (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
     (form, context, params) => {
-      dependencies.telemetryService.setTapAuthority(
+      const { requiresFreshBaseline } = dependencies.telemetryService.setTapAuthority(
         params.id!,
-        { sourceId: form.sourceId === "" ? null : form.sourceId },
+        { levelSourceId: form.levelSourceId, conditionSourceId: form.conditionSourceId },
         actor(context),
       );
+      return {
+        notice: requiresFreshBaseline
+          ? "Telemetry sources updated; a fresh baseline is required."
+          : "Telemetry sources updated.",
+      };
     },
-    "Telemetry authority updated; a fresh baseline is required.",
+    "Telemetry sources updated.",
   );
   registerAdminAction(
     dependencies,

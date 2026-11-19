@@ -76,7 +76,7 @@ export class DashboardService {
         checks.push(
           scale?.severity === "critical"
             ? "disconnected"
-            : authority !== undefined && scale?.state === "healthy"
+            : authority.level !== null && scale?.state === "healthy"
               ? "healthy"
               : "degraded",
         );

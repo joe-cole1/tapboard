@@ -126,7 +126,10 @@ const measuredFill = fills.createFill({
   fillDate: "2026-08-15",
 });
 const measuredTap = taps.listTaps().find((tap) => tap.tapNumber === 1)!;
-telemetry.setTapAuthority(measuredTap.id, { sourceId: source.id });
+telemetry.setTapAuthority(measuredTap.id, {
+  levelSourceId: source.id,
+  conditionSourceId: source.id,
+});
 taps.assignFill(measuredTap.id, { fillId: measuredFill.id });
 const mysteryBeverage = beverages.createCustomBeverage({
   name: "MYSTERY_SECRET_DO_NOT_LEAK_77 name",

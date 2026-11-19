@@ -117,7 +117,8 @@ export function isValidClientSampleId(clientSampleId: unknown): boolean {
   return CLIENT_SAMPLE_ID_REGEX.test(clientSampleId);
 }
 
-function registeredMetric(metric: string) {
+/** The registry entry of a metric that validation already accepted. */
+export function registeredMetric(metric: string) {
   const definition = telemetryMetric(metric);
   if (definition === undefined) {
     throw new Error(`Telemetry metric '${metric}' is not registered`);

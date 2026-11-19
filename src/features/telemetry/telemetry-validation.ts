@@ -107,14 +107,18 @@ export function validateRotateTelemetrySourceInput(input: unknown): RotateTeleme
 
 export function validateAssignAuthorityInput(input: unknown): AssignAuthorityInput {
   const obj = requirePlainObject(input, "body");
-  rejectUnknownKeys(obj, ["sourceId"], "body");
+  rejectUnknownKeys(obj, ["levelSourceId", "conditionSourceId"], "body");
+  return {
+    levelSourceId: authoritySourceId(obj, "levelSourceId"),
+    conditionSourceId: authoritySourceId(obj, "conditionSourceId"),
+  };
+}
 
-  let sourceId: string | null = null;
-  if (obj.sourceId !== undefined && obj.sourceId !== null && obj.sourceId !== "") {
-    sourceId = validateTelemetrySourceId(obj.sourceId, "sourceId");
-  }
-
-  return { sourceId };
+/** A required role field: a source id, or null or "" for no source. */
+function authoritySourceId(obj: Record<string, unknown>, field: string): string | null {
+  if (!Object.hasOwn(obj, field)) throw validationError(field, "is required");
+  const value = obj[field];
+  return value === null || value === "" ? null : validateTelemetrySourceId(value, field);
 }
 
 export function validateUpdateTelemetrySettingsInput(input: unknown): UpdateTelemetrySettingsInput {

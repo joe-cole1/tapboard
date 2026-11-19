@@ -81,7 +81,8 @@ void test("v26 telemetry upgrades to v27 readings without losing rows or status 
     v26.close();
   }
 
-  const upgraded = openDatabase(path);
+  const v27 = { migrations: MIGRATIONS.slice(0, TELEMETRY_READINGS_SCHEMA_VERSION) };
+  const upgraded = openDatabase(path, v27);
   try {
     assert.equal(upgraded.pragma<number>("user_version", { simple: true }), 27);
     assert.deepEqual(
@@ -190,11 +191,12 @@ void test("v26 telemetry upgrades to v27 readings without losing rows or status 
   }
 
   // The upgraded file validates as canonical v27 when reopened.
-  openDatabase(path).close();
+  openDatabase(path, v27).close();
 });
 
 void test("a fresh database and a v27 database missing a readings object are told apart", (context) => {
-  const fresh = openDatabase(":memory:");
+  const v27 = { migrations: MIGRATIONS.slice(0, TELEMETRY_READINGS_SCHEMA_VERSION) };
+  const fresh = openDatabase(":memory:", v27);
   try {
     assert.equal(fresh.pragma<number>("user_version", { simple: true }), 27);
     assert.deepEqual(all(fresh, "PRAGMA foreign_key_check"), []);
@@ -203,8 +205,8 @@ void test("a fresh database and a v27 database missing a readings object are tol
   }
 
   const path = databasePath(context);
-  const database = openDatabase(path);
+  const database = openDatabase(path, v27);
   database.execute("DROP TRIGGER trg_telemetry_readings_no_update");
   database.close();
-  assert.throws(() => openDatabase(path), /Incompatible SQLite schema/);
+  assert.throws(() => openDatabase(path, v27), /Incompatible SQLite schema/);
 });

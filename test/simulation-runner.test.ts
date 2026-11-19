@@ -377,7 +377,10 @@ void test("rotation, revocation and authority changes fail visibly without steal
     const [rotated, reassigned, revoked, healthy] = h.runner.listSensors();
     for (const sensor of [rotated!, reassigned!, revoked!]) h.runner.pour(sensor.tapId, 4);
     h.telemetryService.rotateSourceKey(rotated!.sourceId, {});
-    h.telemetryService.setTapAuthority(reassigned!.tapId, { sourceId: healthy!.sourceId });
+    h.telemetryService.setTapAuthority(reassigned!.tapId, {
+      levelSourceId: healthy!.sourceId,
+      conditionSourceId: healthy!.sourceId,
+    });
     const key = h.telemetryService.getSourceById(revoked!.sourceId)!.currentMachineKeyId;
     h.machineKeyService.revoke(key);
     h.advance(1_000);
@@ -388,7 +391,7 @@ void test("rotation, revocation and authority changes fail visibly without steal
       assert.equal(current.remainingMl, sensor.remainingMl);
     }
     assert.equal(
-      h.telemetryService.getTapAuthority(reassigned!.tapId)!.sourceId,
+      h.telemetryService.getTapAuthority(reassigned!.tapId).level?.sourceId,
       healthy!.sourceId,
     );
     assert.equal(
@@ -706,7 +709,11 @@ function seedLegacySimulation(dependencies: SimulationDependencies): readonly Si
         { name: `Simulation sensor ${tapNumber}` },
         actor,
       );
-      telemetryService.setTapAuthority(tap.id, { sourceId: source.id }, actor);
+      telemetryService.setTapAuthority(
+        tap.id,
+        { levelSourceId: source.id, conditionSourceId: source.id },
+        actor,
+      );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);
       insertSensor(database, {
         tapId: tap.id,

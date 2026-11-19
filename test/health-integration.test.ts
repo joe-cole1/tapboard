@@ -125,6 +125,7 @@ void test("shared transaction callbacks preserve detector-before-health ordering
   };
   const authority: AuthorityChangedEvent = {
     tapId: assignmentOpened.tapId,
+    role: "level",
     previousSourceId: null,
     newSourceId: accepted.sourceId,
     changedAt: NOW,
