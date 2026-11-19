@@ -2,14 +2,19 @@ export {
   canonicalizeJson,
   computeSemanticPayloadDigest,
   isValidClientSampleId,
+  levelReading,
   normalizeExternalTelemetrySample,
   parseRfc3339Timestamp,
-  type MassUnit,
   type NormalizedTelemetrySample,
-  type TemperatureUnit,
-  type VolumeUnit,
 } from "./normalization.ts";
 export { TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
+export {
+  TELEMETRY_METRICS,
+  telemetryMetric,
+  telemetryMetricNames,
+  type TelemetryMetricDefinition,
+  type TelemetryMetricRole,
+} from "./metrics.ts";
 export { InMemoryTelemetryRateLimiter } from "./rate-limiter.ts";
 export {
   deleteTapTelemetryAuthority,
@@ -74,9 +79,8 @@ export type {
   CreateTelemetrySourceInput,
   ExternalBatchTelemetryRequestInput,
   ExternalBatchTelemetryRequestSampleInput,
-  ExternalTelemetryMeasurementInput,
+  ExternalTelemetryReadingInput,
   ExternalTelemetryRequestInput,
-  ExternalTelemetryTemperatureInput,
   RenameTelemetrySourceInput,
   RotateTelemetrySourceInput,
   SingleIngestResult,

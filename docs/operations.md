@@ -1,6 +1,6 @@
 # Tapboard v2 operator and security guide
 
-Application version 2.0.0 uses canonical schema 23. The telemetry wire API remains v1. [README](../README.md) covers setup and manual workflows; the archived [rebuild STATUS](history/rebuild/STATUS.md) records the rebuild's acceptance evidence. Build/review, merge, image publication, and deployment are separate operator actions.
+Application version 2.0.0 uses canonical schema 27. The telemetry wire API remains v1. [README](../README.md) covers setup and manual workflows; the archived [rebuild STATUS](history/rebuild/STATUS.md) records the rebuild's acceptance evidence. Build/review, merge, image publication, and deployment are separate operator actions.
 
 ## Select the deployment boundary
 
@@ -63,7 +63,7 @@ docker compose --env-file "${TAPBOARD_ENV_FILE:-.env}" -p tapboard-prod -f compo
 curl -fsS http://127.0.0.1:3005/healthz
 ```
 
-Use the LAN/proxy URL instead when selected. GET and HEAD readiness report local application/database status with schema 23. Integration outages can degrade public connectivity while local readiness and domain administration remain available. After an update, follow the issue-specific MANUAL DEV TEST in README with disposable entities for destructive actions. Never use `down --volumes` as an update step.
+Use the LAN/proxy URL instead when selected. GET and HEAD readiness report local application/database status with schema 27. Integration outages can degrade public connectivity while local readiness and domain administration remain available. After an update, follow the issue-specific MANUAL DEV TEST in README with disposable entities for destructive actions. Never use `down --volumes` as an update step.
 
 The normal database is `/app/data/tapboard-v2.sqlite3`; Simulation uses a separate saved sibling. V1 `tapboard.db` is neither imported nor migrated. Do not point v2 at a v1 database or rewrite a rejected ledger. Canonical earlier v2 schemas upgrade transactionally; an unpublished divergent schema needs an explicit preservation/migration plan.
 

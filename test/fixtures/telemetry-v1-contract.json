@@ -1,0 +1,873 @@
+{
+  "description": "Recorded from main before the readings form (#166/#167). Legacy v1 payload digests and 400 bodies must not change.",
+  "tapId": "00000000-0000-4000-8000-000000000001",
+  "digests": [
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        }
+      },
+      "digest": "c74b0ac660a7507c0a94144bdf888379929053dec8094dc27710276a9a1ebbad"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        }
+      },
+      "digest": "c74b0ac660a7507c0a94144bdf888379929053dec8094dc27710276a9a1ebbad"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "2f2f532831e8f4fde38589d6f7af3b6bb1a8cacf5d01fe3d22d59c1a1fa492ea"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "2f2f532831e8f4fde38589d6f7af3b6bb1a8cacf5d01fe3d22d59c1a1fa492ea"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "2b458c3ac0ebc6dc37cad1df2a22d1ea75da5564e1cc5d1b5c2389369846bc26"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 12.5,
+          "unit": "kg"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "2b458c3ac0ebc6dc37cad1df2a22d1ea75da5564e1cc5d1b5c2389369846bc26"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        }
+      },
+      "digest": "453b2e754731842c0376fea9ab85b178fa21fc2334b0eb3a74182e46cdd712da"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        }
+      },
+      "digest": "453b2e754731842c0376fea9ab85b178fa21fc2334b0eb3a74182e46cdd712da"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "89fc2bccdf7218bfd5f46abec6a97cffd2775cd8aa4b73897281b78dd8e0cb67"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "89fc2bccdf7218bfd5f46abec6a97cffd2775cd8aa4b73897281b78dd8e0cb67"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "771c14e226a5c4f3ad7512101409690b8ae3388ccef546f4a05df6953dd8d880"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 400,
+          "unit": "oz"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "771c14e226a5c4f3ad7512101409690b8ae3388ccef546f4a05df6953dd8d880"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        }
+      },
+      "digest": "1c99bd8414d4b708044e79b623168c1639fc49911d281a1050a0849937348c41"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        }
+      },
+      "digest": "1c99bd8414d4b708044e79b623168c1639fc49911d281a1050a0849937348c41"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "057fc0a8e158f88d9556d97efaa5383be6dc63a6a53caf87b82991b922f78092"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "057fc0a8e158f88d9556d97efaa5383be6dc63a6a53caf87b82991b922f78092"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "c295b60881091dd88934923e8dfc8033762a3a6e2029cc57d7fc522e20693eb9"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 3.25,
+          "unit": "us_gal"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "c295b60881091dd88934923e8dfc8033762a3a6e2029cc57d7fc522e20693eb9"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        }
+      },
+      "digest": "1aa3fcc17a8689efcfffa3ed58a79db0dd1e99361326f4065c666ea53b2ae9d5"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        }
+      },
+      "digest": "1aa3fcc17a8689efcfffa3ed58a79db0dd1e99361326f4065c666ea53b2ae9d5"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "70b1adb7165fc5a556b0a8706af144d8df43fc403c9f204c73b433ae64c936ce"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "70b1adb7165fc5a556b0a8706af144d8df43fc403c9f204c73b433ae64c936ce"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "50aa1dc7808c9a53c6798fdedf707366c5dec95af5ceb515485c5551cf4fc240"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1500,
+          "unit": "ml"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "50aa1dc7808c9a53c6798fdedf707366c5dec95af5ceb515485c5551cf4fc240"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        }
+      },
+      "digest": "1e0a40c9d85e4ecd5279d040e2c3d00ad38d82444257810fb2a6a7f714e2eab2"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        }
+      },
+      "digest": "1e0a40c9d85e4ecd5279d040e2c3d00ad38d82444257810fb2a6a7f714e2eab2"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "90d4b899017015a150526d98d8e81bb07ba3a26902f60402edad12ca58cc3c71"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        },
+        "temperature": {
+          "value": 4.5,
+          "unit": "c"
+        }
+      },
+      "digest": "90d4b899017015a150526d98d8e81bb07ba3a26902f60402edad12ca58cc3c71"
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "b37fa89b0d1c311ee607b3bc53ca3e141bd4787b2efff86a55c79e06426b8741"
+    },
+    {
+      "body": {
+        "client_sample_id": "sample-1",
+        "measured_at": "2026-11-19T10:00:00.123+01:00",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 42.5,
+          "unit": "percent"
+        },
+        "temperature": {
+          "value": 38,
+          "unit": "f"
+        }
+      },
+      "digest": "b37fa89b0d1c311ee607b3bc53ca3e141bd4787b2efff86a55c79e06426b8741"
+    }
+  ],
+  "errors": [
+    {
+      "body": null,
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body",
+        "reason": "must be a plain object"
+      }
+    },
+    {
+      "body": [],
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body",
+        "reason": "must be a plain object"
+      }
+    },
+    {
+      "body": {},
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measured_at",
+        "reason": "must be a valid RFC3339 timestamp string"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z"
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement",
+        "reason": "must be a plain object"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": null
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement",
+        "reason": "must be a plain object"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {}
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.kind",
+        "reason": "must be one of 'total_weight', 'remaining_volume', 'fill_percentage'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": 1,
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.kind",
+        "reason": "must be one of 'total_weight', 'remaining_volume', 'fill_percentage'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "nope",
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.kind",
+        "reason": "must be one of 'total_weight', 'remaining_volume', 'fill_percentage'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": "1",
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.value",
+        "reason": "must be a finite number"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.unit",
+        "reason": "is required"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": -1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.value",
+        "reason": "must be non-negative"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": -1,
+          "unit": "ml"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.value",
+        "reason": "must be non-negative"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "ml"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.unit",
+        "reason": "must be one of 'g', 'kg', 'oz', 'lb'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": -1,
+          "unit": "ml"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.value",
+        "reason": "must be non-negative"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "remaining_volume",
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.unit",
+        "reason": "must be one of 'ml', 'l', 'us_fl_oz', 'us_gal'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 101,
+          "unit": "percent"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.value",
+        "reason": "must be between 0 and 100"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 50,
+          "unit": "%"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement.unit",
+        "reason": "must be exactly 'percent'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "fill_percentage",
+          "value": 50,
+          "unit": "percent",
+          "x": 1
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measurement",
+        "reason": "contains unknown key: x"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": 5
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature",
+        "reason": "must be a plain object"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": {}
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature.value",
+        "reason": "must be a finite number"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": {
+          "value": 200
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature.value",
+        "reason": "must be between -100 and 150"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": {
+          "value": 5
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature.unit",
+        "reason": "is required"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": {
+          "value": 5,
+          "unit": "k"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature.unit",
+        "reason": "must be one of 'c', 'f'"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "temperature": {
+          "value": 5,
+          "unit": "c",
+          "y": 1
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.temperature",
+        "reason": "contains unknown key: y"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        },
+        "extra": 1
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body",
+        "reason": "contains unknown key: extra"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "bad",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measured_at",
+        "reason": "Measurement timestamp must be an RFC3339/ISO-8601 string with an explicit timezone offset."
+      }
+    },
+    {
+      "body": {
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.measured_at",
+        "reason": "must be a valid RFC3339 timestamp string"
+      }
+    },
+    {
+      "body": {
+        "measured_at": "2026-11-19T10:00:00Z",
+        "client_sample_id": "",
+        "measurement": {
+          "kind": "total_weight",
+          "value": 1,
+          "unit": "g"
+        }
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.client_sample_id",
+        "reason": "must be a non-empty string between 1 and 128 characters consisting of alphanumeric characters, dashes, underscores, dots, colons, or slashes"
+      }
+    },
+    {
+      "batch": true,
+      "body": {
+        "samples": [
+          {
+            "measured_at": "2026-11-19T10:00:00Z",
+            "measurement": {
+              "kind": "total_weight",
+              "value": 1,
+              "unit": "g"
+            }
+          }
+        ]
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.samples[0].tap_number",
+        "reason": "must be an integer between 1 and 1000000"
+      }
+    },
+    {
+      "batch": true,
+      "body": {
+        "samples": [
+          {
+            "tap_number": 1,
+            "measured_at": "2026-11-19T10:00:00Z"
+          }
+        ]
+      },
+      "code": "validation.invalid_value",
+      "details": {
+        "field": "body.samples[0].measurement",
+        "reason": "must be a plain object"
+      }
+    }
+  ]
+}

@@ -15,7 +15,7 @@
     "/api/v1/telemetry/taps/{tapNumber}": {
       "post": {
         "summary": "Ingest one telemetry sample",
-        "description": "Submit one measurement for a tap. The request body is limited to 16 KiB. HTTP 200 is returned for a newly accepted sample or an accepted idempotent duplicate. Durable operational rejections use HTTP 409, except rate_limited, which uses HTTP 429. A same-identity/different-digest conflict also uses HTTP 409 but does not create or replace a durable receipt.",
+        "description": "Submit one sample for a tap: a keg-level `measurement` with optional `temperature`, or a `readings` array. The request body is limited to 16 KiB. HTTP 200 is returned for a newly accepted sample or an accepted idempotent duplicate. Durable operational rejections use HTTP 409, except rate_limited, which uses HTTP 429. A same-identity/different-digest conflict also uses HTTP 409 but does not create or replace a durable receipt.",
         "operationId": "ingestSingleTelemetrySample",
         "security": [
           {
@@ -66,7 +66,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "Durable operational rejections (not_authoritative, tap_retired, stale, future, or out_of_order) are recorded as receipts. A non-durable/no-effect idempotency_conflict means the same identity was submitted with a different payload and no new receipt or measurement is written.",
+            "description": "Durable operational rejections (not_authoritative, tap_retired, stale, future, or out_of_order) are recorded as receipts. out_of_order means measured_at is not newer than the source's latest accepted sample for the tap, whatever readings either carried. A non-durable/no-effect idempotency_conflict means the same identity was submitted with a different payload and no new receipt or measurement is written.",
             "content": {
               "application/json": {
                 "schema": {
@@ -149,7 +149,7 @@
     },
     "responses": {
       "BadRequest": {
-        "description": "Malformed JSON or structurally invalid request.",
+        "description": "Malformed JSON or structurally invalid request, including both sample forms in one body, an unregistered metric or unit (the details name the metric), a repeated metric, or two keg-level readings.",
         "content": {
           "application/json": {
             "schema": {
@@ -287,10 +287,128 @@
           }
         }
       },
+      "TotalWeightReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "const": "total_weight"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "$ref": "#/components/schemas/MassUnit"
+          }
+        }
+      },
+      "RemainingVolumeReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "const": "remaining_volume"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "$ref": "#/components/schemas/VolumeUnit"
+          }
+        }
+      },
+      "FillPercentageReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "const": "fill_percentage"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "unit": {
+            "$ref": "#/components/schemas/PercentageUnit"
+          }
+        }
+      },
+      "TemperatureReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "const": "temperature"
+          },
+          "value": {
+            "type": "number",
+            "minimum": -100,
+            "maximum": 150
+          },
+          "unit": {
+            "$ref": "#/components/schemas/TemperatureUnit"
+          }
+        }
+      },
+      "Reading": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TotalWeightReading"
+          },
+          {
+            "$ref": "#/components/schemas/RemainingVolumeReading"
+          },
+          {
+            "$ref": "#/components/schemas/FillPercentageReading"
+          },
+          {
+            "$ref": "#/components/schemas/TemperatureReading"
+          }
+        ],
+        "description": "One reading of a registered metric. total_weight, remaining_volume, and fill_percentage are keg-level metrics; temperature is a condition metric. Bounds apply to the value as sent, before unit conversion. An unregistered metric or a unit the metric does not accept is a 400 naming the metric."
+      },
+      "Readings": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 4,
+        "items": {
+          "$ref": "#/components/schemas/Reading"
+        },
+        "description": "The readings form of a sample. Each metric appears at most once and a sample carries at most one keg-level reading; either rule broken is a 400. A sample without a keg-level reading (for example temperature alone) is stored, updates the latest readings and health, and leaves the pour detector and keg-level status untouched. The two wire forms of the same values are the same sample for idempotency."
+      },
       "TelemetrySample": {
         "type": "object",
-        "required": ["measured_at", "measurement"],
+        "required": ["measured_at"],
         "additionalProperties": false,
+        "description": "Send either `measurement` (with optional `temperature`) or `readings`. A body with both forms is a 400.",
+        "oneOf": [
+          {
+            "required": ["measurement"],
+            "not": {
+              "required": ["readings"]
+            }
+          },
+          {
+            "required": ["readings"],
+            "not": {
+              "anyOf": [
+                {
+                  "required": ["measurement"]
+                },
+                {
+                  "required": ["temperature"]
+                }
+              ]
+            }
+          }
+        ],
         "properties": {
           "client_sample_id": {
             "type": "string",
@@ -310,13 +428,38 @@
           },
           "temperature": {
             "$ref": "#/components/schemas/Temperature"
+          },
+          "readings": {
+            "$ref": "#/components/schemas/Readings"
           }
         }
       },
       "TelemetryBatchSample": {
         "type": "object",
-        "required": ["tap_number", "measured_at", "measurement"],
+        "required": ["tap_number", "measured_at"],
         "additionalProperties": false,
+        "description": "Send either `measurement` (with optional `temperature`) or `readings`. A sample with both forms is a 400 for the whole batch.",
+        "oneOf": [
+          {
+            "required": ["measurement"],
+            "not": {
+              "required": ["readings"]
+            }
+          },
+          {
+            "required": ["readings"],
+            "not": {
+              "anyOf": [
+                {
+                  "required": ["measurement"]
+                },
+                {
+                  "required": ["temperature"]
+                }
+              ]
+            }
+          }
+        ],
         "properties": {
           "tap_number": {
             "type": "integer",
@@ -339,6 +482,9 @@
           },
           "temperature": {
             "$ref": "#/components/schemas/Temperature"
+          },
+          "readings": {
+            "$ref": "#/components/schemas/Readings"
           }
         }
       },

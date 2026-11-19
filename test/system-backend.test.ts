@@ -41,6 +41,7 @@ import {
   readTelemetryEpoch,
 } from "../src/features/telemetry/repositories/detector.ts";
 import { TelemetryService } from "../src/features/telemetry/service.ts";
+import { validateExternalTelemetryPayload } from "../src/features/telemetry/telemetry-validation.ts";
 import { ApplicationError } from "../src/shared/errors.ts";
 
 const OLD = "2026-01-01T00:00:00.000Z";
@@ -601,7 +602,11 @@ void test("System raw pruning preserves unexpired durable receipts and hardware 
       measured_at: OLD,
       measurement: { kind: "remaining_volume", value: 10_000, unit: "ml" },
     } as const;
-    const accepted = h.telemetryService.ingestSingle(domain.source, 1, sample);
+    const accepted = h.telemetryService.ingestSingle(
+      domain.source,
+      1,
+      validateExternalTelemetryPayload(sample),
+    );
     assert.equal(accepted.outcome, "accepted");
     h.setNow("2026-01-01T00:20:00.000Z");
     const pruned = h.system.runRetention();
@@ -611,7 +616,11 @@ void test("System raw pruning preserves unexpired durable receipts and hardware 
       h.telemetryService.getTapLatestHardwareStatus(domain.tap.id)[0]?.remainingVolumeMl,
       10_000,
     );
-    const duplicate = h.telemetryService.ingestSingle(domain.source, 1, sample);
+    const duplicate = h.telemetryService.ingestSingle(
+      domain.source,
+      1,
+      validateExternalTelemetryPayload(sample),
+    );
     assert.equal(duplicate.duplicate, true);
     assert.equal(duplicate.acceptedMeasurementId, accepted.acceptedMeasurementId);
     assert.equal(count(h.database, "pours"), 1);
@@ -904,7 +913,7 @@ void test("System diagnostics expose fixed counts, storage metadata and safe out
     const diagnostics = h.system.getDiagnostics();
     assert.equal(diagnostics.counts.activity, 2);
     assert.equal(diagnostics.counts.sessions, 1);
-    assert.equal(diagnostics.storage.schemaVersion, 26);
+    assert.equal(diagnostics.storage.schemaVersion, 27);
     assert.ok(diagnostics.storage.pageSizeBytes > 0);
     assert.deepEqual(diagnostics.retention, {
       running: false,

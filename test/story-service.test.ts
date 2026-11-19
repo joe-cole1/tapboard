@@ -337,6 +337,7 @@ function fixture(
       }),
     },
     healthService: {
+      servingTemperatureC: () => 4.5,
       getAdminOverview: () => ({
         aggregate: { state: "healthy", severity: "none" },
         checks:

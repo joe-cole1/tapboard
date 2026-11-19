@@ -232,12 +232,14 @@ void test("scale uses authority age and measurement time, not receipt time", () 
 void test("temperature is canonical Celsius and continuity resets on invalid, stale, or gap", () => {
   const enabled = config("serving_temperature");
   assert.equal(
-    evaluateServingTemperature(input({ latestMeasurement: measurement({ tempC: 4 }) }), enabled)
-      .state,
+    evaluateServingTemperature(
+      input({ latestTemperatureMeasurement: measurement({ tempC: 4 }) }),
+      enabled,
+    ).state,
     "healthy",
   );
   const first = evaluateServingTemperature(
-    input({ latestMeasurement: measurement({ tempC: 10 }) }),
+    input({ latestTemperatureMeasurement: measurement({ tempC: 10 }) }),
     enabled,
   );
   assert.equal(first.state, "degraded");
@@ -245,7 +247,7 @@ void test("temperature is canonical Celsius and continuity resets on invalid, st
     evaluateServingTemperature(
       input({
         nowMs: NOW + 900_000,
-        latestMeasurement: measurement({
+        latestTemperatureMeasurement: measurement({
           measuredAtMs: NOW + 900_000,
           receivedAtMs: NOW + 900_000,
           tempC: 10,
@@ -263,13 +265,17 @@ void test("temperature is canonical Celsius and continuity resets on invalid, st
     "active",
   );
   assert.equal(
-    evaluateServingTemperature(input({ latestMeasurement: measurement({ tempC: null }) }), enabled)
-      .state,
+    evaluateServingTemperature(
+      input({ latestTemperatureMeasurement: measurement({ tempC: null }) }),
+      enabled,
+    ).state,
     "degraded",
   );
   assert.equal(
-    evaluateServingTemperature(input({ latestMeasurement: measurement({ tempC: 50 }) }), enabled)
-      .state,
+    evaluateServingTemperature(
+      input({ latestTemperatureMeasurement: measurement({ tempC: 50 }) }),
+      enabled,
+    ).state,
     "degraded",
   );
 });

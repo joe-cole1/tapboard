@@ -175,6 +175,11 @@ export interface HealthEvaluationInput {
   readonly latestMeasurement?: HealthAuthoritativeMeasurement | null;
   /** Explicit scale freshness input; null intentionally suppresses alias fallback. */
   readonly latestScaleMeasurement?: HealthAuthoritativeMeasurement | null;
+  /**
+   * Explicit serving-temperature input: the latest temperature reading, which may arrive
+   * without a keg-level reading. Null intentionally suppresses alias fallback.
+   */
+  readonly latestTemperatureMeasurement?: HealthAuthoritativeMeasurement | null;
   readonly latestAuthoritativeMeasurement?: HealthAuthoritativeMeasurement | null;
   /** Compatibility alias used by repository projections. */
   readonly measurement?: HealthAuthoritativeMeasurement | null;

@@ -11,8 +11,10 @@ import { createMachineKeyService } from "../src/features/machine-keys/service.ts
 import {
   computeSemanticPayloadDigest,
   isValidClientSampleId,
+  levelReading,
   normalizeExternalTelemetrySample,
   parseRfc3339Timestamp,
+  readingValue,
 } from "../src/features/telemetry/normalization.ts";
 import { InMemoryTelemetryRateLimiter } from "../src/features/telemetry/rate-limiter.ts";
 import { TelemetryService } from "../src/features/telemetry/service.ts";
@@ -144,72 +146,76 @@ function createAuthorizedTap(
 // 1. Normalization & Canonical Unit Conversion Tests
 // ==========================================
 
+function normalized(body: unknown) {
+  return normalizeExternalTelemetrySample(validateExternalTelemetryPayload(body));
+}
+
 void test("telemetry normalization converts mass units to grams with 6-decimal rounding", () => {
   // 1 kg = 1000 g
-  const sampleKg = normalizeExternalTelemetrySample({
+  const sampleKg = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "total_weight", value: 5.25, unit: "kg" },
   });
-  assert.equal(sampleKg.primaryKind, "total_weight");
-  assert.equal(sampleKg.totalMassG, 5250);
+  assert.equal(levelReading(sampleKg)?.metric, "total_weight");
+  assert.equal(readingValue(sampleKg, "total_weight"), 5250);
 
   // 1 lb = 453.59237 g
-  const sampleLb = normalizeExternalTelemetrySample({
+  const sampleLb = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "total_weight", value: 10, unit: "lb" },
   });
-  assert.equal(sampleLb.totalMassG, 4535.9237);
+  assert.equal(readingValue(sampleLb, "total_weight"), 4535.9237);
 
   // 1 oz = 28.349523125 g -> rounds to 6 decimals: 283.495231
-  const sampleOz = normalizeExternalTelemetrySample({
+  const sampleOz = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "total_weight", value: 10, unit: "oz" },
   });
-  assert.equal(sampleOz.totalMassG, 283.495231);
+  assert.equal(readingValue(sampleOz, "total_weight"), 283.495231);
 });
 
 void test("telemetry normalization converts volume units to milliliters with 6-decimal rounding", () => {
   // 1 L = 1000 ml
-  const sampleL = normalizeExternalTelemetrySample({
+  const sampleL = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "remaining_volume", value: 18.9270589, unit: "l" },
   });
-  assert.equal(sampleL.primaryKind, "remaining_volume");
-  assert.equal(sampleL.remainingVolumeMl, 18927.0589);
+  assert.equal(levelReading(sampleL)?.metric, "remaining_volume");
+  assert.equal(readingValue(sampleL, "remaining_volume"), 18927.0589);
 
   // 1 us_gal = 3785.411784 ml
-  const sampleGal = normalizeExternalTelemetrySample({
+  const sampleGal = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "remaining_volume", value: 5, unit: "us_gal" },
   });
-  assert.equal(sampleGal.remainingVolumeMl, 18927.05892);
+  assert.equal(readingValue(sampleGal, "remaining_volume"), 18927.05892);
 
   // 1 us_fl_oz = 29.5735295625 ml -> rounds to 6 decimals: 295.735296
-  const sampleFlOz = normalizeExternalTelemetrySample({
+  const sampleFlOz = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "remaining_volume", value: 10, unit: "us_fl_oz" },
   });
-  assert.equal(sampleFlOz.remainingVolumeMl, 295.735296);
+  assert.equal(readingValue(sampleFlOz, "remaining_volume"), 295.735296);
 });
 
 void test("telemetry normalization converts temperature units to Celsius and percentage to percent", () => {
   // 32 F = 0 C
-  const sampleF = normalizeExternalTelemetrySample({
+  const sampleF = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "fill_percentage", value: 75.5, unit: "percent" },
     temperature: { value: 32, unit: "f" },
   });
-  assert.equal(sampleF.primaryKind, "fill_percentage");
-  assert.equal(sampleF.fillPercentage, 75.5);
-  assert.equal(sampleF.temperatureC, 0);
+  assert.equal(levelReading(sampleF)?.metric, "fill_percentage");
+  assert.equal(readingValue(sampleF, "fill_percentage"), 75.5);
+  assert.equal(readingValue(sampleF, "temperature"), 0);
 
   // 68 F = 20 C
-  const sampleF2 = normalizeExternalTelemetrySample({
+  const sampleF2 = normalized({
     measured_at: "2026-08-14T12:00:00Z",
     measurement: { kind: "fill_percentage", value: 50, unit: "percent" },
     temperature: { value: 68, unit: "f" },
   });
-  assert.equal(sampleF2.temperatureC, 20);
+  assert.equal(readingValue(sampleF2, "temperature"), 20);
 });
 
 void test("RFC3339 timestamp parser requires explicit offset and validates precision", () => {
@@ -236,7 +242,7 @@ void test("client sample ID validator accepts valid characters and rejects inval
 });
 
 void test("SHA-256 semantic payload digest is deterministic and invariant to property order", () => {
-  const sampleA = normalizeExternalTelemetrySample({
+  const sampleA = normalized({
     client_sample_id: "sample-1",
     measured_at: "2026-08-14T12:00:00.000Z",
     measurement: { kind: "total_weight", value: 15000, unit: "g" },
@@ -245,7 +251,7 @@ void test("SHA-256 semantic payload digest is deterministic and invariant to pro
   const digest1 = computeSemanticPayloadDigest(sampleA, "11111111-1111-4111-8111-111111111111");
 
   // Same values with different input unit (e.g. 15 kg = 15000 g) produces identical digest
-  const sampleB = normalizeExternalTelemetrySample({
+  const sampleB = normalized({
     client_sample_id: "sample-1",
     measured_at: "2026-08-14T12:00:00.000Z",
     measurement: { kind: "total_weight", value: 15, unit: "kg" },
@@ -458,11 +464,15 @@ void test("telemetry source disable revokes only the owned key and preserves saf
     const activeSource = harness.telemetryService.createSource({ name: "Stay active" });
     const historyTap = harness.tapService.createTap({ tapNumber: 1, name: "History tap" });
     harness.telemetryService.setTapAuthority(historyTap.id, { sourceId: created.source.id });
-    const historySample = harness.telemetryService.ingestSingle(rotated.source, 1, {
-      client_sample_id: "disable-history",
-      measured_at: historyTime.toISOString(),
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const historySample = harness.telemetryService.ingestSingle(
+      rotated.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "disable-history",
+        measured_at: historyTime.toISOString(),
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(historySample.outcome, "accepted");
     harness.telemetryService.setTapAuthority(historyTap.id, { sourceId: null });
     const measurementsBefore = countRows(harness.database, "telemetry_measurements");
@@ -720,12 +730,16 @@ void test("single sample ingestion accepts authoritative telemetry, registers fi
     assert.equal(harness.tapService.getTap(tap.id).firstUsedAt, null);
 
     // 1. Ingest sample on unassigned tap
-    const result1 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-001",
-      measured_at: "2026-08-14T12:00:00.000Z",
-      measurement: { kind: "total_weight", value: 18500, unit: "g" },
-      temperature: { value: 3.5, unit: "c" },
-    });
+    const result1 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-001",
+        measured_at: "2026-08-14T12:00:00.000Z",
+        measurement: { kind: "total_weight", value: 18500, unit: "g" },
+        temperature: { value: 3.5, unit: "c" },
+      }),
+    );
 
     assert.equal(result1.outcome, "accepted");
     assert.equal(result1.code, "telemetry.accepted");
@@ -749,12 +763,16 @@ void test("single sample ingestion accepts authoritative telemetry, registers fi
     assert.equal(status[0]?.temperatureC, 3.5);
 
     // 2. Duplicate replay with same clientSampleId returns cached receipt (0 new effects)
-    const dupResult = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-001",
-      measured_at: "2026-08-14T12:00:00.000Z",
-      measurement: { kind: "total_weight", value: 18.5, unit: "kg" }, // 18.5 kg = 18500 g (same semantic digest)
-      temperature: { value: 3.5, unit: "c" },
-    });
+    const dupResult = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-001",
+        measured_at: "2026-08-14T12:00:00.000Z",
+        measurement: { kind: "total_weight", value: 18.5, unit: "kg" }, // 18.5 kg = 18500 g (same semantic digest)
+        temperature: { value: 3.5, unit: "c" },
+      }),
+    );
 
     assert.equal(dupResult.outcome, "accepted");
     assert.equal(dupResult.code, "telemetry.accepted");
@@ -763,11 +781,15 @@ void test("single sample ingestion accepts authoritative telemetry, registers fi
     assert.equal(harness.acceptedEvents.length, 1); // No new domain event
 
     // 3. Conflict replay with same clientSampleId but different measurement returns conflict
-    const conflictResult = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-001",
-      measured_at: "2026-08-14T12:00:00.000Z",
-      measurement: { kind: "total_weight", value: 12000, unit: "g" }, // Different value
-    });
+    const conflictResult = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-001",
+        measured_at: "2026-08-14T12:00:00.000Z",
+        measurement: { kind: "total_weight", value: 12000, unit: "g" }, // Different value
+      }),
+    );
 
     assert.equal(conflictResult.outcome, "rejected");
     assert.equal(conflictResult.code, "telemetry.idempotency_conflict");
@@ -809,11 +831,15 @@ void test("telemetry attribution captures active assignment ID only if measuredA
 
     // Telemetry measured at 12:05:00 (after assignment) -> captures assignment ID
     currentTime = new Date("2026-08-14T12:05:00.000Z");
-    const resultAfter = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-after",
-      measured_at: "2026-08-14T12:05:00.000Z",
-      measurement: { kind: "total_weight", value: 19000, unit: "g" },
-    });
+    const resultAfter = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-after",
+        measured_at: "2026-08-14T12:05:00.000Z",
+        measurement: { kind: "total_weight", value: 19000, unit: "g" },
+      }),
+    );
     assert.equal(resultAfter.outcome, "accepted");
     assert.equal(harness.acceptedEvents[0]?.capturedAssignmentId, assigned.assignment.id);
     assert.equal(harness.acceptedEvents[0]?.capturedFillId, fill.id);
@@ -839,11 +865,15 @@ void test("permanent Fill deletion removes attributed raw telemetry while preser
       fillDate: "2026-08-14",
     });
     const assignment = harness.tapService.assignFill(tap.id, { fillId: fill.id });
-    const accepted = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "fill-delete-attribution",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-    });
+    const accepted = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "fill-delete-attribution",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+      }),
+    );
     assert.equal(harness.acceptedEvents.at(-1)?.capturedAssignmentId, assignment.assignment.id);
 
     harness.fillService.deleteFill(fill.id, {
@@ -887,46 +917,66 @@ void test("telemetry rejects non-authoritative sources, future skew, stale recon
     harness.telemetryService.setTapAuthority(tap.id, { sourceId: authSource.id });
 
     // 1. Non-authoritative source
-    const nonAuthResult = harness.telemetryService.ingestSingle(unauthSource, 1, {
-      client_sample_id: "rogue-1",
-      measured_at: "2026-08-14T12:00:00.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const nonAuthResult = harness.telemetryService.ingestSingle(
+      unauthSource,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "rogue-1",
+        measured_at: "2026-08-14T12:00:00.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(nonAuthResult.outcome, "rejected");
     assert.equal(nonAuthResult.code, "telemetry.not_authoritative");
 
     // 2. Future skew (> now + 300s = 12:05:00)
-    const futureResult = harness.telemetryService.ingestSingle(authSource, 1, {
-      client_sample_id: "future-1",
-      measured_at: "2026-08-14T12:10:00.000Z", // +10 min
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const futureResult = harness.telemetryService.ingestSingle(
+      authSource,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "future-1",
+        measured_at: "2026-08-14T12:10:00.000Z", // +10 min
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(futureResult.outcome, "rejected");
     assert.equal(futureResult.code, "telemetry.future_timestamp");
 
     // 3. Stale horizon (< now - 21600s = 06:00:00)
-    const staleResult = harness.telemetryService.ingestSingle(authSource, 1, {
-      client_sample_id: "stale-1",
-      measured_at: "2026-08-14T05:00:00.000Z", // 7 hours ago
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const staleResult = harness.telemetryService.ingestSingle(
+      authSource,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "stale-1",
+        measured_at: "2026-08-14T05:00:00.000Z", // 7 hours ago
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(staleResult.outcome, "rejected");
     assert.equal(staleResult.code, "telemetry.stale_timestamp");
 
     // 4. Valid initial sample advances watermark to 12:00:00
-    const valid1 = harness.telemetryService.ingestSingle(authSource, 1, {
-      client_sample_id: "valid-1",
-      measured_at: "2026-08-14T12:00:00.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const valid1 = harness.telemetryService.ingestSingle(
+      authSource,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "valid-1",
+        measured_at: "2026-08-14T12:00:00.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(valid1.outcome, "accepted");
 
     // 5. Out of order sample (<= 12:00:00)
-    const oooResult = harness.telemetryService.ingestSingle(authSource, 1, {
-      client_sample_id: "ooo-1",
-      measured_at: "2026-08-14T11:59:59.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const oooResult = harness.telemetryService.ingestSingle(
+      authSource,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "ooo-1",
+        measured_at: "2026-08-14T11:59:59.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(oooResult.outcome, "rejected");
     assert.equal(oooResult.code, "telemetry.out_of_order");
   } finally {
@@ -959,39 +1009,55 @@ void test("telemetry rate limiter enforces burst and refill rates without durabl
     });
 
     // Sample 1 (burst token 1 consumed)
-    const res1 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "r-1",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const res1 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "r-1",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(res1.outcome, "accepted");
 
     // Sample 2 (burst token 2 consumed)
     currentTimeMs += 10;
-    const res2 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "r-2",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const res2 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "r-2",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(res2.outcome, "accepted");
 
     // Sample 3 immediately after -> rate limited!
     currentTimeMs += 10;
-    const res3 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "r-3",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const res3 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "r-3",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(res3.outcome, "rejected");
     assert.equal(res3.code, "telemetry.rate_limited");
 
     // Advance clock by 1000ms -> 1 token refilled!
     currentTimeMs += 1000;
-    const res4 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "r-3", // retry sample 3
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const res4 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "r-3", // retry sample 3
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(res4.outcome, "accepted");
   } finally {
     harness.database.close();
@@ -1029,40 +1095,43 @@ void test("batch ingestion handles preflight resolution, deterministic sorting, 
     // index 2: Tap 1 measured at 12:00:01 (duplicate of 'b-1' with same payload)
     // index 3: Tap 2 measured at 12:00:05 (clientSampleId: 'conflict-id', 10 kg)
     // index 4: Tap 2 measured at 12:00:05 (clientSampleId: 'conflict-id', 12 kg - intra-batch conflict!)
-    const batchResult = harness.telemetryService.ingestBatch(source, {
-      samples: [
-        {
-          tap_number: 2,
-          client_sample_id: "tap2-sample1",
-          measured_at: "2026-08-14T12:00:02.000Z",
-          measurement: { kind: "total_weight", value: 14000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "b-1",
-          measured_at: "2026-08-14T12:00:01.000Z",
-          measurement: { kind: "total_weight", value: 15000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "b-1",
-          measured_at: "2026-08-14T12:00:01.000Z",
-          measurement: { kind: "total_weight", value: 15, unit: "kg" }, // same digest
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "conflict-id",
-          measured_at: "2026-08-14T12:00:05.000Z",
-          measurement: { kind: "total_weight", value: 10000, unit: "g" },
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "conflict-id",
-          measured_at: "2026-08-14T12:00:05.000Z",
-          measurement: { kind: "total_weight", value: 12000, unit: "g" }, // different digest
-        },
-      ],
-    });
+    const batchResult = harness.telemetryService.ingestBatch(
+      source,
+      validateExternalBatchTelemetryPayload({
+        samples: [
+          {
+            tap_number: 2,
+            client_sample_id: "tap2-sample1",
+            measured_at: "2026-08-14T12:00:02.000Z",
+            measurement: { kind: "total_weight", value: 14000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "b-1",
+            measured_at: "2026-08-14T12:00:01.000Z",
+            measurement: { kind: "total_weight", value: 15000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "b-1",
+            measured_at: "2026-08-14T12:00:01.000Z",
+            measurement: { kind: "total_weight", value: 15, unit: "kg" }, // same digest
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "conflict-id",
+            measured_at: "2026-08-14T12:00:05.000Z",
+            measurement: { kind: "total_weight", value: 10000, unit: "g" },
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "conflict-id",
+            measured_at: "2026-08-14T12:00:05.000Z",
+            measurement: { kind: "total_weight", value: 12000, unit: "g" }, // different digest
+          },
+        ],
+      }),
+    );
 
     assert.equal(batchResult.processedCount, 5);
     assert.equal(batchResult.acceptedCount, 3); // index 0, 1, 2
@@ -1099,22 +1168,25 @@ void test("batch tie-breakers use locale-independent ordinal string order", () =
   });
   try {
     const { source } = createAuthorizedTap(harness, 1, "Ordinal Batch Source");
-    const result = harness.telemetryService.ingestBatch(source, {
-      samples: [
-        {
-          tap_number: 1,
-          client_sample_id: "a",
-          measured_at: "2026-08-14T12:00:00Z",
-          measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "Z",
-          measured_at: "2026-08-14T12:00:00Z",
-          measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-        },
-      ],
-    });
+    const result = harness.telemetryService.ingestBatch(
+      source,
+      validateExternalBatchTelemetryPayload({
+        samples: [
+          {
+            tap_number: 1,
+            client_sample_id: "a",
+            measured_at: "2026-08-14T12:00:00Z",
+            measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "Z",
+            measured_at: "2026-08-14T12:00:00Z",
+            measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+          },
+        ],
+      }),
+    );
 
     assert.equal(result.results[0]?.code, "telemetry.out_of_order");
     assert.equal(result.results[1]?.code, "telemetry.accepted");
@@ -1144,24 +1216,31 @@ void test("retention pruning cleans raw measurements at raw_retention and receip
     });
 
     // Ingest sample at T0 (00:00:00)
-    const ingestT0 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-t0",
-      measured_at: "2026-08-14T00:00:00.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const ingestT0 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-t0",
+        measured_at: "2026-08-14T00:00:00.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(ingestT0.outcome, "accepted");
 
     // Advance clock to +8 hours. A normal maximum-size batch crosses the
     // opportunistic-maintenance interval; no Admin prune call is required.
     currentTime = new Date("2026-08-14T08:00:00.000Z");
-    const maintenanceBatch = harness.telemetryService.ingestBatch(source, {
-      samples: Array.from({ length: 100 }, () => ({
-        tap_number: 1,
-        client_sample_id: "sample-t0",
-        measured_at: "2026-08-14T00:00:00.000Z",
-        measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-      })),
-    });
+    const maintenanceBatch = harness.telemetryService.ingestBatch(
+      source,
+      validateExternalBatchTelemetryPayload({
+        samples: Array.from({ length: 100 }, () => ({
+          tap_number: 1,
+          client_sample_id: "sample-t0",
+          measured_at: "2026-08-14T00:00:00.000Z",
+          measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+        })),
+      }),
+    );
     assert.equal(maintenanceBatch.duplicateCount, 100);
     assert.equal(countRows(harness.database, "telemetry_measurements"), 0);
     assert.equal(countRows(harness.database, "telemetry_ingest_receipts"), 1);
@@ -1182,11 +1261,15 @@ void test("retention pruning cleans raw measurements at raw_retention and receip
     assert.equal(status[0]?.totalMassG, 15000);
 
     // Replay of same sample at +8 hours returns duplicate from receipt (does not re-insert deleted raw measurement)
-    const replayT0 = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-t0",
-      measured_at: "2026-08-14T00:00:00.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const replayT0 = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-t0",
+        measured_at: "2026-08-14T00:00:00.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(replayT0.duplicate, true);
 
     // Advance clock to +30 hours -> receipt is now older than 24h and is pruned
@@ -1195,11 +1278,15 @@ void test("retention pruning cleans raw measurements at raw_retention and receip
     assert.equal(prune2.prunedReceiptsCount, 1);
 
     // Replay of expired sample now rejected as stale (since measuredAt is outside reconnect horizon)
-    const staleReplay = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "sample-t0",
-      measured_at: "2026-08-14T00:00:00.000Z",
-      measurement: { kind: "total_weight", value: 15000, unit: "g" },
-    });
+    const staleReplay = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "sample-t0",
+        measured_at: "2026-08-14T00:00:00.000Z",
+        measurement: { kind: "total_weight", value: 15000, unit: "g" },
+      }),
+    );
     assert.equal(staleReplay.outcome, "rejected");
     assert.equal(staleReplay.code, "telemetry.stale_timestamp");
   } finally {
@@ -1229,11 +1316,15 @@ void test("source credentials are show-once, source identity survives rotation, 
       rateLimitBurstSamples: 1,
       rateLimitSamplesPerMinute: 60,
     });
-    const first = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "before-rotation",
-      measured_at: now.toISOString(),
-      measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-    });
+    const first = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "before-rotation",
+        measured_at: now.toISOString(),
+        measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+      }),
+    );
     assert.equal(first.outcome, "accepted");
 
     const rotated = harness.telemetryService.rotateSourceKey(source.id, { label: "new key" });
@@ -1250,20 +1341,28 @@ void test("source credentials are show-once, source identity survives rotation, 
 
     // The old source namespace remains exhausted after key rotation.
     now = new Date("2026-08-14T12:00:00.100Z");
-    const rateLimited = harness.telemetryService.ingestSingle(authenticatedAfterRotation, 1, {
-      client_sample_id: "after-rotation",
-      measured_at: now.toISOString(),
-      measurement: { kind: "total_weight", value: 11_000, unit: "g" },
-    });
+    const rateLimited = harness.telemetryService.ingestSingle(
+      authenticatedAfterRotation,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "after-rotation",
+        measured_at: now.toISOString(),
+        measurement: { kind: "total_weight", value: 11_000, unit: "g" },
+      }),
+    );
     assert.equal(rateLimited.outcome, "rejected");
     assert.equal(rateLimited.code, "telemetry.rate_limited");
 
     // Idempotency is also keyed by source, not by the current machine-key ID.
-    const duplicate = harness.telemetryService.ingestSingle(authenticatedAfterRotation, 1, {
-      client_sample_id: "before-rotation",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 10, unit: "kg" },
-    });
+    const duplicate = harness.telemetryService.ingestSingle(
+      authenticatedAfterRotation,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "before-rotation",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 10, unit: "kg" },
+      }),
+    );
     assert.equal(duplicate.outcome, "accepted");
     assert.equal(duplicate.duplicate, true);
     assert.equal(duplicate.acceptedMeasurementId, first.acceptedMeasurementId);
@@ -1328,19 +1427,23 @@ void test("accepted hooks run before receipt finalization and failures roll back
     onAcceptedSample: (database, event) => {
       hookDatabase = database;
       receiptCountAtHook = countRows(database, "telemetry_ingest_receipts");
-      assert.equal(event.primaryMeasurement.kind, "total_weight");
-      assert.equal(event.primaryMeasurement.value, 15_000);
+      assert.equal(event.primaryMeasurement?.kind, "total_weight");
+      assert.equal(event.primaryMeasurement?.value, 15_000);
       assert.equal(successful.telemetryService.getTapLatestHardwareStatus(event.tapId).length, 1);
     },
   });
 
   try {
     const { tap, source } = createAuthorizedTap(successful, 1, "Hooked Scale");
-    const result = successful.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "hook-success",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-    });
+    const result = successful.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "hook-success",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+      }),
+    );
     assert.equal(result.outcome, "accepted");
     assert.strictEqual(hookDatabase, successful.database);
     assert.equal(receiptCountAtHook, 0);
@@ -1361,11 +1464,15 @@ void test("accepted hooks run before receipt finalization and failures roll back
     const before = telemetryCounts(failing.database);
     assert.throws(
       () =>
-        failing.telemetryService.ingestSingle(source, 1, {
-          client_sample_id: "hook-failure",
-          measured_at: "2026-08-14T12:00:00Z",
-          measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-        }),
+        failing.telemetryService.ingestSingle(
+          source,
+          1,
+          validateExternalTelemetryPayload({
+            client_sample_id: "hook-failure",
+            measured_at: "2026-08-14T12:00:00Z",
+            measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+          }),
+        ),
       /accepted hook failed/,
     );
     assert.deepEqual(telemetryCounts(failing.database), before);
@@ -1401,11 +1508,15 @@ void test("Promise-like telemetry extensions are rejected synchronously and roll
     const before = telemetryCounts(acceptedHarness.database);
     assert.throws(
       () =>
-        acceptedHarness.telemetryService.ingestSingle(source, 1, {
-          client_sample_id: "async-hook",
-          measured_at: "2026-08-14T12:00:00Z",
-          measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-        }),
+        acceptedHarness.telemetryService.ingestSingle(
+          source,
+          1,
+          validateExternalTelemetryPayload({
+            client_sample_id: "async-hook",
+            measured_at: "2026-08-14T12:00:00Z",
+            measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+          }),
+        ),
       /Accepted telemetry extensions must complete synchronously/,
     );
     assert.deepEqual(telemetryCounts(acceptedHarness.database), before);
@@ -1419,30 +1530,42 @@ void test("disabled taps accept telemetry while retired taps create durable stab
   const harness = createTestHarness({ clock: () => new Date("2026-08-14T12:00:00.000Z") });
   try {
     const disabled = createAuthorizedTap(harness, 1, "Disabled Scale", { enabled: false });
-    const accepted = harness.telemetryService.ingestSingle(disabled.source, 1, {
-      client_sample_id: "disabled-accepted",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const accepted = harness.telemetryService.ingestSingle(
+      disabled.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "disabled-accepted",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(accepted.outcome, "accepted");
     assert.equal(harness.tapService.getTap(disabled.tap.id).enabled, false);
 
     const retired = createAuthorizedTap(harness, 2, "Retired Scale");
     harness.tapService.retireTap(retired.tap.id);
-    const rejected = harness.telemetryService.ingestSingle(retired.source, 2, {
-      client_sample_id: "retired-rejected",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const rejected = harness.telemetryService.ingestSingle(
+      retired.source,
+      2,
+      validateExternalTelemetryPayload({
+        client_sample_id: "retired-rejected",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(rejected.outcome, "rejected");
     assert.equal(rejected.code, "telemetry.tap_retired");
     const receiptCount = countRows(harness.database, "telemetry_ingest_receipts");
 
-    const replay = harness.telemetryService.ingestSingle(retired.source, 2, {
-      client_sample_id: "retired-rejected",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const replay = harness.telemetryService.ingestSingle(
+      retired.source,
+      2,
+      validateExternalTelemetryPayload({
+        client_sample_id: "retired-rejected",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(replay.outcome, "rejected");
     assert.equal(replay.code, "telemetry.tap_retired");
     assert.equal(replay.duplicate, true);
@@ -1458,20 +1581,28 @@ void test("first use is accepted-only and received-time based; attribution exclu
 
   try {
     const { tap, source } = createAuthorizedTap(harness, 1, "Attribution Scale");
-    const rejectedFuture = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "future-first-use",
-      measured_at: "2026-08-14T12:05:01Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const rejectedFuture = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "future-first-use",
+        measured_at: "2026-08-14T12:05:01Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(rejectedFuture.outcome, "rejected");
     assert.equal(harness.tapService.getTap(tap.id).firstUsedAt, null);
 
     // No assignment is active: the accepted sample still captures no fill.
-    const unassigned = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "unassigned-accepted",
-      measured_at: "2026-08-14T11:59:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const unassigned = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "unassigned-accepted",
+        measured_at: "2026-08-14T11:59:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(unassigned.outcome, "accepted");
     assert.equal(harness.acceptedEvents.at(-1)?.capturedAssignmentId, null);
     assert.equal(harness.acceptedEvents.at(-1)?.capturedFillId, null);
@@ -1495,32 +1626,44 @@ void test("first use is accepted-only and received-time based; attribution exclu
     now = new Date("2026-08-14T12:01:00.000Z");
     const assignment = harness.tapService.assignFill(tap.id, { fillId: fill.id });
     now = new Date("2026-08-14T12:02:00.000Z");
-    const delayed = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "pre-assignment-delayed",
-      measured_at: "2026-08-14T12:00:59Z",
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const delayed = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "pre-assignment-delayed",
+        measured_at: "2026-08-14T12:00:59Z",
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(delayed.outcome, "accepted");
     assert.equal(harness.acceptedEvents.at(-1)?.capturedAssignmentId, null);
     assert.equal(harness.acceptedEvents.at(-1)?.capturedFillId, null);
 
     now = new Date("2026-08-14T12:03:00.000Z");
-    const fresh = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "fresh-assignment",
-      measured_at: "2026-08-14T12:01:01Z",
-      measurement: { kind: "total_weight", value: 3_000, unit: "g" },
-    });
+    const fresh = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "fresh-assignment",
+        measured_at: "2026-08-14T12:01:01Z",
+        measurement: { kind: "total_weight", value: 3_000, unit: "g" },
+      }),
+    );
     assert.equal(fresh.outcome, "accepted");
     assert.equal(harness.acceptedEvents.at(-1)?.capturedAssignmentId, assignment.assignment.id);
     assert.equal(harness.acceptedEvents.at(-1)?.capturedFillId, fill.id);
 
     harness.tapService.unassign(tap.id);
     now = new Date("2026-08-14T12:04:00.000Z");
-    const afterClosed = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "closed-history-not-selected",
-      measured_at: "2026-08-14T12:02:01Z",
-      measurement: { kind: "total_weight", value: 4_000, unit: "g" },
-    });
+    const afterClosed = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "closed-history-not-selected",
+        measured_at: "2026-08-14T12:02:01Z",
+        measurement: { kind: "total_weight", value: 4_000, unit: "g" },
+      }),
+    );
     assert.equal(afterClosed.outcome, "accepted");
     assert.equal(harness.acceptedEvents.at(-1)?.capturedAssignmentId, null);
     assert.equal(harness.acceptedEvents.at(-1)?.capturedFillId, null);
@@ -1537,81 +1680,129 @@ void test("idempotency namespaces, semantic duplicates, conflicts, stable reject
     harness.telemetryService.setTapAuthority(tap2.id, { sourceId: tap1.source.id });
     const tap3 = createAuthorizedTap(harness, 3, "Identity Source B");
 
-    const first = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "source-scoped-id",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-    });
+    const first = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "source-scoped-id",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+      }),
+    );
     assert.equal(first.outcome, "accepted");
 
-    const crossTapConflict = harness.telemetryService.ingestSingle(tap1.source, 2, {
-      client_sample_id: "source-scoped-id",
-      measured_at: "2026-08-14T12:00:01Z",
-      measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-    });
+    const crossTapConflict = harness.telemetryService.ingestSingle(
+      tap1.source,
+      2,
+      validateExternalTelemetryPayload({
+        client_sample_id: "source-scoped-id",
+        measured_at: "2026-08-14T12:00:01Z",
+        measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+      }),
+    );
     assert.equal(crossTapConflict.code, "telemetry.idempotency_conflict");
 
     // A different source has an independent client identity namespace.
-    const otherSource = harness.telemetryService.ingestSingle(tap3.source, 3, {
-      client_sample_id: "source-scoped-id",
-      measured_at: "2026-08-14T12:00:01Z",
-      measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-    });
+    const otherSource = harness.telemetryService.ingestSingle(
+      tap3.source,
+      3,
+      validateExternalTelemetryPayload({
+        client_sample_id: "source-scoped-id",
+        measured_at: "2026-08-14T12:00:01Z",
+        measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+      }),
+    );
     assert.equal(otherSource.outcome, "accepted");
 
-    const fallbackTap1 = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      measured_at: "2026-08-14T12:00:02Z",
-      measurement: { kind: "total_weight", value: 11_000, unit: "g" },
-    });
-    const fallbackTap2 = harness.telemetryService.ingestSingle(tap1.source, 2, {
-      measured_at: "2026-08-14T12:00:02Z",
-      measurement: { kind: "total_weight", value: 11_000, unit: "g" },
-    });
-    const fallbackOtherSource = harness.telemetryService.ingestSingle(tap3.source, 3, {
-      measured_at: "2026-08-14T12:00:02Z",
-      measurement: { kind: "total_weight", value: 11_000, unit: "g" },
-    });
+    const fallbackTap1 = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        measured_at: "2026-08-14T12:00:02Z",
+        measurement: { kind: "total_weight", value: 11_000, unit: "g" },
+      }),
+    );
+    const fallbackTap2 = harness.telemetryService.ingestSingle(
+      tap1.source,
+      2,
+      validateExternalTelemetryPayload({
+        measured_at: "2026-08-14T12:00:02Z",
+        measurement: { kind: "total_weight", value: 11_000, unit: "g" },
+      }),
+    );
+    const fallbackOtherSource = harness.telemetryService.ingestSingle(
+      tap3.source,
+      3,
+      validateExternalTelemetryPayload({
+        measured_at: "2026-08-14T12:00:02Z",
+        measurement: { kind: "total_weight", value: 11_000, unit: "g" },
+      }),
+    );
     assert.equal(fallbackTap1.outcome, "accepted");
     assert.equal(fallbackTap2.outcome, "accepted");
     assert.equal(fallbackOtherSource.outcome, "accepted");
-    const fallbackDuplicate = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      measured_at: "2026-08-14T12:00:02Z",
-      measurement: { kind: "total_weight", value: 11, unit: "kg" },
-    });
+    const fallbackDuplicate = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        measured_at: "2026-08-14T12:00:02Z",
+        measurement: { kind: "total_weight", value: 11, unit: "kg" },
+      }),
+    );
     assert.equal(fallbackDuplicate.duplicate, true);
     assert.equal(fallbackDuplicate.acceptedMeasurementId, fallbackTap1.acceptedMeasurementId);
 
-    const semantic = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "semantic-equivalent",
-      measured_at: "2026-08-14T12:00:03Z",
-      measurement: { kind: "total_weight", value: 12_000, unit: "g" },
-    });
+    const semantic = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "semantic-equivalent",
+        measured_at: "2026-08-14T12:00:03Z",
+        measurement: { kind: "total_weight", value: 12_000, unit: "g" },
+      }),
+    );
     assert.equal(semantic.outcome, "accepted");
-    const semanticDuplicate = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "semantic-equivalent",
-      measured_at: "2026-08-14T12:00:03+00:00",
-      measurement: { kind: "total_weight", value: 12, unit: "kg" },
-    });
+    const semanticDuplicate = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "semantic-equivalent",
+        measured_at: "2026-08-14T12:00:03+00:00",
+        measurement: { kind: "total_weight", value: 12, unit: "kg" },
+      }),
+    );
     assert.equal(semanticDuplicate.duplicate, true);
-    const semanticConflict = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "semantic-equivalent",
-      measured_at: "2026-08-14T12:00:03Z",
-      measurement: { kind: "total_weight", value: 12_001, unit: "g" },
-    });
+    const semanticConflict = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "semantic-equivalent",
+        measured_at: "2026-08-14T12:00:03Z",
+        measurement: { kind: "total_weight", value: 12_001, unit: "g" },
+      }),
+    );
     assert.equal(semanticConflict.code, "telemetry.idempotency_conflict");
 
-    const rejected = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "stable-rejection",
-      measured_at: "2026-08-14T12:00:01Z",
-      measurement: { kind: "total_weight", value: 1, unit: "kg" },
-    });
+    const rejected = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "stable-rejection",
+        measured_at: "2026-08-14T12:00:01Z",
+        measurement: { kind: "total_weight", value: 1, unit: "kg" },
+      }),
+    );
     assert.equal(rejected.code, "telemetry.out_of_order");
     const receiptsBeforeReplay = countRows(harness.database, "telemetry_ingest_receipts");
-    const rejectedReplay = harness.telemetryService.ingestSingle(tap1.source, 1, {
-      client_sample_id: "stable-rejection",
-      measured_at: "2026-08-14T12:00:01Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const rejectedReplay = harness.telemetryService.ingestSingle(
+      tap1.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "stable-rejection",
+        measured_at: "2026-08-14T12:00:01Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(rejectedReplay.code, "telemetry.out_of_order");
     assert.equal(rejectedReplay.duplicate, true);
     assert.equal(countRows(harness.database, "telemetry_ingest_receipts"), receiptsBeforeReplay);
@@ -1631,25 +1822,37 @@ void test("idempotency namespaces, semantic duplicates, conflicts, stable reject
       rateLimitBurstSamples: 1,
       rateLimitSamplesPerMinute: 60,
     });
-    const accepted = rateHarness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "rate-first",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const accepted = rateHarness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "rate-first",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(accepted.outcome, "accepted");
-    const duplicate = rateHarness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "rate-first",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 1, unit: "kg" },
-    });
+    const duplicate = rateHarness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "rate-first",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 1, unit: "kg" },
+      }),
+    );
     assert.equal(duplicate.outcome, "accepted");
     assert.equal(duplicate.duplicate, true);
     currentTimeMs += 100;
-    const limited = rateHarness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "rate-new",
-      measured_at: new Date(currentTimeMs).toISOString(),
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const limited = rateHarness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "rate-new",
+        measured_at: new Date(currentTimeMs).toISOString(),
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(limited.code, "telemetry.rate_limited");
     assert.equal(countRows(rateHarness.database, "telemetry_ingest_receipts"), 1);
   } finally {
@@ -1662,43 +1865,67 @@ void test("timestamp horizons accept exact boundaries and reject newer-than-boun
   const harness = createTestHarness({ clock: () => now });
   try {
     const first = createAuthorizedTap(harness, 1, "Boundary Source");
-    const exactFuture = harness.telemetryService.ingestSingle(first.source, 1, {
-      client_sample_id: "exact-future",
-      measured_at: "2026-08-14T12:05:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const exactFuture = harness.telemetryService.ingestSingle(
+      first.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "exact-future",
+        measured_at: "2026-08-14T12:05:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(exactFuture.outcome, "accepted");
-    const tooFuture = harness.telemetryService.ingestSingle(first.source, 1, {
-      client_sample_id: "too-future",
-      measured_at: "2026-08-14T12:05:00.001Z",
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const tooFuture = harness.telemetryService.ingestSingle(
+      first.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "too-future",
+        measured_at: "2026-08-14T12:05:00.001Z",
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(tooFuture.code, "telemetry.future_timestamp");
-    const older = harness.telemetryService.ingestSingle(first.source, 1, {
-      client_sample_id: "older-than-latest",
-      measured_at: "2026-08-14T12:04:59Z",
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const older = harness.telemetryService.ingestSingle(
+      first.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "older-than-latest",
+        measured_at: "2026-08-14T12:04:59Z",
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(older.code, "telemetry.out_of_order");
-    const equalNewIdentity = harness.telemetryService.ingestSingle(first.source, 1, {
-      client_sample_id: "equal-time-new-identity",
-      measured_at: "2026-08-14T12:05:00Z",
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const equalNewIdentity = harness.telemetryService.ingestSingle(
+      first.source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "equal-time-new-identity",
+        measured_at: "2026-08-14T12:05:00Z",
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(equalNewIdentity.code, "telemetry.out_of_order");
 
     const exactPast = createAuthorizedTap(harness, 2, "Boundary Past Source");
-    const exactReconnectBoundary = harness.telemetryService.ingestSingle(exactPast.source, 2, {
-      client_sample_id: "exact-past",
-      measured_at: "2026-08-14T06:00:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const exactReconnectBoundary = harness.telemetryService.ingestSingle(
+      exactPast.source,
+      2,
+      validateExternalTelemetryPayload({
+        client_sample_id: "exact-past",
+        measured_at: "2026-08-14T06:00:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(exactReconnectBoundary.outcome, "accepted");
-    const stale = harness.telemetryService.ingestSingle(exactPast.source, 2, {
-      client_sample_id: "stale-past",
-      measured_at: "2026-08-14T05:59:59.999Z",
-      measurement: { kind: "total_weight", value: 2_000, unit: "g" },
-    });
+    const stale = harness.telemetryService.ingestSingle(
+      exactPast.source,
+      2,
+      validateExternalTelemetryPayload({
+        client_sample_id: "stale-past",
+        measured_at: "2026-08-14T05:59:59.999Z",
+        measurement: { kind: "total_weight", value: 2_000, unit: "g" },
+      }),
+    );
     assert.equal(stale.code, "telemetry.stale_timestamp");
   } finally {
     harness.database.close();
@@ -1737,26 +1964,32 @@ void test("batch validation is all-or-nothing, ordered by canonical time, and re
     );
     assert.throws(
       () =>
-        harness.telemetryService.ingestBatch(tap1.source, {
-          samples: [
-            validItem,
-            {
-              tap_number: 99,
-              client_sample_id: "unknown-tap",
-              measured_at: "2026-08-14T12:00:01Z",
-              measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-            },
-          ],
-        }),
+        harness.telemetryService.ingestBatch(
+          tap1.source,
+          validateExternalBatchTelemetryPayload({
+            samples: [
+              validItem,
+              {
+                tap_number: 99,
+                client_sample_id: "unknown-tap",
+                measured_at: "2026-08-14T12:00:01Z",
+                measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+              },
+            ],
+          }),
+        ),
       (error: unknown) => error instanceof ApplicationError && error.code === "taps.tap_not_found",
     );
     assert.deepEqual(telemetryCounts(harness.database), before);
 
+    // Built item by item: the wire validator's own 100-sample cap would fire first.
     const tooMany = Array.from({ length: 101 }, (_, index) => ({
       tap_number: 1,
-      client_sample_id: `too-many-${index}`,
-      measured_at: `2026-08-14T12:00:${String(index % 60).padStart(2, "0")}Z`,
-      measurement: { kind: "total_weight" as const, value: 1_000, unit: "g" as const },
+      ...validateExternalTelemetryPayload({
+        client_sample_id: `too-many-${index}`,
+        measured_at: `2026-08-14T12:00:${String(index % 60).padStart(2, "0")}Z`,
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
     }));
     assert.throws(
       () => harness.telemetryService.ingestBatch(tap1.source, { samples: tooMany }),
@@ -1766,40 +1999,43 @@ void test("batch validation is all-or-nothing, ordered by canonical time, and re
     );
     assert.deepEqual(telemetryCounts(harness.database), before);
 
-    const batch = harness.telemetryService.ingestBatch(tap1.source, {
-      samples: [
-        {
-          tap_number: 2,
-          client_sample_id: "batch-later",
-          measured_at: "2026-08-14T12:00:02Z",
-          measurement: { kind: "total_weight", value: 14_000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "batch-duplicate",
-          measured_at: "2026-08-14T12:00:01Z",
-          measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "batch-duplicate",
-          measured_at: "2026-08-14T12:00:01Z",
-          measurement: { kind: "total_weight", value: 15, unit: "kg" },
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "batch-conflict",
-          measured_at: "2026-08-14T12:00:03Z",
-          measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "batch-conflict",
-          measured_at: "2026-08-14T12:00:03Z",
-          measurement: { kind: "total_weight", value: 12_000, unit: "g" },
-        },
-      ],
-    });
+    const batch = harness.telemetryService.ingestBatch(
+      tap1.source,
+      validateExternalBatchTelemetryPayload({
+        samples: [
+          {
+            tap_number: 2,
+            client_sample_id: "batch-later",
+            measured_at: "2026-08-14T12:00:02Z",
+            measurement: { kind: "total_weight", value: 14_000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "batch-duplicate",
+            measured_at: "2026-08-14T12:00:01Z",
+            measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "batch-duplicate",
+            measured_at: "2026-08-14T12:00:01Z",
+            measurement: { kind: "total_weight", value: 15, unit: "kg" },
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "batch-conflict",
+            measured_at: "2026-08-14T12:00:03Z",
+            measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "batch-conflict",
+            measured_at: "2026-08-14T12:00:03Z",
+            measurement: { kind: "total_weight", value: 12_000, unit: "g" },
+          },
+        ],
+      }),
+    );
     assert.deepEqual(
       batch.results.map((item) => [item.index, item.outcome, item.duplicate]),
       [
@@ -1815,40 +2051,43 @@ void test("batch validation is all-or-nothing, ordered by canonical time, and re
     assert.equal(batch.duplicateCount, 1);
     const afterFirstBatch = telemetryCounts(harness.database);
 
-    const retry = harness.telemetryService.ingestBatch(tap1.source, {
-      samples: [
-        {
-          tap_number: 2,
-          client_sample_id: "batch-later",
-          measured_at: "2026-08-14T12:00:02Z",
-          measurement: { kind: "total_weight", value: 14_000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "batch-duplicate",
-          measured_at: "2026-08-14T12:00:01Z",
-          measurement: { kind: "total_weight", value: 15_000, unit: "g" },
-        },
-        {
-          tap_number: 1,
-          client_sample_id: "batch-duplicate",
-          measured_at: "2026-08-14T12:00:01Z",
-          measurement: { kind: "total_weight", value: 15, unit: "kg" },
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "batch-conflict",
-          measured_at: "2026-08-14T12:00:03Z",
-          measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-        },
-        {
-          tap_number: 2,
-          client_sample_id: "batch-conflict",
-          measured_at: "2026-08-14T12:00:03Z",
-          measurement: { kind: "total_weight", value: 12_000, unit: "g" },
-        },
-      ],
-    });
+    const retry = harness.telemetryService.ingestBatch(
+      tap1.source,
+      validateExternalBatchTelemetryPayload({
+        samples: [
+          {
+            tap_number: 2,
+            client_sample_id: "batch-later",
+            measured_at: "2026-08-14T12:00:02Z",
+            measurement: { kind: "total_weight", value: 14_000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "batch-duplicate",
+            measured_at: "2026-08-14T12:00:01Z",
+            measurement: { kind: "total_weight", value: 15_000, unit: "g" },
+          },
+          {
+            tap_number: 1,
+            client_sample_id: "batch-duplicate",
+            measured_at: "2026-08-14T12:00:01Z",
+            measurement: { kind: "total_weight", value: 15, unit: "kg" },
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "batch-conflict",
+            measured_at: "2026-08-14T12:00:03Z",
+            measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+          },
+          {
+            tap_number: 2,
+            client_sample_id: "batch-conflict",
+            measured_at: "2026-08-14T12:00:03Z",
+            measurement: { kind: "total_weight", value: 12_000, unit: "g" },
+          },
+        ],
+      }),
+    );
     assert.equal(retry.acceptedCount, 3);
     assert.equal(retry.duplicateCount, 3);
     assert.deepEqual(telemetryCounts(harness.database), afterFirstBatch);
@@ -1861,7 +2100,7 @@ void test("batch accepted-hook failure rolls back all items rather than committi
   const harness = createTestHarness({
     clock: () => new Date("2026-08-14T12:00:00.000Z"),
     onAcceptedSample: (_database, event) => {
-      if (event.primaryMeasurement.value === 20_000) throw new Error("batch hook failed");
+      if (event.primaryMeasurement?.value === 20_000) throw new Error("batch hook failed");
     },
   });
   try {
@@ -1869,22 +2108,25 @@ void test("batch accepted-hook failure rolls back all items rather than committi
     const before = telemetryCounts(harness.database);
     assert.throws(
       () =>
-        harness.telemetryService.ingestBatch(source, {
-          samples: [
-            {
-              tap_number: 1,
-              client_sample_id: "batch-hook-first",
-              measured_at: "2026-08-14T12:00:00Z",
-              measurement: { kind: "total_weight", value: 10_000, unit: "g" },
-            },
-            {
-              tap_number: 1,
-              client_sample_id: "batch-hook-second",
-              measured_at: "2026-08-14T12:00:01Z",
-              measurement: { kind: "total_weight", value: 20_000, unit: "g" },
-            },
-          ],
-        }),
+        harness.telemetryService.ingestBatch(
+          source,
+          validateExternalBatchTelemetryPayload({
+            samples: [
+              {
+                tap_number: 1,
+                client_sample_id: "batch-hook-first",
+                measured_at: "2026-08-14T12:00:00Z",
+                measurement: { kind: "total_weight", value: 10_000, unit: "g" },
+              },
+              {
+                tap_number: 1,
+                client_sample_id: "batch-hook-second",
+                measured_at: "2026-08-14T12:00:01Z",
+                measurement: { kind: "total_weight", value: 20_000, unit: "g" },
+              },
+            ],
+          }),
+        ),
       /batch hook failed/,
     );
     assert.deepEqual(telemetryCounts(harness.database), before);
@@ -1902,11 +2144,15 @@ void test("ordinary telemetry acceptance adds no Activity or outbox rows", () =>
     const { source } = createAuthorizedTap(harness, 1, "Quiet Scale");
     const activityBefore = listActivity(harness.database).length;
     const outboxBefore = countRows(harness.database, "outbound_events");
-    const result = harness.telemetryService.ingestSingle(source, 1, {
-      client_sample_id: "quiet-sample",
-      measured_at: "2026-08-14T12:00:00Z",
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const result = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        client_sample_id: "quiet-sample",
+        measured_at: "2026-08-14T12:00:00Z",
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(result.outcome, "accepted");
     assert.equal(listActivity(harness.database).length, activityBefore);
     assert.equal(countRows(harness.database, "outbound_events"), outboxBefore);
@@ -1933,10 +2179,14 @@ void test("telemetry pruning is deterministic and bounded while durable receipts
     for (let index = 0; index < 501; index += 1) {
       const measuredAt = new Date(Date.parse(firstMeasuredAt) + index).toISOString();
       currentTime = new Date(Date.parse(measuredAt) + 1_000);
-      const result = harness.telemetryService.ingestSingle(source, 1, {
-        measured_at: measuredAt,
-        measurement: { kind: "total_weight", value: 1_000 + index, unit: "g" },
-      });
+      const result = harness.telemetryService.ingestSingle(
+        source,
+        1,
+        validateExternalTelemetryPayload({
+          measured_at: measuredAt,
+          measurement: { kind: "total_weight", value: 1_000 + index, unit: "g" },
+        }),
+      );
       assert.equal(result.outcome, "accepted");
       if (index === 0) firstMeasurementId = result.acceptedMeasurementId;
     }
@@ -1964,10 +2214,14 @@ void test("telemetry pruning is deterministic and bounded while durable receipts
     assert.equal(status[0]?.totalMassG, 1_500);
     assert.equal(harness.tapService.getTap(tap.id).firstUsedAt, firstUsedAt);
 
-    const duplicateAfterRawPrune = harness.telemetryService.ingestSingle(source, 1, {
-      measured_at: firstMeasuredAt,
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const duplicateAfterRawPrune = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        measured_at: firstMeasuredAt,
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(duplicateAfterRawPrune.duplicate, true);
     assert.equal(duplicateAfterRawPrune.acceptedMeasurementId, firstMeasurementId);
 
@@ -1976,10 +2230,14 @@ void test("telemetry pruning is deterministic and bounded while durable receipts
     assert.equal(receiptPrune.prunedReceiptsCount, 500);
     const finalReceiptPrune = harness.telemetryService.pruneTelemetry();
     assert.equal(finalReceiptPrune.prunedReceiptsCount, 1);
-    const expiredReplay = harness.telemetryService.ingestSingle(source, 1, {
-      measured_at: firstMeasuredAt,
-      measurement: { kind: "total_weight", value: 1_000, unit: "g" },
-    });
+    const expiredReplay = harness.telemetryService.ingestSingle(
+      source,
+      1,
+      validateExternalTelemetryPayload({
+        measured_at: firstMeasuredAt,
+        measurement: { kind: "total_weight", value: 1_000, unit: "g" },
+      }),
+    );
     assert.equal(expiredReplay.outcome, "rejected");
     assert.equal(expiredReplay.code, "telemetry.stale_timestamp");
   } finally {

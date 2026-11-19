@@ -5,6 +5,7 @@ import type {
   TelemetryMeasurementRow,
   TelemetrySettingsRow,
   TelemetrySourceRow,
+  TelemetrySourceTapReadingRow,
   TelemetrySourceTapStatusRow,
 } from "./types.ts";
 
@@ -498,7 +499,7 @@ export function insertTelemetryMeasurement(
         number,
         string,
         number,
-        string,
+        string | null,
         number | null,
         number | null,
         number | null,
@@ -590,6 +591,87 @@ export function pruneMeasurementsOlderThan(
     )
     .run(createdAtIso);
   return result.changes;
+}
+
+// --- Readings ---
+
+export function insertTelemetryReadings(
+  database: DatabaseExecutor,
+  measurementId: string,
+  readings: readonly { readonly metric: string; readonly value: number }[],
+): void {
+  const statement = database.prepare<[string, string, number]>(
+    `INSERT INTO telemetry_readings (measurement_id, metric, value) VALUES (?, ?, ?)`,
+  );
+  for (const { metric, value } of readings) statement.run(measurementId, metric, value);
+}
+
+/** Records a source/Tap's latest value of one metric. Older readings never replace newer ones. */
+export function upsertSourceTapReading(
+  database: DatabaseExecutor,
+  reading: TelemetrySourceTapReadingRow,
+): boolean {
+  const result = database
+    .prepare<
+      [string, string, string, number, string | null, string | null, string, number, string]
+    >(
+      `INSERT INTO telemetry_source_tap_readings (
+         source_id, tap_id, metric, value, measurement_id, captured_assignment_id, measured_at,
+         measured_at_epoch_ms, received_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(source_id, tap_id, metric) DO UPDATE SET
+         value = excluded.value,
+         measurement_id = excluded.measurement_id,
+         captured_assignment_id = excluded.captured_assignment_id,
+         measured_at = excluded.measured_at,
+         measured_at_epoch_ms = excluded.measured_at_epoch_ms,
+         received_at = excluded.received_at
+       WHERE excluded.measured_at_epoch_ms > telemetry_source_tap_readings.measured_at_epoch_ms`,
+    )
+    .run(
+      reading.source_id,
+      reading.tap_id,
+      reading.metric,
+      reading.value,
+      reading.measurement_id,
+      reading.captured_assignment_id,
+      reading.measured_at,
+      reading.measured_at_epoch_ms,
+      reading.received_at,
+    );
+  return result.changes > 0;
+}
+
+export function readSourceTapReading(
+  database: DatabaseExecutor,
+  sourceId: string,
+  tapId: string,
+  metric: string,
+): TelemetrySourceTapReadingRow | undefined {
+  return database
+    .prepare<[string, string, string], TelemetrySourceTapReadingRow>(
+      `SELECT source_id, tap_id, metric, value, measurement_id, captured_assignment_id,
+         measured_at, measured_at_epoch_ms, received_at
+       FROM telemetry_source_tap_readings
+       WHERE source_id = ? AND tap_id = ? AND metric = ?`,
+    )
+    .get(sourceId, tapId, metric);
+}
+
+/** The newest accepted sample time for a source/Tap, across every metric. */
+export function readSourceTapWatermark(
+  database: DatabaseExecutor,
+  sourceId: string,
+  tapId: string,
+): number | null {
+  const row = database
+    .prepare<[string, string], { readonly watermark: number | null }>(
+      `SELECT MAX(measured_at_epoch_ms) AS watermark
+       FROM telemetry_source_tap_readings
+       WHERE source_id = ? AND tap_id = ?`,
+    )
+    .get(sourceId, tapId);
+  return row?.watermark ?? null;
 }
 
 // --- Source Tap Status ---

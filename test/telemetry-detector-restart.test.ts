@@ -11,6 +11,7 @@ import { createTapService } from "../src/features/taps/service.ts";
 import { DEFAULT_DETECTOR_CONFIG } from "../src/features/telemetry/detector-config.ts";
 import { DetectorService } from "../src/features/telemetry/detector-service.ts";
 import { TelemetryService } from "../src/features/telemetry/service.ts";
+import { validateExternalTelemetryPayload } from "../src/features/telemetry/telemetry-validation.ts";
 import {
   openDatabase,
   type DatabaseConnection,
@@ -120,11 +121,15 @@ function sample(
   id: string,
 ) {
   h.set(at);
-  return h.telemetryService.ingestSingle(source as never, 1, {
-    client_sample_id: id,
-    measured_at: new Date(origin + at).toISOString(),
-    measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
-  });
+  return h.telemetryService.ingestSingle(
+    source as never,
+    1,
+    validateExternalTelemetryPayload({
+      client_sample_id: id,
+      measured_at: new Date(origin + at).toISOString(),
+      measurement: { kind: "remaining_volume", value: volume, unit: "ml" },
+    }),
+  );
 }
 function count(db: DatabaseConnection, table: string) {
   return db.prepare<[], { readonly n: number }>(`SELECT count(*) AS n FROM ${table}`).get()!.n;

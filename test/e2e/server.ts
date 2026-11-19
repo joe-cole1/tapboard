@@ -10,6 +10,7 @@ import { createSecretsService } from "../../src/features/secrets/service.ts";
 import { createTapService } from "../../src/features/taps/service.ts";
 import { DetectorService } from "../../src/features/telemetry/detector-service.ts";
 import { TelemetryService } from "../../src/features/telemetry/service.ts";
+import { validateExternalTelemetryPayload } from "../../src/features/telemetry/telemetry-validation.ts";
 import { openDatabase } from "../../src/infrastructure/database/connection.ts";
 import { createLogger } from "../../src/shared/logging.ts";
 
@@ -211,12 +212,16 @@ for (const [tapNumber, kegNumber, name] of [
 }
 const measurementStart = Date.now();
 for (let index = 0; index < 5; index += 1) {
-  telemetry.ingestSingle(source, 1, {
-    client_sample_id: `fixture-measurement-${index}`,
-    measured_at: new Date(measurementStart + index * 250).toISOString(),
-    measurement: { kind: "remaining_volume", value: 12_000, unit: "ml" },
-    temperature: { value: 4, unit: "c" },
-  });
+  telemetry.ingestSingle(
+    source,
+    1,
+    validateExternalTelemetryPayload({
+      client_sample_id: `fixture-measurement-${index}`,
+      measured_at: new Date(measurementStart + index * 250).toISOString(),
+      measurement: { kind: "remaining_volume", value: 12_000, unit: "ml" },
+      temperature: { value: 4, unit: "c" },
+    }),
+  );
 }
 const measuredAssignment = taps.getTap(measuredTap.id).activeAssignment;
 const measuredEpoch = database

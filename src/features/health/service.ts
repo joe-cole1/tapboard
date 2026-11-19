@@ -15,7 +15,12 @@ import type {
   Tap,
   TapAssignmentExtensionPort,
 } from "../taps/types.ts";
-import { readSourceTapStatus, readTapTelemetryAuthority } from "../telemetry/repository.ts";
+import { currentTapReading, readCurrentTapReading } from "../telemetry/current-reading.ts";
+import {
+  readSourceTapReading,
+  readSourceTapStatus,
+  readTapTelemetryAuthority,
+} from "../telemetry/repository.ts";
 import type {
   AcceptedSampleEvent,
   AcceptedTelemetryExtensionPort,
@@ -37,7 +42,7 @@ import {
   calculateLineCleaningDue,
   resolveHealthConfig,
 } from "./config.ts";
-import { evaluateHealthCheck } from "./engine.ts";
+import { evaluateHealthCheck, temperatureIsFresh } from "./engine.ts";
 import { validateHealthConfig } from "./health-validation.ts";
 import {
   acknowledgeHealthIncident,
@@ -374,6 +379,18 @@ export class HealthService
     return resolveHealthConfig(global.config, override?.override);
   }
 
+  /**
+   * The Tap's serving temperature in Celsius for display: the latest temperature reading for
+   * the current keg, or null once it is older than the Tap's scale-freshness window.
+   */
+  servingTemperatureC(tapId: string, at?: Date | string | number): number | null {
+    const reading = readCurrentTapReading(this.#database, tapId, "temperature");
+    if (reading === null) return null;
+    const nowMs = asMs(at ?? this.#now(), "at");
+    const config = this.getEffectiveConfig(tapId).effective;
+    return temperatureIsFresh(reading.measuredAtMs, nowMs, config) ? reading.value : null;
+  }
+
   updateGlobalConfig(input: unknown, actor: HealthActorOptions = {}): HealthConfig {
     const at = clock(actor.now ?? this.#now).getTime();
     const result = this.#database.withTransaction(() => {
@@ -510,6 +527,22 @@ export class HealthService
     // The detector state is authoritative for the generic measurement used to
     // derive a settled volume/phase. Scale freshness uses the dedicated source
     // status projection above even when the current epoch has no detector state.
+    const temperatureReading = currentTapReading(
+      authority === undefined
+        ? undefined
+        : readSourceTapReading(database, authority.source_id, tap.id, "temperature"),
+      authority,
+      epoch,
+    );
+    const latestTemperatureMeasurement =
+      temperatureReading === null || temperatureReading.measurementId === null
+        ? null
+        : {
+            measurementId: temperatureReading.measurementId,
+            measuredAtMs: temperatureReading.measuredAtMs,
+            receivedAtMs: temperatureReading.receivedAtMs,
+            tempC: temperatureReading.value,
+          };
     const statusMeasurement = this.#measurement(status, epoch === undefined, epochState);
     const measurement =
       statusMeasurement !== null &&
@@ -566,6 +599,7 @@ export class HealthService
         authorityChangedAtMs,
         latestMeasurement: measurement,
         latestScaleMeasurement,
+        latestTemperatureMeasurement,
         latestAuthoritativeMeasurement: measurement,
         currentEpoch,
         currentEpochEvidence: currentEpoch,

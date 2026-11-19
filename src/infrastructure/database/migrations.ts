@@ -52,7 +52,9 @@ export const DISPLAY_THEME_FORMAT_SCHEMA_VERSION = 25;
 export const DISPLAY_THEME_FORMAT_MIGRATION_NAME = "display-theme-format";
 export const DISPLAY_THEME_ACCENT_SCHEMA_VERSION = 26;
 export const DISPLAY_THEME_ACCENT_MIGRATION_NAME = "display-theme-accent";
-export const CURRENT_SCHEMA_VERSION = DISPLAY_THEME_ACCENT_SCHEMA_VERSION;
+export const TELEMETRY_READINGS_SCHEMA_VERSION = 27;
+export const TELEMETRY_READINGS_MIGRATION_NAME = "telemetry-readings";
+export const CURRENT_SCHEMA_VERSION = TELEMETRY_READINGS_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4041,6 +4043,198 @@ export const DISPLAY_THEME_ACCENT_MIGRATION: MigrationDefinition = {
     return undefined;
   },
 };
+const TELEMETRY_METRIC_NAME_CHECK =
+  "length(CAST(metric AS BLOB)) BETWEEN 1 AND 64 AND metric NOT GLOB '*[^a-z0-9_]*'";
+
+/**
+ * v27 stores readings generically: the code-side metric registry decides which metrics exist,
+ * so a new condition or recorded metric needs no migration. `telemetry_measurements` is rebuilt
+ * so a sample without a keg-level reading (temperature alone) can be stored; its legacy value
+ * columns stay until a later cleanup. `telemetry_source_tap_readings` keeps the latest value of
+ * each metric per source/Tap, outliving raw pruning, and is the per-source/Tap watermark.
+ */
+export const TELEMETRY_READINGS_SCHEMA_SQL = `
+  CREATE TABLE telemetry_measurements (
+    id TEXT PRIMARY KEY CHECK (length(CAST(id AS BLOB)) = 36),
+    source_id TEXT NOT NULL REFERENCES telemetry_sources(id) ON DELETE RESTRICT,
+    tap_id TEXT NOT NULL REFERENCES taps(id) ON DELETE CASCADE,
+    measured_at TEXT NOT NULL,
+    measured_at_epoch_ms INTEGER NOT NULL,
+    received_at TEXT NOT NULL,
+    normalization_version INTEGER NOT NULL CHECK (normalization_version = 1),
+    primary_kind TEXT CHECK (primary_kind IS NULL OR primary_kind IN ('total_weight', 'remaining_volume', 'fill_percentage')),
+    total_mass_g REAL CHECK (total_mass_g IS NULL OR total_mass_g >= 0),
+    remaining_volume_ml REAL CHECK (remaining_volume_ml IS NULL OR remaining_volume_ml >= 0),
+    fill_percentage REAL CHECK (fill_percentage IS NULL OR (fill_percentage >= 0 AND fill_percentage <= 100)),
+    temperature_c REAL CHECK (temperature_c IS NULL OR (temperature_c >= -273.15 AND temperature_c <= 1000)),
+    captured_assignment_id TEXT REFERENCES tap_assignment_lifecycles(id) ON DELETE SET NULL,
+    captured_fill_id TEXT REFERENCES fills(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    CHECK ((primary_kind IS NULL AND total_mass_g IS NULL AND remaining_volume_ml IS NULL AND fill_percentage IS NULL) OR (primary_kind IS 'total_weight' AND total_mass_g IS NOT NULL AND remaining_volume_ml IS NULL AND fill_percentage IS NULL) OR (primary_kind IS 'remaining_volume' AND remaining_volume_ml IS NOT NULL AND total_mass_g IS NULL AND fill_percentage IS NULL) OR (primary_kind IS 'fill_percentage' AND fill_percentage IS NOT NULL AND total_mass_g IS NULL AND remaining_volume_ml IS NULL)),
+    CHECK ((captured_assignment_id IS NULL AND captured_fill_id IS NULL) OR (captured_assignment_id IS NOT NULL AND captured_fill_id IS NOT NULL))
+  );
+  CREATE TABLE telemetry_readings (
+    measurement_id TEXT NOT NULL REFERENCES telemetry_measurements(id) ON DELETE CASCADE,
+    metric TEXT NOT NULL CHECK (${TELEMETRY_METRIC_NAME_CHECK}),
+    value REAL NOT NULL CHECK (typeof(value) IN ('integer', 'real')),
+    PRIMARY KEY (measurement_id, metric)
+  ) WITHOUT ROWID;
+  CREATE TRIGGER trg_telemetry_readings_no_update
+    BEFORE UPDATE ON telemetry_readings
+    BEGIN
+      SELECT RAISE(ABORT, 'telemetry readings are immutable');
+    END;
+  CREATE TABLE telemetry_source_tap_readings (
+    source_id TEXT NOT NULL REFERENCES telemetry_sources(id) ON DELETE RESTRICT,
+    tap_id TEXT NOT NULL REFERENCES taps(id) ON DELETE CASCADE,
+    metric TEXT NOT NULL CHECK (${TELEMETRY_METRIC_NAME_CHECK}),
+    value REAL NOT NULL CHECK (typeof(value) IN ('integer', 'real')),
+    measurement_id TEXT,
+    captured_assignment_id TEXT REFERENCES tap_assignment_lifecycles(id) ON DELETE SET NULL,
+    measured_at TEXT NOT NULL,
+    measured_at_epoch_ms INTEGER NOT NULL,
+    received_at TEXT NOT NULL,
+    PRIMARY KEY (source_id, tap_id, metric)
+  );
+  CREATE INDEX idx_telemetry_source_tap_readings_tap ON telemetry_source_tap_readings (tap_id);
+`;
+
+const TELEMETRY_READINGS_SCHEMA_OBJECTS = [
+  ...SYSTEM_ADMINISTRATION_SCHEMA_OBJECTS,
+  ["table", "telemetry_readings"],
+  ["table", "telemetry_source_tap_readings"],
+  ["index", "idx_telemetry_source_tap_readings_tap"],
+  ["trigger", "trg_telemetry_readings_no_update"],
+] as const;
+
+/** Statements from `sql` that create the named schema objects, verbatim. */
+function schemaStatements(sql: string, names: readonly string[]): string {
+  const wanted = new Set(names);
+  const statements = splitSqlStatements(sql).filter((statement) => {
+    const key = schemaDefinitionKey(statement);
+    return key !== undefined && wanted.has(key.slice(key.indexOf(":") + 1));
+  });
+  if (statements.length !== wanted.size) {
+    throw new Error("Telemetry readings migration could not find every schema statement");
+  }
+  return statements.map((statement) => `${statement};`).join("\n");
+}
+
+// Triggers that reference telemetry_measurements by name. SQLite re-parses them during the
+// rebuild's RENAME, so they are dropped first and recreated from their original SQL.
+const TELEMETRY_MEASUREMENT_TRIGGERS = [
+  "trg_telemetry_fill_delete_context",
+  "trg_telemetry_assignment_delete_context",
+  "trg_telemetry_measurements_no_update",
+  "trg_telemetry_measurements_validate_attribution",
+  "trg_telemetry_source_tap_status_validate_insert",
+  "trg_telemetry_source_tap_status_validate_update",
+] as const;
+
+function validateTelemetryReadingsSchema(database: DatabaseExecutor): void {
+  validateTelemetrySchemaDefinition(
+    database,
+    TELEMETRY_READINGS_SCHEMA_OBJECTS,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}`,
+    TELEMETRY_READINGS_SCHEMA_VERSION,
+    (schemaDatabase) => {
+      validateBuiltinSimulationColumns(schemaDatabase);
+      expectColumns(schemaDatabase, "telemetry_readings", [
+        { name: "measurement_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+        { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+      expectColumns(schemaDatabase, "telemetry_source_tap_readings", [
+        { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+        { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 3 },
+        { name: "value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "measurement_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "captured_assignment_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "measured_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "measured_at_epoch_ms", type: "INTEGER", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "received_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+    },
+  );
+}
+
+export const TELEMETRY_READINGS_MIGRATION: MigrationDefinition = {
+  version: TELEMETRY_READINGS_SCHEMA_VERSION,
+  name: TELEMETRY_READINGS_MIGRATION_NAME,
+  apply(database) {
+    const [measurementsSql, ...readingsSql] = splitSqlStatements(TELEMETRY_READINGS_SCHEMA_SQL);
+    const triggersSql = schemaStatements(FORENSIC_QC_SCHEMA_SQL, TELEMETRY_MEASUREMENT_TRIGGERS);
+    const indexesSql = schemaStatements(TELEMETRY_SCHEMA_SQL, [
+      "idx_telemetry_measurements_tap_measured",
+      "idx_telemetry_measurements_created_at",
+    ]);
+    // Foreign keys stay enforced inside the migration transaction, so dropping the old table
+    // fires ON DELETE SET NULL on status rows. Keep their pointers and restore them after.
+    database.execute(`
+      ${TELEMETRY_MEASUREMENT_TRIGGERS.map((name) => `DROP TRIGGER ${name};`).join("\n")}
+      CREATE TEMP TABLE telemetry_status_pointers_v27 AS
+        SELECT source_id, tap_id, latest_measurement_id
+        FROM telemetry_source_tap_status
+        WHERE latest_measurement_id IS NOT NULL;
+      ${measurementsSql!.replace("CREATE TABLE telemetry_measurements", "CREATE TABLE telemetry_measurements_v27")};
+      INSERT INTO telemetry_measurements_v27 (
+        id, source_id, tap_id, measured_at, measured_at_epoch_ms, received_at,
+        normalization_version, primary_kind, total_mass_g, remaining_volume_ml,
+        fill_percentage, temperature_c, captured_assignment_id, captured_fill_id, created_at
+      )
+      SELECT
+        id, source_id, tap_id, measured_at, measured_at_epoch_ms, received_at,
+        normalization_version, primary_kind, total_mass_g, remaining_volume_ml,
+        fill_percentage, temperature_c, captured_assignment_id, captured_fill_id, created_at
+      FROM telemetry_measurements;
+      DROP TABLE telemetry_measurements;
+      ALTER TABLE telemetry_measurements_v27 RENAME TO telemetry_measurements;
+      ${indexesSql}
+      ${triggersSql}
+      UPDATE telemetry_source_tap_status
+      SET latest_measurement_id = (
+        SELECT pointer.latest_measurement_id
+        FROM temp.telemetry_status_pointers_v27 AS pointer
+        WHERE pointer.source_id = telemetry_source_tap_status.source_id
+          AND pointer.tap_id = telemetry_source_tap_status.tap_id
+      )
+      WHERE EXISTS (
+        SELECT 1
+        FROM temp.telemetry_status_pointers_v27 AS pointer
+        WHERE pointer.source_id = telemetry_source_tap_status.source_id
+          AND pointer.tap_id = telemetry_source_tap_status.tap_id
+      );
+      DROP TABLE temp.telemetry_status_pointers_v27;
+      ${readingsSql.map((statement) => `${statement};`).join("\n")}
+      INSERT INTO telemetry_readings (measurement_id, metric, value)
+        SELECT id, primary_kind, COALESCE(total_mass_g, remaining_volume_ml, fill_percentage)
+        FROM telemetry_measurements
+        WHERE primary_kind IS NOT NULL
+        UNION ALL
+        SELECT id, 'temperature', temperature_c
+        FROM telemetry_measurements
+        WHERE temperature_c IS NOT NULL;
+      INSERT INTO telemetry_source_tap_readings (
+        source_id, tap_id, metric, value, measurement_id, captured_assignment_id, measured_at,
+        measured_at_epoch_ms, received_at
+      )
+        SELECT source_id, tap_id, primary_kind,
+          COALESCE(total_mass_g, remaining_volume_ml, fill_percentage), latest_measurement_id,
+          captured_assignment_id, latest_measured_at, latest_measured_at_epoch_ms,
+          latest_received_at
+        FROM telemetry_source_tap_status
+        UNION ALL
+        SELECT source_id, tap_id, 'temperature', temperature_c, latest_measurement_id,
+          captured_assignment_id, latest_measured_at, latest_measured_at_epoch_ms,
+          latest_received_at
+        FROM telemetry_source_tap_status
+        WHERE temperature_c IS NOT NULL;
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4069,6 +4263,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   DISPLAY_AUTO_THEME_MIGRATION,
   DISPLAY_THEME_FORMAT_MIGRATION,
   DISPLAY_THEME_ACCENT_MIGRATION,
+  TELEMETRY_READINGS_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4108,7 +4303,8 @@ function applyMigration(
         migration.version === FLAVOR_PROFILE_SCHEMA_VERSION ||
         migration.version === DISPLAY_AUTO_THEME_SCHEMA_VERSION ||
         migration.version === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
-        migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION)
+        migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION ||
+        migration.version === TELEMETRY_READINGS_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4236,6 +4432,8 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateSystemAdministrationSchema(database, version);
   } else if (version === SYSTEM_ADMINISTRATION_SCHEMA_VERSION) {
     validateSystemAdministrationSchema(database);
+  } else if (version === TELEMETRY_READINGS_SCHEMA_VERSION) {
+    validateTelemetryReadingsSchema(database);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

@@ -84,7 +84,8 @@ type DegradedOperation =
   | "story.health_badges"
   | "story.display_settings"
   | "story.pour_history"
-  | "story.recipe_snapshots";
+  | "story.recipe_snapshots"
+  | "story.serving_temperature";
 
 type DegradedSubject = { readonly tapId: string } | { readonly beverageId: string };
 
@@ -628,11 +629,19 @@ export class PublicStoryService {
       const diagnostics = this.#dependencies.detectorService.diagnostics(context.tap.id);
       remainingVolumeMl = finiteNumber(diagnostics.measurement?.publicVolumeMl);
       capacityMl = finiteNumber(diagnostics.epoch?.snapshots.capacityMl);
-      temperatureC = finiteNumber(diagnostics.measurement?.canonical.temperatureC);
       waitingForMeasurement = diagnostics.detector?.waitingForMeasurement ?? true;
     } catch (error) {
       // Identity remains useful when telemetry enhancement is unavailable.
       this.#degraded("story.detector_diagnostics", { tapId: context.tap.id }, error);
+    }
+    try {
+      // Temperature may arrive without a keg-level reading, so it does not come from the
+      // detector's last sample, and it disappears once the reading goes stale.
+      temperatureC = finiteNumber(
+        this.#dependencies.healthService.servingTemperatureC(context.tap.id, this.#now()),
+      );
+    } catch (error) {
+      this.#degraded("story.serving_temperature", { tapId: context.tap.id }, error);
     }
 
     let servingsRemaining: number | null = null;
