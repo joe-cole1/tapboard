@@ -1,9 +1,9 @@
 name: Foundation quality
 
+# `main` requires these jobs on every pull request (repository ruleset), and PRs squash-merge
+# once they pass, so a second run on the merged commit would repeat the same checks.
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -35,8 +35,6 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             diff_base="${{ github.event.pull_request.base.sha }}"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
-            diff_base="${{ github.event.before }}"
           elif git rev-parse HEAD^ >/dev/null 2>&1; then
             diff_base="$(git rev-parse HEAD^)"
           else

@@ -113,6 +113,10 @@ requirements.
   and review every change they make yourself.
 - Cloud sessions (claude.ai/code) have no WSL launcher or Docker daemon; say what couldn't be
   verified.
+- Branch from the latest `origin/main`. "Ship it" means: commit, push, open the PR, and enable
+  squash auto-merge. `main` requires the `check`, `e2e`, and `production-container` jobs, so
+  GitHub merges once CI passes; don't wait on or poll CI. A failing check blocks the merge and
+  gets fixed on the same PR.
 
 ## Operator workstation (WSL): only when `/home/joeadmin/.local/bin/tapboard-dev` exists
 
