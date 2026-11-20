@@ -32,6 +32,7 @@ type ScaleCheck = Pick<HealthCheckSummary, "checkId" | "state" | "severity" | "r
 interface Signals {
   taps: { id: string; enabled: boolean; isRetired: boolean }[];
   hasAuthority: boolean;
+  hasFlowAuthority: boolean;
   scale: ScaleCheck | undefined;
   brewfatherEnabled: boolean;
   brewfatherApiKeyConfigured: boolean;
@@ -54,6 +55,7 @@ function harness(
   const signals: Signals = {
     taps: [{ id: "tap-1", enabled: true, isRetired: false }],
     hasAuthority: true,
+    hasFlowAuthority: false,
     scale: {
       checkId: "scale_availability",
       state: "healthy",
@@ -91,6 +93,9 @@ function harness(
           ? { sourceId: "source-1", changedAt: "2026-01-01T00:00:00Z" }
           : null,
         condition: null,
+        flow: signals.hasFlowAuthority
+          ? { sourceId: "meter-1", changedAt: "2026-01-01T00:00:00Z" }
+          : null,
       }),
     },
     healthService: {
@@ -223,6 +228,20 @@ void test("missing authority, pending measurements, and degraded scales are Part
     signals.scale = scale;
     assertHeader(service, "degraded");
   }
+});
+
+void test("a flow-only Tap with a fresh meter is Connected (#216)", () => {
+  const { service, signals } = harness();
+  signals.hasAuthority = false;
+  signals.hasFlowAuthority = true;
+  assertHeader(service, "healthy");
+  signals.scale = {
+    checkId: "scale_availability",
+    state: "degraded",
+    severity: "info",
+    reason: "scale_degraded",
+  };
+  assertHeader(service, "degraded");
 });
 
 void test("critical telemetry dominates working Brewfather and clears only after recovery", () => {

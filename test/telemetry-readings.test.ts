@@ -976,3 +976,36 @@ void test("POST /api/v1/telemetry accepts a temperature-only readings sample and
   assert.equal(unknown.status, 400);
   assert.match(JSON.stringify(await unknown.json()), /'co2_ppm' is not a registered metric/);
 });
+
+void test("a flow-only Tap's availability follows its flow meter (#216)", () => {
+  const h = harness();
+  const scale = () =>
+    listHealthCheckStates(h.database, h.tap.id).find(
+      ({ checkId }) => checkId === "scale_availability",
+    );
+  try {
+    h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: null,
+      conditionSourceId: null,
+      flowSourceId: h.source.id,
+    });
+    h.assign();
+    h.send(1_000, { readings: [{ metric: "dispensed_volume", value: 5_000, unit: "ml" }] });
+    assert.equal(scale()?.state, "healthy");
+    assert.equal(scale()?.reason, "scale_fresh");
+
+    // A meter that stops reporting degrades, then goes critical, on the scale thresholds.
+    h.health.evaluateTap(h.tap.id, at(1_000 + 5 * 60_000));
+    assert.deepEqual([scale()?.state, scale()?.reason], ["degraded", "scale_degraded"]);
+    h.health.evaluateTap(h.tap.id, at(1_000 + 30 * 60_000));
+    assert.deepEqual([scale()?.state, scale()?.severity], ["active", "critical"]);
+
+    // Its next heartbeat recovers it.
+    h.send(1_000 + 31 * 60_000, {
+      readings: [{ metric: "dispensed_volume", value: 5_000, unit: "ml" }],
+    });
+    assert.equal(scale()?.state, "healthy");
+  } finally {
+    h.database.close();
+  }
+});

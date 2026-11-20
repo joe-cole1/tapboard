@@ -517,11 +517,17 @@ export class HealthService
     const global = readHealthGlobalConfig(database);
     const override = readHealthTapOverride(database, tap.id);
     const effective = resolveHealthConfig(global.config, override?.override).effective;
-    // Scale-driven checks follow the level source; serving temperature follows the condition
-    // source, which may be another device.
+    // Scale-driven checks follow the level source, and a Tap without one takes availability
+    // from its flow meter; serving temperature follows the condition source, which may be
+    // another device.
     const authority = readTapTelemetryAuthority(database, tap.id, "level");
+    const flowAuthority =
+      authority === undefined ? readTapTelemetryAuthority(database, tap.id, "flow") : undefined;
+    const availabilityAuthority = authority ?? flowAuthority;
     const authorityChangedAtMs =
-      authority === undefined ? null : asMs(authority.changed_at, "changed_at");
+      availabilityAuthority === undefined
+        ? null
+        : asMs(availabilityAuthority.changed_at, "changed_at");
     const conditionAuthority = readTapTelemetryAuthority(database, tap.id, "condition");
     const temperatureAuthorityChangedAtMs =
       conditionAuthority === undefined ? null : asMs(conditionAuthority.changed_at, "changed_at");
@@ -543,12 +549,29 @@ export class HealthService
         ? undefined
         : readSourceTapStatus(database, authority.source_id, tap.id);
     const sourceStatusMeasurement = this.#measurement(status, true);
+    const flowReading =
+      flowAuthority === undefined
+        ? null
+        : currentTapReading(
+            readSourceTapReading(database, flowAuthority.source_id, tap.id, "dispensed_volume"),
+            flowAuthority,
+            epoch,
+          );
     const latestScaleMeasurement =
-      sourceStatusMeasurement !== null &&
-      (authorityChangedAtMs === null ||
-        sourceStatusMeasurement.measuredAtMs >= authorityChangedAtMs)
-        ? sourceStatusMeasurement
-        : null;
+      flowAuthority !== undefined
+        ? flowReading === null || flowReading.measurementId === null
+          ? null
+          : {
+              measurementId: flowReading.measurementId,
+              measuredAtMs: flowReading.measuredAtMs,
+              receivedAtMs: flowReading.receivedAtMs,
+              tempC: null,
+            }
+        : sourceStatusMeasurement !== null &&
+            (authorityChangedAtMs === null ||
+              sourceStatusMeasurement.measuredAtMs >= authorityChangedAtMs)
+          ? sourceStatusMeasurement
+          : null;
     // The detector state is authoritative for the generic measurement used to
     // derive a settled volume/phase. Scale freshness uses the dedicated source
     // status projection above even when the current epoch has no detector state.

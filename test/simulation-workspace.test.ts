@@ -124,6 +124,14 @@ void test("simulation toggles isolated data, keeps hardware in live, rotates for
     await h.request("/api/public/dashboard")
   ).json()) as PublicDashboardView;
   assert.notDeepEqual(dashboard, before);
+  // Once the sample sensors report, every Tap counts, including the flow-only one (#216).
+  let label = dashboard.header.connectivityLabel;
+  for (let attempt = 0; attempt < 50 && label !== "Connected"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const next = (await (await h.request("/api/public/dashboard")).json()) as PublicDashboardView;
+    label = next.header.connectivityLabel;
+  }
+  assert.equal(label, "Connected");
   const sample = status.sensors[0]!;
   const pause = await h.post(
     "/admin/simulation/sensor",
