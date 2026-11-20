@@ -6,7 +6,11 @@ import { LEGACY_BEERS, LEGACY_ON_DECK } from "./legacy-samples.ts";
 import { insertSensor, listSensors, readSettings, setFillVolume, setSeeded } from "./repository.ts";
 import type { SimulationDependencies, SimulationSensor } from "./types.ts";
 
-const FRACTIONS = [0.93, 0.78, 0.6, 0.43, 0.27, 1, 1] as const;
+/** Tap 3 has a scale and a flow meter (flow pours, scale truth); Tap 4 has only a flow meter. */
+const SCALE_AND_FLOW_TAP = 3;
+const FLOW_ONLY_TAP = 4;
+// A flow-only Tap reads its Fill as full until pours are recorded, so Tap 4's keg starts full.
+const FRACTIONS = [0.93, 0.78, 0.6, 1, 0.27, 1, 1] as const;
 const LEGACY_PROFILES = [
   ...LEGACY_BEERS.map(({ fraction: _fraction, ...profile }) => ({
     ...profile,
@@ -143,7 +147,12 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
       );
       telemetryService.setTapAuthority(
         tap.id,
-        { levelSourceId: source.id, conditionSourceId: source.id, flowSourceId: null },
+        {
+          levelSourceId: number === FLOW_ONLY_TAP ? null : source.id,
+          conditionSourceId: source.id,
+          flowSourceId:
+            number === SCALE_AND_FLOW_TAP || number === FLOW_ONLY_TAP ? source.id : null,
+        },
         actor,
       );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);

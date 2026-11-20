@@ -180,6 +180,74 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
   }
 });
 
+void test("sample Taps send pressure, and Taps 3 and 4 pour through a flow meter", () => {
+  const h = harness();
+  try {
+    warm(h);
+    const sensors = h.runner.listSensors();
+    assert.deepEqual(
+      sensors.map((sensor) => {
+        const authority = h.telemetryService.getTapAuthority(sensor.tapId);
+        return [authority.level, authority.condition, authority.flow].map(
+          (role) => role?.sourceId === sensor.sourceId,
+        );
+      }),
+      [
+        [true, true, false],
+        [true, true, false],
+        [true, true, true],
+        [false, true, true],
+        [true, true, false],
+      ],
+    );
+    for (const sensor of sensors) {
+      // 11 to 13 psi, stored in kPa.
+      const pressure = h.telemetryService.getCurrentTapReading(sensor.tapId, "pressure");
+      assert.ok(pressure !== null && pressure.value > 75 && pressure.value < 90);
+    }
+    const scaleAndFlow = sensors[2]!;
+    const flowOnly = sensors[3]!;
+    const capacityMl = h.detectorService.diagnostics(flowOnly.tapId).epoch!.snapshots.capacityMl;
+    assert.equal(flowOnly.remainingMl, capacityMl);
+    h.runner.pour(scaleAndFlow.tapId, 12);
+    h.runner.pour(flowOnly.tapId, 12);
+    // Both pours have finished flowing, but the meter's quiet period has not passed.
+    h.advance(7_000);
+    assert.equal(count(h.database, "pours"), 0);
+    const settling = h.runner.listSensors().find((sensor) => sensor.tapId === flowOnly.tapId)!;
+    assert.equal(settling.status, "settling");
+    assert.throws(() => h.runner.pour(flowOnly.tapId, 4), /ready/);
+    h.advance(18_000);
+    assert.equal(h.errors.length, 0);
+    for (const sensor of [scaleAndFlow, flowOnly]) {
+      const pours = h.database
+        .prepare<[string], { canonical_volume_ml: number }>(
+          "SELECT canonical_volume_ml FROM pours WHERE tap_id = ?",
+        )
+        .all(sensor.tapId);
+      assert.equal(pours.length, 1);
+      assert.ok(Math.abs(pours[0]!.canonical_volume_ml - 12 * SIMULATION_OUNCE_ML) < 1e-6);
+      const publicVolumeMl = h.detectorService.diagnostics(sensor.tapId).measurement!
+        .publicVolumeMl!;
+      // Tap 3's scale gives its volume; Tap 4 has only its recorded pours.
+      assert.ok(Math.abs(publicVolumeMl - (sensor.remainingMl - 12 * SIMULATION_OUNCE_ML)) < 1);
+    }
+    assert.equal(count(h.database, "pours"), 2);
+    assert.deepEqual(
+      h.runner.listSensors().map((sensor) => sensor.status),
+      Array<string>(5).fill("ready"),
+    );
+    // A restarted simulator's meters count from zero again, which is a reset, not a pour.
+    h.runner.stop();
+    h.runner.start();
+    h.advance(10_000);
+    assert.equal(count(h.database, "pours"), 2);
+    assert.equal(h.errors.length, 0);
+  } finally {
+    h.close();
+  }
+});
+
 void test("seed is atomic and refuses an unmarked database with existing inventory", () => {
   const h = harness();
   try {
@@ -282,13 +350,14 @@ void test("default detector records each sized pour once through real ingestion 
     assert.equal(count(h.database, "pours"), 6);
     assert.ok(h.runner.listSensors().every((sensor) => sensor.status === "ready"));
     assert.ok(count(h.database, "telemetry_ingest_receipts") > 100);
+    // Tap 4's flow meter sends no keg-level reading.
     assert.deepEqual(
       h.database
-        .prepare<[], { primary_kind: string }>(
-          "SELECT DISTINCT primary_kind FROM telemetry_measurements",
+        .prepare<[], { primary_kind: string | null }>(
+          "SELECT DISTINCT primary_kind FROM telemetry_measurements ORDER BY primary_kind",
         )
         .all(),
-      [{ primary_kind: "total_weight" }],
+      [{ primary_kind: null }, { primary_kind: "total_weight" }],
     );
   } finally {
     h.close();
@@ -550,7 +619,10 @@ void test("normal renumber, move, kick and unused-tap deletion do not leave stal
       h.runner.listSensors().find((sensor) => sensor.tapId === kicked!.tapId)!.status,
       "unassigned",
     );
-    assert.equal(count(h.database, "pours"), 1);
+    // The renumbered Tap's pour, and the kicked Tap 3's partial pour: its flow meter records a
+    // pour still open when the Fill ends.
+    assert.equal(count(h.database, "pours"), 2);
+    assert.equal(count(h.database, "pours", kicked!.tapId), 1);
     assert.equal(
       h.runner.listSensors().find((sensor) => sensor.tapId === renumbered!.tapId)!.tapNumber,
       40,

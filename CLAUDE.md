@@ -65,6 +65,10 @@ requirements.
   (`schema_version` 1). Change them only deliberately and backward-compatibly.
 - No new runtime dependency, framework, bundler, database, or background service without
   explicit approval.
+- Keep the Simulation workspace's fake data current in the same PR. When a change adds or alters
+  data Tapboard accepts or shows (a telemetry metric or source, a Tap, Keg, Beverage or recipe
+  field, a health check, a page section), update `src/features/simulation/` (seed, sensors,
+  runner) so the sample workspace produces it, and say so in the PR.
 
 ## Keep it simple
 

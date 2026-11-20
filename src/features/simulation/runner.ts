@@ -22,6 +22,18 @@ const IDLE_SAMPLE_MS = 500;
 const FLOW_TAIL_MS = 600;
 const JITTER = [0, 1, 0, -1, 0, -0.5, 0, 0.5] as const;
 
+/** Each sample Tap's gauge serving pressure: 11 to 13 psi. */
+function servingPressurePsi(tapNumber: number): number {
+  return 11 + (tapNumber % 5) * 0.5;
+}
+
+interface IngestResult {
+  readonly plan: PourPlan | undefined;
+  readonly dispensedMl: number;
+  /** Whether the sensor holds its Tap's flow role and so sent `dispensed_volume`. */
+  readonly flowMeter: boolean;
+}
+
 interface PourPlan {
   readonly assignmentId: string;
   readonly epochId: string;
@@ -49,6 +61,11 @@ export class SimulationRunner {
   readonly #plans = new Map<string, PourPlan>();
   readonly #nextSampleAt = new Map<string, number>();
   readonly #errors = new Map<string, string>();
+  /**
+   * Each flow meter's cumulative counter. It starts at zero when the runner starts, like a meter
+   * after a reboot, which Tapboard reads as a reset.
+   */
+  readonly #dispensedMl = new Map<string, number>();
   #timer: NodeJS.Timeout | undefined;
   #running = false;
   #ticking = false;
@@ -110,6 +127,7 @@ export class SimulationRunner {
     this.#plans.clear();
     this.#nextSampleAt.clear();
     this.#errors.clear();
+    this.#dispensedMl.clear();
   }
 
   listSensors(): readonly SimulationSensorView[] {
@@ -239,7 +257,7 @@ export class SimulationRunner {
       const at = now.getTime();
       const sensors = listSensors(database);
       const present = new Set(sensors.map((sensor) => sensor.tapId));
-      for (const map of [this.#plans, this.#nextSampleAt, this.#errors]) {
+      for (const map of [this.#plans, this.#nextSampleAt, this.#errors, this.#dispensedMl]) {
         for (const tapId of map.keys()) if (!present.has(tapId)) map.delete(tapId);
       }
       const taps = new Map(tapService.listTaps().map((tap) => [tap.id, tap]));
@@ -261,16 +279,29 @@ export class SimulationRunner {
         }
         if (this.#errors.has(tap.id) || at < (this.#nextSampleAt.get(tap.id) ?? 0)) continue;
         try {
-          const nextPlan = this.#ingest(sensor, tap, plan, now);
+          const { plan: nextPlan, dispensedMl, flowMeter } = this.#ingest(sensor, tap, plan, now);
           accepted += 1;
+          this.#dispensedMl.set(tap.id, dispensedMl);
           const fast =
             nextPlan !== undefined &&
             (nextPlan.remainingToPourMl > 0 ||
               (nextPlan.flowEndedAtMs !== null && at - nextPlan.flowEndedAtMs < FLOW_TAIL_MS));
           this.#nextSampleAt.set(tap.id, at + (fast ? SCHEDULER_MS : IDLE_SAMPLE_MS));
           if (nextPlan !== undefined) {
-            const phase = detectorService.diagnostics(tap.id).detector?.phase;
-            if (!fast && nextPlan.remainingToPourMl === 0 && phase === "ready")
+            const current = detectorService.diagnostics(tap.id);
+            // A flow pour closes after the quiet period without new flow. A flow-only Tap's
+            // detector stays ready meanwhile, so the sensor settles until then.
+            const flowClosing =
+              nextPlan.flowEndedAtMs !== null &&
+              flowMeter &&
+              at - nextPlan.flowEndedAtMs <
+                (current.epoch?.snapshots.detectorConfig.quietPeriodMs ?? 0);
+            if (
+              !fast &&
+              !flowClosing &&
+              nextPlan.remainingToPourMl === 0 &&
+              current.detector?.phase === "ready"
+            )
               this.#plans.delete(tap.id);
             else this.#plans.set(tap.id, nextPlan);
           } else this.#plans.delete(tap.id);
@@ -297,7 +328,7 @@ export class SimulationRunner {
     tap: AdminTapView,
     plan: PourPlan | undefined,
     now: Date,
-  ): PourPlan | undefined {
+  ): IngestResult {
     const { database, telemetryService, tapService, detectorService } = this.#dependencies;
     return database.withTransaction(() => {
       // Resolve assignment and its physical volume under the same write lock as ingestion.
@@ -316,6 +347,7 @@ export class SimulationRunner {
       const at = now.getTime();
       let nextPlan = currentPlan;
       let remainingMl = this.#physicalVolume(currentTap, currentSensor);
+      let dispensedMl = this.#dispensedMl.get(currentSensor.tapId) ?? 0;
       if (currentPlan !== undefined && currentPlan.remainingToPourMl > 0) {
         const elapsedSeconds =
           Math.max(0, Math.min(IDLE_SAMPLE_MS, at - currentPlan.lastFlowAtMs)) / 1000;
@@ -325,6 +357,7 @@ export class SimulationRunner {
           currentPlan.rateMlPerSecond * elapsedSeconds,
         );
         remainingMl = Math.max(0, remainingMl - loss);
+        dispensedMl += loss;
         const remainingToPourMl = Math.max(0, currentPlan.remainingToPourMl - loss);
         const finished = remainingToPourMl < 1e-8;
         nextPlan = {
@@ -343,15 +376,27 @@ export class SimulationRunner {
         remainingMl <= epoch.snapshots.capacityMl
           ? Math.min(epoch.snapshots.capacityMl, jitteredVolume)
           : jitteredVolume;
+      const authority = telemetryService.getTapAuthority(currentTap.id);
+      const flowMeter = authority.flow?.sourceId === currentSensor.sourceId;
+      // A flow-only sensor has no scale; every other sensor weighs the keg.
+      const scale = !flowMeter || authority.level?.sourceId === currentSensor.sourceId;
       const payload = validateExternalTelemetryPayload({
         client_sample_id: `simulation:${currentSensor.tapId}:${sequence}`,
         measured_at: now.toISOString(),
-        measurement: {
-          kind: "total_weight",
-          value: epoch.snapshots.tareG + measuredVolume * epoch.snapshots.densityGPerMl,
-          unit: "g",
-        },
-        temperature: { value: currentSensor.temperatureC, unit: "c" },
+        readings: [
+          ...(scale
+            ? [
+                {
+                  metric: "total_weight",
+                  value: epoch.snapshots.tareG + measuredVolume * epoch.snapshots.densityGPerMl,
+                  unit: "g",
+                },
+              ]
+            : []),
+          ...(flowMeter ? [{ metric: "dispensed_volume", value: dispensedMl, unit: "ml" }] : []),
+          { metric: "temperature", value: currentSensor.temperatureC, unit: "c" },
+          { metric: "pressure", value: servingPressurePsi(currentTap.tapNumber), unit: "psi" },
+        ],
       });
       const token = this.#tokens.get(currentSensor.sourceId);
       const source =
@@ -371,7 +416,7 @@ export class SimulationRunner {
       // measurement, receipt, sequence and volume together. Plans change only on return.
       setFillVolume(database, assignment.fillId, remainingMl);
       updateSensor(database, { ...currentSensor, remainingMl, sequence });
-      return nextPlan;
+      return { plan: nextPlan, dispensedMl, flowMeter };
     });
   }
 
