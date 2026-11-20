@@ -609,6 +609,15 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
         level: { sourceId: "telemetry-active-qc", changedAt: "2026-08-01T00:00:00.000Z" },
         condition: null,
       }),
+      getCurrentTapReading: (_tapId: string, metric: string) =>
+        metric === "pressure"
+          ? {
+              value: 82.737088,
+              measurementId: "measurement-qc",
+              measuredAtMs: Date.parse("2026-08-01T00:05:00.000Z"),
+              receivedAtMs: Date.parse("2026-08-01T00:05:01.000Z"),
+            }
+          : null,
       setTapAuthority(id: unknown, input: unknown, actor: unknown) {
         telemetryAuthorityCalls.push({ id, input, actor });
         const values = input as { readonly levelSourceId?: string };
@@ -920,6 +929,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(tapDetailHtml, /name="updatedAt"/);
   assert.match(tapDetailHtml, /Telemetry authority/);
   assert.match(tapDetailHtml, /Level: QC telemetry source · Condition: none/);
+  assert.match(tapDetailHtml, /Latest pressure: 82\.7 kPa, measured Aug 1, 2026, 12:05 AM UTC/);
   assert.match(tapDetailHtml, /name="levelSourceId"/);
   assert.match(tapDetailHtml, /name="conditionSourceId"/);
   assert.match(tapDetailHtml, /Mystery Tap reveal fields/);

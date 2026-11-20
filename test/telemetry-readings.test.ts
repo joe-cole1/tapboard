@@ -198,7 +198,7 @@ void test("readings form rejects mixed forms, unknown metrics and units, repeats
   );
   assert.deepEqual(reasonFor({ ...base, readings: [] }), {
     field: "body.readings",
-    reason: "must contain between 1 and 4 readings",
+    reason: "must contain between 1 and 5 readings",
   });
   assert.deepEqual(reasonFor({ ...base, readings: { metric: "temperature" } }), {
     field: "body.readings",
@@ -208,6 +208,49 @@ void test("readings form rejects mixed forms, unknown metrics and units, repeats
     field: "body.readings[0]",
     reason: "contains unknown key: extra",
   });
+});
+
+void test("pressure converts kPa, psi, and bar to kPa and bounds the value as sent", () => {
+  const pressureOf = (value: number, unit: string) =>
+    normalizeExternalTelemetrySample(
+      validateExternalTelemetryPayload({
+        measured_at: at(0),
+        readings: [{ metric: "pressure", value, unit }],
+      }),
+    ).readings;
+  assert.deepEqual(pressureOf(82.5, "kpa"), [{ metric: "pressure", value: 82.5 }]);
+  assert.deepEqual(pressureOf(12, "psi"), [{ metric: "pressure", value: 82.737088 }]);
+  assert.deepEqual(pressureOf(0.8, "bar"), [{ metric: "pressure", value: 80 }]);
+  assert.deepEqual(pressureOf(-100, "kpa"), [{ metric: "pressure", value: -100 }]);
+  assert.deepEqual(pressureOf(1000, "kpa"), [{ metric: "pressure", value: 1000 }]);
+
+  const base = { measured_at: at(0) };
+  for (const [value, unit] of [
+    [1000.5, "kpa"],
+    [-101, "psi"],
+    [1001, "bar"],
+  ] as const) {
+    assert.deepEqual(reasonFor({ ...base, readings: [{ metric: "pressure", value, unit }] }), {
+      field: "body.readings[0].value",
+      reason: "must be between -100 and 1000 for 'pressure'",
+    });
+  }
+  assert.deepEqual(
+    reasonFor({ ...base, readings: [{ metric: "pressure", value: 12, unit: "atm" }] }),
+    { field: "body.readings[0].unit", reason: "must be one of 'kpa', 'psi', 'bar' for 'pressure'" },
+  );
+  // Pressure is a condition metric, so it rides alongside a keg-level reading.
+  assert.equal(
+    validateExternalTelemetryPayload({
+      ...base,
+      readings: [
+        { metric: "total_weight", value: 20, unit: "kg" },
+        { metric: "temperature", value: 4, unit: "c" },
+        { metric: "pressure", value: 12, unit: "psi" },
+      ],
+    }).readings.length,
+    3,
+  );
 });
 
 void test("the OpenAPI readings schemas list exactly the registered metrics, units, and bounds", () => {
@@ -592,6 +635,92 @@ void test("a scale and a probe share one Tap: each source keeps only the reading
     assert.equal(scaleTemperature.code, "telemetry.not_authoritative");
     assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
     assert.equal(epochState(h)?.lastMeasurementId, scale.acceptedMeasurementId);
+  } finally {
+    h.database.close();
+  }
+});
+
+void test("pressure from the condition source is stored and is the Tap's current reading", () => {
+  const h = harness();
+  try {
+    h.assign();
+    const { probe } = splitWithProbe(h, 500);
+    const scale = h.send(1_000, {
+      readings: [{ metric: "remaining_volume", value: 15_000, unit: "ml" }],
+    });
+    assert.equal(scale.outcome, "accepted");
+    assert.equal(h.telemetryService.getCurrentTapReading(h.tap.id, "pressure"), null);
+
+    const pressure = h.send(
+      2_000,
+      {
+        client_sample_id: "probe-1",
+        readings: [
+          { metric: "temperature", value: 4, unit: "c" },
+          { metric: "pressure", value: 12, unit: "psi" },
+        ],
+      },
+      probe,
+    );
+    assert.equal(pressure.outcome, "accepted");
+    assert.deepEqual(
+      h.rows(
+        "SELECT metric, value FROM telemetry_readings WHERE measurement_id = ? ORDER BY metric",
+        pressure.acceptedMeasurementId,
+      ),
+      [
+        { metric: "pressure", value: 82.737088 },
+        { metric: "temperature", value: 4 },
+      ],
+    );
+    assert.deepEqual(h.telemetryService.getCurrentTapReading(h.tap.id, "pressure"), {
+      value: 82.737088,
+      measurementId: pressure.acceptedMeasurementId,
+      measuredAtMs: origin + 2_000,
+      receivedAtMs: origin + 2_000,
+    });
+    // Pressure leaves the scale's epoch and serving temperature as they were.
+    assert.equal(epochState(h)?.lastMeasurementId, scale.acceptedMeasurementId);
+    assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
+  } finally {
+    h.database.close();
+  }
+});
+
+void test("pressure from a source without the Tap's condition role is dropped", () => {
+  const h = harness();
+  try {
+    h.assign();
+    const { probe } = splitWithProbe(h, 500);
+    h.send(1_000, { readings: [{ metric: "pressure", value: 80, unit: "kpa" }] }, probe);
+
+    // The scale holds only level: its pressure is dropped and its weight kept.
+    const scale = h.send(2_000, {
+      readings: [
+        { metric: "remaining_volume", value: 15_000, unit: "ml" },
+        { metric: "pressure", value: 200, unit: "kpa" },
+      ],
+    });
+    assert.equal(scale.outcome, "accepted");
+    assert.deepEqual(
+      h.rows(
+        "SELECT metric FROM telemetry_readings WHERE measurement_id = ?",
+        scale.acceptedMeasurementId,
+      ),
+      [{ metric: "remaining_volume" }],
+    );
+    // A pressure-only sample from the scale has nothing it may supply.
+    const scalePressure = h.send(3_000, {
+      readings: [{ metric: "pressure", value: 200, unit: "kpa" }],
+    });
+    assert.equal(scalePressure.code, "telemetry.not_authoritative");
+    assert.deepEqual(
+      h.rows(
+        "SELECT source_id, value FROM telemetry_source_tap_readings WHERE metric = 'pressure'",
+      ),
+      [{ source_id: probe.id, value: 80 }],
+    );
+    assert.equal(h.telemetryService.getCurrentTapReading(h.tap.id, "pressure")?.value, 80);
   } finally {
     h.database.close();
   }

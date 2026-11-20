@@ -5,7 +5,8 @@
  * - `level` metrics measure how much beer is in the keg. They feed interpretation and the pour
  *   detector, so a new level metric also needs code in `interpretation.ts` and a migration
  *   (`primary_kind` keeps a CHECK list). A sample carries at most one level reading.
- * - `condition` metrics (temperature) feed health and the display.
+ * - `condition` metrics (temperature, pressure) describe serving conditions. Temperature feeds
+ *   health and the display; pressure is shown on the Admin Tap page.
  * - `recorded` metrics are stored only.
  *
  * A `condition` or `recorded` metric needs only an entry here: readings are stored in the
@@ -69,6 +70,17 @@ export const TELEMETRY_METRICS: Readonly<Record<string, TelemetryMetricDefinitio
     min: -100,
     max: 150,
     column: "temperature_c",
+  },
+  // Gauge serving pressure. Bounds apply to the wire value, so one range must admit every real
+  // reading in each unit: full vacuum is about -100 kPa (-14.5 psi, -1 bar) and kegs run far
+  // below 1000 kPa (145 psi, 10 bar). The range is therefore loose for psi and bar; it only
+  // rejects garbage.
+  pressure: {
+    role: "condition",
+    canonicalUnit: "kpa",
+    units: { kpa: identity, psi: factor(6.894757293168), bar: factor(100) },
+    min: -100,
+    max: 1000,
   },
 };
 
