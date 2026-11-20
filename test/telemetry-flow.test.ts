@@ -379,6 +379,43 @@ void test("changing only the level source keeps the flow baseline", () => {
   }
 });
 
+void test("removing a scale that never reported keeps the meter's measurement (#217)", () => {
+  const h = harness({ scale: true, meter: true });
+  try {
+    const baseline = h.flow(1_000, 1_000);
+    h.set(2_000);
+    h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: null,
+      conditionSourceId: null,
+      flowSourceId: h.meter.id,
+    });
+    const diagnostics = h.detector.diagnostics(h.tap.id);
+    assert.equal(diagnostics.detector?.waitingForMeasurement, false);
+    assert.equal(diagnostics.measurement?.id, baseline.acceptedMeasurementId);
+    assert.equal(diagnostics.measurement?.publicVolumeMl, 19_000);
+  } finally {
+    h.close();
+  }
+});
+
+void test("a lagging meter's pour just after a transition is recorded (#217)", () => {
+  const h = harness({ scale: false, meter: true });
+  try {
+    // The meter's clock runs 30 s behind the server.
+    const lagMs = 30_000;
+    h.flow(1_000, 1_000, "lag-baseline", lagMs);
+    // A detector config change opens a new epoch at server time 32 s, carrying the baseline.
+    h.set(32_000);
+    h.detector.setTapOverride(h.tap.id, { ...config, cooldownMs: 200 });
+    // A pour measured at device time 2 s arrives after the transition.
+    h.flow(2_000, 1_500, "lag-pour", lagMs);
+    h.due(2_000 + lagMs + 200);
+    assert.deepEqual(h.pours(), [500]);
+  } finally {
+    h.close();
+  }
+});
+
 void test("maintenance reports a closed flow pour's Tap after its transaction commits", () => {
   const h = harness({ scale: false, meter: true });
   try {

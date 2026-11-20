@@ -923,11 +923,14 @@ export class DetectorService
     const flow = readTelemetryEpochFlowState(database, epoch.id);
     if (flow === undefined || flow.counterMl === null || flow.counterAtMs === null)
       return undefined;
+    // The measurement is the meter's own reading that set the counter, never the scale's.
+    const reading = readSourceTapReading(database, flow.sourceId, epoch.tapId, "dispensed_volume");
     return {
       sourceId: flow.sourceId,
       counterMl: flow.counterMl,
       counterAtMs: flow.counterAtMs,
-      measurementId: readTelemetryEpochState(database, epoch.id)?.lastMeasurementId ?? null,
+      measurementId:
+        reading?.measured_at_epoch_ms === flow.counterAtMs ? reading.measurement_id : null,
     };
   }
 
@@ -938,12 +941,15 @@ export class DetectorService
       epoch === undefined ||
       epoch.assignmentId !== event.capturedAssignmentId ||
       epoch.fillId !== event.capturedFillId ||
-      epoch.normalizationVersion !== event.normalizationVersion ||
-      measuredAt < epoch.startedAtEpochMs
+      epoch.normalizationVersion !== event.normalizationVersion
     )
       return;
     const flow = readTelemetryEpochFlowState(database, epoch.id);
     if (flow === undefined || flow.sourceId !== event.sourceId) return;
+    // A fresh baseline needs a reading measured after the epoch started. A baseline carried
+    // across a transition takes any reading newer than itself (the reducer ignores older ones),
+    // so a meter whose clock runs behind the server keeps counting across the transition.
+    if (flow.counterAtMs === null && measuredAt < epoch.startedAtEpochMs) return;
     this.#applyFlow(
       database,
       epoch,
