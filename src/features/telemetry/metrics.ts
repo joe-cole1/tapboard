@@ -88,7 +88,8 @@ export const TELEMETRY_METRICS: Readonly<Record<string, TelemetryMetricDefinitio
     max: 1000,
   },
   // Total volume a flow meter has dispensed since its last reset, calibrated on the device. A
-  // decrease is a reset. Tapboard stores no K-factor.
+  // decrease is a reset. There is no upper bound: the flow detector treats an increase larger
+  // than the keg as a reset, which a wire bound could not do. Tapboard stores no K-factor.
   dispensed_volume: {
     role: "flow",
     canonicalUnit: "ml",

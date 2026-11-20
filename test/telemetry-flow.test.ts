@@ -379,6 +379,53 @@ void test("changing only the level source keeps the flow baseline", () => {
   }
 });
 
+void test("one save that changes the level and flow sources opens one epoch (#224)", () => {
+  const h = harness({ scale: true, meter: true });
+  try {
+    const epochs = () =>
+      h.database
+        .prepare<
+          [string],
+          { readonly source_id: string | null; readonly close_reason: string | null }
+        >(
+          "SELECT source_id, close_reason FROM telemetry_epochs WHERE tap_id = ? ORDER BY started_at_epoch_ms, rowid",
+        )
+        .all(h.tap.id);
+    const scale2 = h.telemetryService.createSource({ name: "scale 2" }).source;
+    const meter2 = h.telemetryService.createSource({ name: "meter 2" }).source;
+    h.set(2_000);
+    const changed = h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: scale2.id,
+      conditionSourceId: null,
+      flowSourceId: meter2.id,
+    });
+    assert.equal(changed.requiresFreshBaseline, true);
+    assert.deepEqual(epochs(), [
+      { source_id: h.scale.id, close_reason: "source_changed" },
+      { source_id: scale2.id, close_reason: null },
+    ]);
+    assert.equal(h.flowState()?.sourceId, meter2.id);
+    assert.equal(h.flowState()?.counterMl, null);
+  } finally {
+    h.close();
+  }
+});
+
+void test("a corrupt dispensed_volume jump records no pour larger than the keg (#224)", () => {
+  const h = harness({ scale: false, meter: true });
+  try {
+    h.flow(1_000, 1_000);
+    assert.equal(h.flow(1_100, 1e15).outcome, "accepted");
+    h.flow(1_200, 1_200);
+    h.flow(1_300, 1_450);
+    h.due(1_500);
+    assert.deepEqual(h.pours(), [250]);
+    assert.equal(h.detector.diagnostics(h.tap.id).measurement?.publicVolumeMl, 19_000 - 250);
+  } finally {
+    h.close();
+  }
+});
+
 void test("removing a scale that never reported keeps the meter's measurement (#217)", () => {
   const h = harness({ scale: true, meter: true });
   try {
