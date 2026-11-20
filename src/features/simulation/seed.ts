@@ -143,7 +143,7 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
       );
       telemetryService.setTapAuthority(
         tap.id,
-        { levelSourceId: source.id, conditionSourceId: source.id },
+        { levelSourceId: source.id, conditionSourceId: source.id, flowSourceId: null },
         actor,
       );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);

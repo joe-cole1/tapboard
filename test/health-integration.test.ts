@@ -120,6 +120,7 @@ void test("shared transaction callbacks preserve detector-before-health ordering
     normalizationVersion: 1,
     primaryMeasurement: { kind: "remaining_volume", value: 10 },
     temperatureC: null,
+    dispensedVolumeMl: null,
     capturedAssignmentId: assignmentOpened.assignmentId,
     capturedFillId: assignmentOpened.fillId,
   };

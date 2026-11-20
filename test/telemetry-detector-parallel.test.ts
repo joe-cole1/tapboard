@@ -135,6 +135,7 @@ function setupTap(
   h.telemetryService.setTapAuthority(tap.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
   h.tapService.assignFill(tap.id, { fillId: fill.id });
   return { tap, keg, fill };

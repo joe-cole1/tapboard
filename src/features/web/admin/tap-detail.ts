@@ -68,18 +68,34 @@ export function renderTapDetail(
 
   let levelSourceId = "";
   let conditionSourceId = "";
+  let flowSourceId = "";
   let authoritySummary = "No sources assigned";
   try {
     const authority = dependencies.telemetryService.getTapAuthority(id);
     levelSourceId = authority.level?.sourceId ?? "";
     conditionSourceId = authority.condition?.sourceId ?? "";
+    flowSourceId = authority.flow?.sourceId ?? "";
     const name = (sourceId: string) =>
       sourceId === "" ? "none" : (sourceNames.get(sourceId) ?? "configured source");
-    if (levelSourceId !== "" || conditionSourceId !== "") {
-      authoritySummary =
-        levelSourceId === conditionSourceId
-          ? `Level and condition: ${name(levelSourceId)}`
-          : `Level: ${name(levelSourceId)} · Condition: ${name(conditionSourceId)}`;
+    // Roles that share a source read as one entry, e.g. "Level and condition: Scale · Flow: none".
+    const roles: Map<string, string[]> = new Map();
+    for (const [role, sourceId] of [
+      ["level", levelSourceId],
+      ["condition", conditionSourceId],
+      ["flow", flowSourceId],
+    ] as const) {
+      roles.set(sourceId, [...(roles.get(sourceId) ?? []), role]);
+    }
+    if (levelSourceId !== "" || conditionSourceId !== "" || flowSourceId !== "") {
+      authoritySummary = [...roles]
+        .map(([sourceId, names]) => {
+          const label =
+            names.length === 1
+              ? names[0]!
+              : `${names.slice(0, -1).join(", ")} and ${names.at(-1)!}`;
+          return `${label[0]!.toUpperCase()}${label.slice(1)}: ${name(sourceId)}`;
+        })
+        .join(" · ");
     }
   } catch (error) {
     reportFailure(error, {
@@ -337,6 +353,7 @@ export function renderTapDetail(
           authoritySummary,
           levelSourceId,
           conditionSourceId,
+          flowSourceId,
           pressureLabel,
           sources: telemetrySources,
         },

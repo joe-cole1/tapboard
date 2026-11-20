@@ -202,6 +202,7 @@ void test("telemetry HTTP is Bearer-only, strict, and maps durable outcomes", as
   telemetryService.setTapAuthority(tap1.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
 
   const sourceList = await readJsonResponse(
@@ -339,6 +340,7 @@ void test("telemetry HTTP is Bearer-only, strict, and maps durable outcomes", as
   telemetryService.setTapAuthority(retiredTap.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
   tapService.retireTap(retiredTap.id);
   now = new Date("2026-08-14T12:00:01.000Z");
@@ -517,6 +519,7 @@ void test("telemetry HTTP body caps and batch outcomes use the documented status
   telemetryService.setTapAuthority(tap.id, {
     levelSourceId: sourceResult.source.id,
     conditionSourceId: sourceResult.source.id,
+    flowSourceId: null,
   });
   telemetryService.updateSettings({
     maxBatchSize: 2,

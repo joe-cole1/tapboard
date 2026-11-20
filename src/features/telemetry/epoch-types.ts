@@ -1,5 +1,6 @@
 import type { DetectorConfig, DetectorConfigOverride } from "./detector-config.ts";
 import type { DetectorRuntimeState } from "./detector.ts";
+import type { FlowDetectorState } from "./flow-detector.ts";
 import type { TelemetryPrimaryKind } from "./types.ts";
 
 export interface DetectorGlobalConfig {
@@ -71,6 +72,13 @@ export interface TelemetryEpochState extends DetectorRuntimeState {
   readonly lastPublicVolumeMl: number | null;
   readonly lastDiagnosticCode:
     "ok" | "below_tare" | "negative_volume" | "above_capacity" | "implausible_jump" | null;
+  readonly updatedAt: string;
+}
+/** An epoch's flow-meter state; exists only for an epoch opened while its Tap had a flow source. */
+export interface TelemetryEpochFlowState extends FlowDetectorState {
+  readonly epochId: string;
+  /** The epoch's flow-source snapshot. */
+  readonly sourceId: string;
   readonly updatedAt: string;
 }
 export interface TelemetryEpochSample {

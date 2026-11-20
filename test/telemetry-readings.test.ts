@@ -198,7 +198,7 @@ void test("readings form rejects mixed forms, unknown metrics and units, repeats
   );
   assert.deepEqual(reasonFor({ ...base, readings: [] }), {
     field: "body.readings",
-    reason: "must contain between 1 and 5 readings",
+    reason: "must contain between 1 and 6 readings",
   });
   assert.deepEqual(reasonFor({ ...base, readings: { metric: "temperature" } }), {
     field: "body.readings",
@@ -350,6 +350,7 @@ function harness() {
   telemetryService.setTapAuthority(tap.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
   const assign = () => {
     const keg = kegService.createKeg({ kegNumber: 1, capacityMl: 19_000, currentTareG: 4_000 });
@@ -550,6 +551,7 @@ function splitWithProbe(h: ReturnType<typeof harness>, ms: number) {
   const result = h.telemetryService.setTapAuthority(h.tap.id, {
     levelSourceId: h.source.id,
     conditionSourceId: probe.id,
+    flowSourceId: null,
   });
   return { probe, result };
 }
@@ -742,6 +744,7 @@ void test("changing the condition source keeps the epoch; changing the level sou
     const moved = h.telemetryService.setTapAuthority(h.tap.id, {
       levelSourceId: probe.id,
       conditionSourceId: probe.id,
+      flowSourceId: null,
     });
     assert.equal(moved.requiresFreshBaseline, true);
     const after = readOpenTelemetryEpochForTap(h.database, h.tap.id);
@@ -781,6 +784,7 @@ void test("scale health follows the level source and serving temperature the con
     h.telemetryService.setTapAuthority(h.tap.id, {
       levelSourceId: null,
       conditionSourceId: probe.id,
+      flowSourceId: null,
     });
     h.send(4_000, { readings: [{ metric: "temperature", value: 4, unit: "c" }] }, probe);
     assert.equal(check("scale_availability")?.reason, "no_authority");
@@ -868,6 +872,7 @@ void test("POST /api/v1/telemetry accepts a temperature-only readings sample and
   telemetryService.setTapAuthority(tap.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
   const address = await server.start("127.0.0.1", 0);
   const post = (body: unknown) =>

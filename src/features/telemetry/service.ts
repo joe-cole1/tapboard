@@ -118,7 +118,7 @@ function mapTapAuthority(
     const row = rows.find((candidate) => candidate.tap_id === tapId && candidate.role === name);
     return row === undefined ? null : { sourceId: row.source_id, changedAt: row.changed_at };
   };
-  return { tapId, level: role("level"), condition: role("condition") };
+  return { tapId, level: role("level"), condition: role("condition"), flow: role("flow") };
 }
 
 function readTapAuthority(database: DatabaseExecutor, tapId: string): TapTelemetryAuthority {
@@ -580,8 +580,8 @@ export class TelemetryService {
   }
 
   /**
-   * Sets both role sources of a Tap in one transaction. Each changed role is written, logged and
-   * announced to the extensions; only a `level` change needs a fresh baseline.
+   * Sets every role source of a Tap in one transaction. Each changed role is written, logged and
+   * announced to the extensions; a `level` or `flow` change needs a fresh baseline.
    */
   setTapAuthority(
     tapIdRaw: string,
@@ -607,6 +607,7 @@ export class TelemetryService {
       const requested: Readonly<Record<TelemetryAuthorityRole, string | null>> = {
         level: input.levelSourceId,
         condition: input.conditionSourceId,
+        flow: input.flowSourceId,
       };
       for (const sourceId of new Set(Object.values(requested))) {
         if (sourceId !== null) this.assertAssignableSource(sourceId);
@@ -626,7 +627,7 @@ export class TelemetryService {
           previousSourceId: previousSourceId ?? null,
           newSourceId,
           changedAt: nowIso,
-          requiresFreshBaseline: role === "level",
+          requiresFreshBaseline: role !== "condition",
         });
       }
 
@@ -1298,6 +1299,7 @@ export class TelemetryService {
       normalizationVersion: TELEMETRY_NORMALIZATION_VERSION,
       primaryMeasurement,
       temperatureC: legacyValues.temperature_c,
+      dispensedVolumeMl: readingValue(sample, "dispensed_volume"),
       capturedAssignmentId,
       capturedFillId,
     } as const;

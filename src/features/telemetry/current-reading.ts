@@ -21,8 +21,8 @@ export interface CurrentTapReading {
  * keg-level samples: a reading measured before its role's current authority was assigned
  * describes another source, and while a serving epoch is open only a reading attributed to
  * that epoch's assignment describes the current keg. A level reading must also come from the
- * epoch's source; a condition reading comes from the condition source, which may be another
- * device.
+ * epoch's source; a condition or flow reading comes from that role's source, which may be
+ * another device.
  */
 export function currentTapReading(
   reading: TelemetrySourceTapReadingRow | undefined,
@@ -58,7 +58,7 @@ export function currentTapReading(
 /** The authority role whose source supplies `metric` for a Tap. */
 function metricAuthorityRole(metric: string): TelemetryAuthorityRole {
   const role = telemetryMetric(metric)?.role;
-  if (role !== "level" && role !== "condition") {
+  if (role === undefined || role === "recorded") {
     throw new Error(`Telemetry metric '${metric}' has no current-reading authority`);
   }
   return role;

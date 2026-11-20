@@ -45,21 +45,31 @@ import type {
   DetectorTapOverride,
   TelemetryEpoch,
   TelemetryEpochCloseReason,
+  TelemetryEpochFlowState,
   TelemetryEpochState,
 } from "./epoch-types.ts";
+import {
+  advanceFlow,
+  closeFlowPour,
+  reduceFlow,
+  type FlowDetectorTransition,
+} from "./flow-detector.ts";
 import { interpretTelemetry } from "./interpretation.ts";
-import { readTapTelemetryAuthority } from "./repository.ts";
+import { readSourceTapReading, readTapTelemetryAuthority } from "./repository.ts";
 import {
   closeTelemetryEpoch,
   createInitialTelemetryEpochState,
   insertCompletedPourIdempotently,
   insertDetectorArbitrationGroup,
   insertTelemetryEpoch,
+  insertTelemetryEpochFlowState,
   insertTelemetryEpochSample,
+  listCompletedPoursForFill,
   listDetectorArbitrationGroups,
   listDetectorArbitrationMembers,
   listDueDetectorStates,
   listOpenCandidateDetectorStatesForGroup,
+  listOpenFlowPourEpochs,
   listOpenPouringDetectorStatesForGroup,
   listOpenTelemetryEpochs,
   listOpenTelemetryEpochsForBeverage,
@@ -71,12 +81,14 @@ import {
   readDetectorGlobalConfig,
   readDetectorTapOverride,
   readOpenTelemetryEpochForTap,
+  readTelemetryEpochFlowState,
   readTelemetryEpochState,
   removeDetectorTapOverride,
   replaceDetectorArbitrationMembership,
   resolveEffectiveDetectorConfig,
   updateDetectorArbitrationGroupName,
   updateDetectorGlobalConfig,
+  updateTelemetryEpochFlowState,
   updateTelemetryEpochState,
   upsertDetectorTapOverride,
 } from "./repositories/detector.ts";
@@ -231,6 +243,21 @@ function assertDetectorConfig(config: DetectorConfig): void {
   }
 }
 
+/** The flow baseline an epoch transition carries into the next epoch of the same assignment. */
+interface CarriedFlowBaseline {
+  readonly sourceId: string;
+  readonly counterMl: number;
+  readonly counterAtMs: number;
+  readonly measurementId: string | null;
+}
+
+interface PourRecord {
+  readonly sessionId: string;
+  readonly volumeMl: number;
+  readonly startedAtMs: number;
+  readonly completedAtMs: number;
+}
+
 function densityEqual(left: DensityResolution, right: DensityResolution): boolean {
   return left.densityGPerMl === right.densityGPerMl;
 }
@@ -281,13 +308,23 @@ export class DetectorService
   }
 
   onAuthorityChanged(database: DatabaseExecutor, event: AuthorityChangedEvent): void {
-    // Only the level source feeds the detector; a condition change keeps the epoch.
-    if (event.role !== "level" || event.previousSourceId === event.newSourceId) return;
+    // The level and flow sources feed the detectors; a condition change keeps the epoch.
+    if (event.role === "condition" || event.previousSourceId === event.newSourceId) return;
     const at = asEpochMs(event.changedAt);
+    // A level change keeps the flow baseline; #open drops it when the flow source changed.
+    const open = readOpenTelemetryEpochForTap(database, event.tapId);
+    const carried = open === undefined ? undefined : this.#carriedFlow(database, open);
     this.#close(database, event.tapId, "source_changed", at);
     const assignment = findActiveAssignmentByTapId(database, event.tapId);
     if (assignment !== undefined)
-      this.#open(database, event.tapId, assignment.fillId, assignment.id, at);
+      this.#open(
+        database,
+        event.tapId,
+        assignment.fillId,
+        assignment.id,
+        at,
+        open?.assignmentId === assignment.id ? carried : undefined,
+      );
   }
 
   onKegCorrection(database: DatabaseExecutor, event: KegCorrectionEvent): void {
@@ -314,9 +351,12 @@ export class DetectorService
   }
 
   onAcceptedSample(database: DatabaseExecutor, event: AcceptedSampleEvent): void {
-    // A sample without a keg-level reading (temperature alone) never touches epochs.
-    if (event.primaryMeasurement === null) return;
     if (event.capturedAssignmentId === null || event.capturedFillId === null) return;
+    if (event.dispensedVolumeMl !== null)
+      this.#acceptFlow(database, event, event.dispensedVolumeMl);
+    // A sample without a keg-level reading (temperature or flow alone) never touches the level
+    // detector.
+    if (event.primaryMeasurement === null) return;
     const epoch = readOpenTelemetryEpochForTap(database, event.tapId);
     const measuredAt = asEpochMs(event.measuredAt);
     if (
@@ -421,6 +461,23 @@ export class DetectorService
     if (Number.isNaN(nowMs)) throw new TypeError("Invalid detector clock");
     return this.#database.withTransaction(() => {
       const handledEpochs = new Set<string>();
+      for (const { epoch, flow } of listOpenFlowPourEpochs(this.#database)) {
+        // Pour deadlines are in the meter's measured time. Shift the server clock by how far
+        // the meter's latest reading lagged its receipt, so a meter whose clock runs behind
+        // the server does not have every pour closed after its first reading.
+        const latest = readSourceTapReading(
+          this.#database,
+          flow.sourceId,
+          epoch.tapId,
+          "dispensed_volume",
+        );
+        const lagMs =
+          latest === undefined ? 0 : Date.parse(latest.received_at) - latest.measured_at_epoch_ms;
+        const transition = advanceFlow(flow, epoch.config, nowMs - lagMs);
+        if (transition.effects.length === 0) continue;
+        this.#applyFlow(this.#database, epoch, flow, transition, iso(nowMs), null);
+        handledEpochs.add(epoch.id);
+      }
       for (let transitions = 0; transitions < 500; transitions += 1) {
         const next = listDueDetectorStates(this.#database, nowMs)
           .map((item) => ({
@@ -727,6 +784,7 @@ export class DetectorService
     fillId: string,
     assignmentId: string,
     at: number,
+    carriedFlow?: CarriedFlowBaseline,
   ): TelemetryEpoch {
     if (readOpenTelemetryEpochForTap(database, tapId) !== undefined)
       throw new Error("Tap already has an open telemetry epoch");
@@ -768,6 +826,31 @@ export class DetectorService
     };
     insertTelemetryEpoch(database, epoch);
     createInitialTelemetryEpochState(database, id, epoch.startedAt);
+    const flowSourceId = readTapTelemetryAuthority(database, tapId, "flow")?.source_id;
+    if (flowSourceId !== undefined) {
+      // A transition that keeps the flow source keeps its counter baseline, so no volume
+      // dispensed across the transition is lost; anything else starts from a fresh baseline.
+      const carried = carriedFlow?.sourceId === flowSourceId ? carriedFlow : undefined;
+      insertTelemetryEpochFlowState(database, {
+        epochId: id,
+        sourceId: flowSourceId,
+        counterMl: carried?.counterMl ?? null,
+        counterAtMs: carried?.counterAtMs ?? null,
+        pour: null,
+        updatedAt: epoch.startedAt,
+      });
+      if (carried !== undefined)
+        this.#syncFlowOnlyVolume(
+          database,
+          epoch,
+          carried.counterAtMs,
+          carried.measurementId === null
+            ? null
+            : { id: carried.measurementId, atMs: carried.counterAtMs },
+          epoch.startedAt,
+          true,
+        );
+    }
     return epoch;
   }
 
@@ -779,6 +862,11 @@ export class DetectorService
   ): TelemetryEpoch | undefined {
     const epoch = readOpenTelemetryEpochForTap(database, tapId);
     if (epoch === undefined) return undefined;
+    // A flow pour still open when its epoch ends really happened, so it is recorded (or
+    // discarded below the minimum) rather than dropped.
+    const flow = readTelemetryEpochFlowState(database, epoch.id);
+    if (flow?.pour != null)
+      this.#applyFlow(database, epoch, flow, closeFlowPour(flow, epoch.config), iso(at), null);
     const state = readTelemetryEpochState(database, epoch.id);
     if (state === undefined) throw new Error("Telemetry epoch runtime state is missing");
     updateTelemetryEpochState(database, {
@@ -811,8 +899,117 @@ export class DetectorService
     reason: TelemetryEpochCloseReason,
     at: number,
   ): TelemetryEpoch {
+    const carried = this.#carriedFlow(database, epoch);
     this.#close(database, epoch.tapId, reason, at);
-    return this.#open(database, epoch.tapId, epoch.fillId, epoch.assignmentId, at);
+    return this.#open(database, epoch.tapId, epoch.fillId, epoch.assignmentId, at, carried);
+  }
+
+  #carriedFlow(database: DatabaseExecutor, epoch: TelemetryEpoch): CarriedFlowBaseline | undefined {
+    const flow = readTelemetryEpochFlowState(database, epoch.id);
+    if (flow === undefined || flow.counterMl === null || flow.counterAtMs === null)
+      return undefined;
+    return {
+      sourceId: flow.sourceId,
+      counterMl: flow.counterMl,
+      counterAtMs: flow.counterAtMs,
+      measurementId: readTelemetryEpochState(database, epoch.id)?.lastMeasurementId ?? null,
+    };
+  }
+
+  #acceptFlow(database: DatabaseExecutor, event: AcceptedSampleEvent, counterMl: number): void {
+    const epoch = readOpenTelemetryEpochForTap(database, event.tapId);
+    const measuredAt = asEpochMs(event.measuredAt);
+    if (
+      epoch === undefined ||
+      epoch.assignmentId !== event.capturedAssignmentId ||
+      epoch.fillId !== event.capturedFillId ||
+      epoch.normalizationVersion !== event.normalizationVersion ||
+      measuredAt < epoch.startedAtEpochMs
+    )
+      return;
+    const flow = readTelemetryEpochFlowState(database, epoch.id);
+    if (flow === undefined || flow.sourceId !== event.sourceId) return;
+    this.#applyFlow(
+      database,
+      epoch,
+      flow,
+      reduceFlow(flow, { counterMl, atMs: measuredAt }, epoch.config, this.#ids()),
+      event.receivedAt,
+      { id: event.measurementId, atMs: measuredAt },
+    );
+  }
+
+  /** Persists a flow transition, records its completed pour, and refreshes flow-only volume. */
+  #applyFlow(
+    database: DatabaseExecutor,
+    epoch: TelemetryEpoch,
+    flow: TelemetryEpochFlowState,
+    transition: FlowDetectorTransition,
+    updatedAt: string,
+    measurement: { readonly id: string; readonly atMs: number } | null,
+  ): void {
+    const next = { ...flow, ...transition.state, updatedAt };
+    if (!updateTelemetryEpochFlowState(database, next))
+      throw new Error("Telemetry epoch flow state is missing");
+    for (const effect of transition.effects) {
+      if (effect.type === "flow_pour_completed") this.#recordPour(database, epoch, effect);
+    }
+    if (next.counterAtMs !== null)
+      this.#syncFlowOnlyVolume(
+        database,
+        epoch,
+        next.counterAtMs,
+        measurement,
+        updatedAt,
+        transition.effects.some((effect) => effect.type !== "flow_pour_discarded"),
+      );
+  }
+
+  /**
+   * A Tap with a flow source and no level source has no measured volume, so its epoch state
+   * carries the fill's start volume (the keg's capacity) minus its recorded pours, which keeps
+   * forecasting, low-keg health and the display working unchanged. A level source, when
+   * assigned, stays the truth for remaining volume, and this does nothing. The pours are
+   * summed again only on a baseline or a recorded pour (`recount`); other readings only
+   * refresh the measurement time.
+   */
+  #syncFlowOnlyVolume(
+    database: DatabaseExecutor,
+    epoch: TelemetryEpoch,
+    counterAtMs: number,
+    measurement: { readonly id: string; readonly atMs: number } | null,
+    updatedAt: string,
+    recount: boolean,
+  ): void {
+    if (epoch.sourceId !== null) return;
+    const state = readTelemetryEpochState(database, epoch.id);
+    if (state === undefined) throw new Error("Telemetry epoch runtime state is missing");
+    if (state.phase === "closed") return;
+    const volumeMl =
+      !recount && state.phase === "ready" && state.lastStabilizedVolumeMl !== null
+        ? state.lastStabilizedVolumeMl
+        : Math.max(
+            0,
+            epoch.capacityMl -
+              listCompletedPoursForFill(database, epoch.fillId).reduce(
+                (total, pour) => total + pour.canonicalVolumeMl,
+                0,
+              ),
+          );
+    const measuredAtMs = measurement?.atMs ?? state.lastMeasuredAtMs ?? counterAtMs;
+    updateTelemetryEpochState(database, {
+      ...state,
+      phase: "ready",
+      baselineVolumeMl: volumeMl,
+      baselineAtMs: measuredAtMs,
+      lastMeasurementId: measurement?.id ?? state.lastMeasurementId,
+      lastMeasuredAtMs: measuredAtMs,
+      lastInterpretedVolumeMl: volumeMl,
+      lastStabilizedVolumeMl: volumeMl,
+      lastPublicVolumeMl: volumeMl,
+      lastDiagnosticCode: "ok",
+      updatedAt,
+    });
   }
   #history(database: DatabaseExecutor, epochId: string) {
     return listTelemetryEpochSamples(database, epochId).map((sample) => ({
@@ -938,55 +1135,61 @@ export class DetectorService
           { idFactory: this.#ids },
         );
       }
-      if (effect.type === "pour_completed") {
-        const result = insertCompletedPourIdempotently(database, {
-          id: this.#ids(),
-          effectKey: `telemetry-pour:${epoch.id}:${effect.sessionId}:complete`,
-          fillId: epoch.fillId,
-          tapId: epoch.tapId,
-          assignmentId: epoch.assignmentId,
-          epochId: epoch.id,
-          detectorSessionId: effect.sessionId,
-          canonicalVolumeMl: effect.volumeMl,
-          startedAt: iso(effect.startedAtMs),
-          completedAt: iso(effect.completedAtMs),
-          createdAt: iso(effect.completedAtMs),
-        });
-        if (result.created)
-          appendActivity(
-            database,
-            {
-              category: "domain",
-              action: "transition",
-              actorType: "system",
-              entityType: "pour",
-              entityId: result.pour.id,
-              details: {
-                transition: "completed",
-                tap_id: epoch.tapId,
-                fill_id: epoch.fillId,
-                volume_ml: effect.volumeMl,
-                effect_key: result.pour.effectKey,
-              },
-              occurredAt: iso(effect.completedAtMs),
-            },
-            { idFactory: this.#ids },
-          );
-        if (result.created) {
-          const callback = this.#onPourCompleted?.(database, {
-            id: result.pour.id,
-            effectKey: result.pour.effectKey,
-            fillId: result.pour.fillId,
-            tapId: result.pour.tapId,
-            assignmentId: result.pour.assignmentId,
-            epochId: result.pour.epochId,
-            canonicalVolumeMl: result.pour.canonicalVolumeMl,
-            completedAt: result.pour.completedAt,
-          });
-          assertSynchronousCompletion(callback, "Pour completion callback");
-        }
-      }
+      // Flow pours, scale truth: with a flow source the scale keeps volume, warnings and
+      // arbitration, but only the flow meter records pours.
+      if (
+        effect.type === "pour_completed" &&
+        readTelemetryEpochFlowState(database, epoch.id) === undefined
+      )
+        this.#recordPour(database, epoch, effect);
     }
+  }
+
+  #recordPour(database: DatabaseExecutor, epoch: TelemetryEpoch, effect: PourRecord): void {
+    const result = insertCompletedPourIdempotently(database, {
+      id: this.#ids(),
+      effectKey: `telemetry-pour:${epoch.id}:${effect.sessionId}:complete`,
+      fillId: epoch.fillId,
+      tapId: epoch.tapId,
+      assignmentId: epoch.assignmentId,
+      epochId: epoch.id,
+      detectorSessionId: effect.sessionId,
+      canonicalVolumeMl: effect.volumeMl,
+      startedAt: iso(effect.startedAtMs),
+      completedAt: iso(effect.completedAtMs),
+      createdAt: iso(effect.completedAtMs),
+    });
+    if (!result.created) return;
+    appendActivity(
+      database,
+      {
+        category: "domain",
+        action: "transition",
+        actorType: "system",
+        entityType: "pour",
+        entityId: result.pour.id,
+        details: {
+          transition: "completed",
+          tap_id: epoch.tapId,
+          fill_id: epoch.fillId,
+          volume_ml: effect.volumeMl,
+          effect_key: result.pour.effectKey,
+        },
+        occurredAt: iso(effect.completedAtMs),
+      },
+      { idFactory: this.#ids },
+    );
+    const callback = this.#onPourCompleted?.(database, {
+      id: result.pour.id,
+      effectKey: result.pour.effectKey,
+      fillId: result.pour.fillId,
+      tapId: result.pour.tapId,
+      assignmentId: result.pour.assignmentId,
+      epochId: result.pour.epochId,
+      canonicalVolumeMl: result.pour.canonicalVolumeMl,
+      completedAt: result.pour.completedAt,
+    });
+    assertSynchronousCompletion(callback, "Pour completion callback");
   }
 
   #replaceGroupMembers(groupId: string, tapIds: readonly string[], at: number): void {
