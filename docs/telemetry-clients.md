@@ -11,10 +11,11 @@ device or bridge side. The machine contract is [`openapi/telemetry-v1.json`](../
    name (for example `Keg scale 1`). The machine key (`tbk_…`) is shown **once**; store it in
    the device or bridge configuration, not in a shared document.
 2. Open the Tap in Admin (**Taps → the Tap → Telemetry authority**), choose a **Level source**
-   (the scale: keg level and pours) and a **Condition source** (temperature, pressure), and save. One
-   device can hold both roles; a separate probe can hold the condition role for a Tap whose scale
-   is another device. Changing the level source needs a fresh baseline; changing the condition
-   source does not.
+   (the scale: keg level, and pours unless the Tap has a flow source), a **Condition source**
+   (temperature, pressure) and a **Flow source** (a flow meter: pours), and save. Each role is
+   optional. One device can hold several roles; a separate probe can hold the condition role for
+   a Tap whose scale is another device. Changing the level or flow source needs a fresh baseline;
+   changing the condition source does not.
    - Tapboard keeps only the readings whose role the sending source holds on that Tap and
      ignores the rest, so a scale that also reports temperature keeps working after you give the
      condition role to a probe.
@@ -74,9 +75,11 @@ retrying `{"measurement": {"kind": "total_weight", "value": 21.4, "unit": "kg"}}
 `{"readings": [{"metric": "total_weight", "value": 21.4, "unit": "kg"}]}` with the same
 `client_sample_id` is a duplicate, not a conflict.
 
-A sample with a keg-level reading feeds pour detection, forecasts, and keg-level health. A sample
-without one is stored, updates the latest readings, health (serving temperature), and the tap
-card's temperature, and leaves pour detection untouched.
+A sample with a keg-level reading feeds the scale's pour detection, forecasts, and keg-level
+health. A `dispensed_volume` reading feeds flow pour detection (see
+[Flow meters](#flow-meters)). A sample with neither is stored, updates the latest readings,
+health (serving temperature), and the tap card's temperature, and leaves pour detection
+untouched.
 
 ## 4. Registered metrics
 
@@ -89,10 +92,30 @@ Tapboard accepts only these metrics. Bounds apply to the value as sent, before u
 | `fill_percentage`  | keg level                                                                        | `percent`                       | 0–100        | percent     |
 | `temperature`      | condition: serving-temperature health and the tap card                           | `c`, `f`                        | −100 to 150  | Celsius     |
 | `pressure`         | condition: gauge serving pressure, shown on the Admin Tap page                   | `kpa`, `psi`, `bar`             | −100 to 1000 | kPa         |
+| `dispensed_volume` | flow: a flow meter's cumulative, calibrated counter; feeds flow pour detection   | `ml`, `l`, `us_fl_oz`, `us_gal` | ≥ 0          | millilitres |
 
 Pressure bounds apply in whichever unit is sent, so the range is loose for `psi` and `bar`.
 Values are rounded to six decimal places after conversion. An unregistered metric or a unit the
 metric does not accept is a 400 whose `details.reason` names the metric.
+
+### Flow meters
+
+A flow meter sends `dispensed_volume`: the total volume it has dispensed since it last reset,
+already calibrated. Calibration (pulses to volume) happens on the device or bridge, as Kegtron,
+Kegboard and Keg Cop do; Tapboard stores no K-factor. With ESPHome, for example, send the
+`total` of a `pulse_meter` sensor after a `multiply` filter that converts pulses to ml.
+
+- Post on change, at most once a second while beer flows, and a heartbeat every 60 s when idle.
+- The first reading after the flow source is assigned (or the Tap gets a new Fill) is the
+  baseline. An increase opens or extends a pour; the detector's quiet period with no increase
+  closes it, and its hard timeout bounds it (flow that continues opens the next pour). A pour
+  below the minimum pour is discarded. The detector settings are the Tap's usual ones.
+- A decrease is a reset (reboot or keg reset): an open pour closes at the last value, and the
+  new value is the baseline.
+- **Flow pours, scale truth.** When a Tap has a flow source, pours come only from the flow
+  meter. A scale, if the Tap also has a level source, still gives remaining volume and keeps
+  low-keg and leak evidence, but records no pours. Without a scale, remaining volume is the
+  keg's capacity minus the Fill's recorded pours.
 
 ## 5. Responses
 
@@ -291,7 +314,7 @@ while True:
     time.sleep(30)
 ```
 
-A reading that has no registered metric (humidity, CO₂, flow) can't be sent yet. Registering a
+A reading that has no registered metric (humidity, CO₂) can't be sent yet. Registering a
 condition or recorded metric is a code change to `src/features/telemetry/metrics.ts`, with no
 migration; see [architecture.md](../architecture.md).
 
@@ -301,7 +324,7 @@ migration; see [architecture.md](../architecture.md).
 | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 401                                                   | The header is `Authorization: Bearer tbk_…` with the whole key; the key wasn't rotated; the source isn't disabled       |
 | 404                                                   | The URL's tap number matches a Tap in Admin                                                                             |
-| 409 `telemetry.not_authoritative`                     | The Tap's **Level source** or **Condition source** is this source, matching the readings it sends                       |
+| 409 `telemetry.not_authoritative`                     | The Tap's **Level**, **Condition** or **Flow source** is this source, matching the readings it sends                    |
 | 409 `telemetry.future_timestamp` or `stale_timestamp` | The device clock (NTP) and that `measured_at` is UTC or carries its offset                                              |
 | 409 `telemetry.out_of_order`                          | Each sample's `measured_at` is newer than the last one from this source for the Tap, including temperature-only samples |
 | 409 `telemetry.idempotency_conflict`                  | `client_sample_id` is unique per sample, not reused for new values                                                      |

@@ -33,6 +33,7 @@ async function setup(context: test.TestContext, hooks: { onOpenSimulation?: () =
   telemetry.setTapAuthority(tap.id, {
     levelSourceId: source.source.id,
     conditionSourceId: source.source.id,
+    flowSourceId: null,
   });
   db.close();
   const config = {

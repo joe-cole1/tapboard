@@ -129,6 +129,7 @@ const measuredTap = taps.listTaps().find((tap) => tap.tapNumber === 1)!;
 telemetry.setTapAuthority(measuredTap.id, {
   levelSourceId: source.id,
   conditionSourceId: source.id,
+  flowSourceId: null,
 });
 taps.assignFill(measuredTap.id, { fillId: measuredFill.id });
 const mysteryBeverage = beverages.createCustomBeverage({

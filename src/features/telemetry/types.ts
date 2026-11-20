@@ -56,10 +56,12 @@ export interface TelemetrySourceWithKeyRow {
 }
 
 /**
- * The roles a Tap assigns to sources: `level` (keg level and pours) and `condition`
- * (temperature and other condition metrics). `recorded` metrics need no role of their own.
+ * The roles a Tap assigns to sources: `level` (keg level, and pours unless the Tap has a flow
+ * source), `condition` (temperature and other condition metrics) and `flow` (a flow meter's
+ * dispensed-volume counter, which then supplies the Tap's pours). `recorded` metrics need no
+ * role of their own.
  */
-export const TELEMETRY_AUTHORITY_ROLES = ["level", "condition"] as const;
+export const TELEMETRY_AUTHORITY_ROLES = ["level", "condition", "flow"] as const;
 export type TelemetryAuthorityRole = (typeof TELEMETRY_AUTHORITY_ROLES)[number];
 
 export interface TapTelemetryAuthorityRow {
@@ -190,6 +192,7 @@ export interface TapTelemetryAuthority {
   readonly tapId: string;
   readonly level: TapTelemetryRoleAuthority | null;
   readonly condition: TapTelemetryRoleAuthority | null;
+  readonly flow: TapTelemetryRoleAuthority | null;
 }
 
 export interface TelemetrySettings {
@@ -274,6 +277,7 @@ export interface RotateTelemetrySourceInput {
 export interface AssignAuthorityInput {
   readonly levelSourceId: string | null;
   readonly conditionSourceId: string | null;
+  readonly flowSourceId: string | null;
 }
 
 export interface UpdateTelemetrySettingsInput {
@@ -343,7 +347,7 @@ export interface BatchIngestResult {
   readonly results: readonly BatchItemIngestResult[];
 }
 
-/** One role's source changed on a Tap. Only a `level` change needs a fresh baseline. */
+/** One role's source changed on a Tap. A `level` or `flow` change needs a fresh baseline. */
 export interface AuthorityChangedEvent {
   readonly tapId: string;
   readonly role: TelemetryAuthorityRole;
@@ -370,6 +374,8 @@ export interface AcceptedSampleEvent {
     readonly value: number;
   } | null;
   readonly temperatureC: number | null;
+  /** The sample's flow-meter counter in ml; null when it carries none. */
+  readonly dispensedVolumeMl: number | null;
   readonly capturedAssignmentId: string | null;
   readonly capturedFillId: string | null;
 }

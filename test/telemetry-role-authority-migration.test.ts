@@ -56,7 +56,9 @@ void test("v27 Tap authority upgrades to the same source for both roles", (conte
     v27.close();
   }
 
-  const upgraded = openDatabase(path);
+  // Pinned to v28: later migrations add roles (v29 adds `flow`).
+  const v28 = { migrations: MIGRATIONS.slice(0, TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION) };
+  const upgraded = openDatabase(path, v28);
   try {
     assert.equal(
       upgraded.pragma<number>("user_version", { simple: true }),
@@ -130,7 +132,7 @@ void test("v27 Tap authority upgrades to the same source for both roles", (conte
   }
 
   // The upgraded file validates as canonical when reopened.
-  openDatabase(path).close();
+  openDatabase(path, v28).close();
 });
 
 void test("a v28 database with the old single-source authority table is rejected", (context) => {

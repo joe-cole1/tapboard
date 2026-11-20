@@ -7,12 +7,14 @@
  *   (`primary_kind` keeps a CHECK list). A sample carries at most one level reading.
  * - `condition` metrics (temperature, pressure) describe serving conditions. Temperature feeds
  *   health and the display; pressure is shown on the Admin Tap page.
+ * - `flow` metrics come from a flow meter: `dispensed_volume` is a cumulative counter,
+ *   calibrated on the device, that feeds the flow pour detector (`flow-detector.ts`).
  * - `recorded` metrics are stored only.
  *
  * A `condition` or `recorded` metric needs only an entry here: readings are stored in the
  * generic `telemetry_readings` and `telemetry_source_tap_readings` tables.
  */
-export type TelemetryMetricRole = "level" | "condition" | "recorded";
+export type TelemetryMetricRole = "level" | "condition" | "flow" | "recorded";
 
 export interface TelemetryMetricDefinition {
   readonly role: TelemetryMetricRole;
@@ -34,6 +36,12 @@ const factor =
   (multiplier: number) =>
   (value: number): number =>
     value * multiplier;
+const volumeUnits = {
+  ml: identity,
+  l: factor(1000),
+  us_fl_oz: factor(29.5735295625),
+  us_gal: factor(3785.411784),
+};
 
 export const TELEMETRY_METRICS: Readonly<Record<string, TelemetryMetricDefinition>> = {
   total_weight: {
@@ -46,12 +54,7 @@ export const TELEMETRY_METRICS: Readonly<Record<string, TelemetryMetricDefinitio
   remaining_volume: {
     role: "level",
     canonicalUnit: "ml",
-    units: {
-      ml: identity,
-      l: factor(1000),
-      us_fl_oz: factor(29.5735295625),
-      us_gal: factor(3785.411784),
-    },
+    units: volumeUnits,
     min: 0,
     column: "remaining_volume_ml",
   },
@@ -81,6 +84,14 @@ export const TELEMETRY_METRICS: Readonly<Record<string, TelemetryMetricDefinitio
     units: { kpa: identity, psi: factor(6.894757293168), bar: factor(100) },
     min: -100,
     max: 1000,
+  },
+  // Total volume a flow meter has dispensed since its last reset, calibrated on the device. A
+  // decrease is a reset. Tapboard stores no K-factor.
+  dispensed_volume: {
+    role: "flow",
+    canonicalUnit: "ml",
+    units: volumeUnits,
+    min: 0,
   },
 };
 

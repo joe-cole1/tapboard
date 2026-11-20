@@ -928,10 +928,11 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   );
   assert.match(tapDetailHtml, /name="updatedAt"/);
   assert.match(tapDetailHtml, /Telemetry authority/);
-  assert.match(tapDetailHtml, /Level: QC telemetry source · Condition: none/);
+  assert.match(tapDetailHtml, /Level: QC telemetry source · Condition and flow: none/);
   assert.match(tapDetailHtml, /Latest pressure: 82\.7 kPa, measured Aug 1, 2026, 12:05 AM UTC/);
   assert.match(tapDetailHtml, /name="levelSourceId"/);
   assert.match(tapDetailHtml, /name="conditionSourceId"/);
+  assert.match(tapDetailHtml, /name="flowSourceId"/);
   assert.match(tapDetailHtml, /Mystery Tap reveal fields/);
   assert.match(tapDetailHtml, /Permanent deletion/);
   assert.match(tapDetailHtml, /class="admin-table admin-detail-table"/);
@@ -1174,11 +1175,13 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
     });
   }
 
-  // The no-JS form sets both role sources; only a level change asks for a fresh baseline.
+  // The no-JS form sets every role source; only a level or flow change asks for a fresh
+  // baseline.
   const splitResponse = await post(`/admin/taps/${TAP_ID}/authority`, {
     updatedAt: tap.updatedAt,
     levelSourceId: "telemetry-active-qc",
     conditionSourceId: "telemetry-created-qc",
+    flowSourceId: "",
   });
   assert.equal(splitResponse.status, 303);
   assert.equal(
@@ -1187,13 +1190,18 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   );
   assert.deepEqual(telemetryAuthorityCalls.at(-1), {
     id: TAP_ID,
-    input: { levelSourceId: "telemetry-active-qc", conditionSourceId: "telemetry-created-qc" },
+    input: {
+      levelSourceId: "telemetry-active-qc",
+      conditionSourceId: "telemetry-created-qc",
+      flowSourceId: "",
+    },
     actor: { actorType: "admin", sessionId: SESSION_ID },
   });
   const clearedResponse = await post(`/admin/taps/${TAP_ID}/authority`, {
     updatedAt: tap.updatedAt,
     levelSourceId: "",
     conditionSourceId: "",
+    flowSourceId: "",
   });
   assert.equal(
     new URL(clearedResponse.headers.get("location") ?? "", base).searchParams.get("notice"),

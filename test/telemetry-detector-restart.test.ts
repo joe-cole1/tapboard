@@ -110,6 +110,7 @@ function setup(h: ReturnType<typeof harness>) {
   h.telemetryService.setTapAuthority(tap.id, {
     levelSourceId: source.id,
     conditionSourceId: source.id,
+    flowSourceId: null,
   });
   h.detector.setTapOverride(tap.id, fastConfig());
   h.set(1000);

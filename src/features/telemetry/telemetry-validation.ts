@@ -107,10 +107,11 @@ export function validateRotateTelemetrySourceInput(input: unknown): RotateTeleme
 
 export function validateAssignAuthorityInput(input: unknown): AssignAuthorityInput {
   const obj = requirePlainObject(input, "body");
-  rejectUnknownKeys(obj, ["levelSourceId", "conditionSourceId"], "body");
+  rejectUnknownKeys(obj, ["levelSourceId", "conditionSourceId", "flowSourceId"], "body");
   return {
     levelSourceId: authoritySourceId(obj, "levelSourceId"),
     conditionSourceId: authoritySourceId(obj, "conditionSourceId"),
+    flowSourceId: authoritySourceId(obj, "flowSourceId"),
   };
 }
 

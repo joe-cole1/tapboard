@@ -56,7 +56,9 @@ export const TELEMETRY_READINGS_SCHEMA_VERSION = 27;
 export const TELEMETRY_READINGS_MIGRATION_NAME = "telemetry-readings";
 export const TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION = 28;
 export const TELEMETRY_ROLE_AUTHORITY_MIGRATION_NAME = "telemetry-role-authority";
-export const CURRENT_SCHEMA_VERSION = TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION;
+export const TELEMETRY_FLOW_SCHEMA_VERSION = 29;
+export const TELEMETRY_FLOW_MIGRATION_NAME = "telemetry-flow";
+export const CURRENT_SCHEMA_VERSION = TELEMETRY_FLOW_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4308,6 +4310,101 @@ export const TELEMETRY_ROLE_AUTHORITY_MIGRATION: MigrationDefinition = {
   },
 };
 
+/**
+ * v29 adds flow meters (#170): a third authority role, `flow`, and per-epoch flow pour state.
+ * A row in `telemetry_epoch_flow_state` exists only for an epoch opened while its Tap had a
+ * flow source, and its `source_id` is that epoch's flow-source snapshot. `counter_ml` is the
+ * last cumulative counter value (null until the first reading sets the baseline); the `pour_*`
+ * columns describe the open pour, if any. Existing rows are copied unchanged and no epoch gets
+ * flow state, so every existing Tap behaves as before.
+ */
+export const TELEMETRY_FLOW_SCHEMA_SQL = `
+  CREATE TABLE tap_telemetry_authority (
+    tap_id TEXT NOT NULL REFERENCES taps(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('level', 'condition', 'flow')),
+    source_id TEXT NOT NULL REFERENCES telemetry_sources(id) ON DELETE RESTRICT,
+    changed_at TEXT NOT NULL,
+    PRIMARY KEY (tap_id, role)
+  );
+  CREATE TABLE telemetry_epoch_flow_state (
+    epoch_id TEXT PRIMARY KEY REFERENCES telemetry_epochs(id) ON DELETE CASCADE,
+    source_id TEXT NOT NULL REFERENCES telemetry_sources(id) ON DELETE RESTRICT,
+    counter_ml REAL CHECK (counter_ml IS NULL OR (typeof(counter_ml) IN ('integer','real') AND counter_ml >= 0)),
+    counter_at_epoch_ms INTEGER,
+    pour_session_id TEXT,
+    pour_start_counter_ml REAL CHECK (pour_start_counter_ml IS NULL OR (typeof(pour_start_counter_ml) IN ('integer','real') AND pour_start_counter_ml >= 0)),
+    pour_started_at_epoch_ms INTEGER,
+    pour_last_flow_at_epoch_ms INTEGER,
+    updated_at TEXT NOT NULL,
+    CHECK ((counter_ml IS NULL) = (counter_at_epoch_ms IS NULL)),
+    CHECK ((pour_session_id IS NULL AND pour_start_counter_ml IS NULL AND pour_started_at_epoch_ms IS NULL AND pour_last_flow_at_epoch_ms IS NULL) OR (pour_session_id IS NOT NULL AND pour_start_counter_ml IS NOT NULL AND pour_started_at_epoch_ms IS NOT NULL AND pour_last_flow_at_epoch_ms IS NOT NULL AND counter_ml >= pour_start_counter_ml AND pour_last_flow_at_epoch_ms >= pour_started_at_epoch_ms))
+  );
+`;
+
+const TELEMETRY_FLOW_SCHEMA_OBJECTS = [
+  ...TELEMETRY_ROLE_AUTHORITY_SCHEMA_OBJECTS,
+  ["table", "telemetry_epoch_flow_state"],
+] as const;
+
+function validateTelemetryFlowSchema(database: DatabaseExecutor): void {
+  validateTelemetrySchemaDefinition(
+    database,
+    TELEMETRY_FLOW_SCHEMA_OBJECTS,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_FLOW_SCHEMA_SQL}`,
+    TELEMETRY_FLOW_SCHEMA_VERSION,
+    (schemaDatabase) => {
+      validateTelemetryReadingsColumns(schemaDatabase);
+      expectColumns(schemaDatabase, "tap_telemetry_authority", [
+        { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        { name: "role", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+        { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "changed_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+      expectColumns(schemaDatabase, "telemetry_epoch_flow_state", [
+        { name: "epoch_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 1 },
+        { name: "source_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+        { name: "counter_ml", type: "REAL", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "counter_at_epoch_ms", type: "INTEGER", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "pour_session_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "pour_start_counter_ml", type: "REAL", notnull: 0, dflt_value: null, pk: 0 },
+        { name: "pour_started_at_epoch_ms", type: "INTEGER", notnull: 0, dflt_value: null, pk: 0 },
+        {
+          name: "pour_last_flow_at_epoch_ms",
+          type: "INTEGER",
+          notnull: 0,
+          dflt_value: null,
+          pk: 0,
+        },
+        { name: "updated_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+    },
+  );
+}
+
+export const TELEMETRY_FLOW_MIGRATION: MigrationDefinition = {
+  version: TELEMETRY_FLOW_SCHEMA_VERSION,
+  name: TELEMETRY_FLOW_MIGRATION_NAME,
+  apply(database) {
+    const [authoritySql, flowStateSql] = splitSqlStatements(TELEMETRY_FLOW_SCHEMA_SQL);
+    const indexSql = schemaStatements(TELEMETRY_SCHEMA_SQL, ["idx_tap_telemetry_authority_source"]);
+    const triggersSql = schemaStatements(TELEMETRY_DISABLED_LIFECYCLE_GUARDS_SQL, [
+      ...TAP_AUTHORITY_TRIGGERS,
+    ]);
+    database.execute(`
+      DROP TRIGGER trg_telemetry_sources_no_disable_with_authority;
+      ${authoritySql!.replace("CREATE TABLE tap_telemetry_authority", "CREATE TABLE tap_telemetry_authority_v29")};
+      INSERT INTO tap_telemetry_authority_v29 (tap_id, role, source_id, changed_at)
+        SELECT tap_id, role, source_id, changed_at FROM tap_telemetry_authority;
+      DROP TABLE tap_telemetry_authority;
+      ALTER TABLE tap_telemetry_authority_v29 RENAME TO tap_telemetry_authority;
+      ${indexSql}
+      ${triggersSql}
+      ${flowStateSql!};
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4338,6 +4435,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   DISPLAY_THEME_ACCENT_MIGRATION,
   TELEMETRY_READINGS_MIGRATION,
   TELEMETRY_ROLE_AUTHORITY_MIGRATION,
+  TELEMETRY_FLOW_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4379,7 +4477,8 @@ function applyMigration(
         migration.version === DISPLAY_THEME_FORMAT_SCHEMA_VERSION ||
         migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION ||
         migration.version === TELEMETRY_READINGS_SCHEMA_VERSION ||
-        migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION)
+        migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION ||
+        migration.version === TELEMETRY_FLOW_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4511,6 +4610,8 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateTelemetryReadingsSchema(database);
   } else if (version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION) {
     validateTelemetryRoleAuthoritySchema(database);
+  } else if (version === TELEMETRY_FLOW_SCHEMA_VERSION) {
+    validateTelemetryFlowSchema(database);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

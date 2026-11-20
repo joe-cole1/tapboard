@@ -380,6 +380,7 @@ void test("rotation, revocation and authority changes fail visibly without steal
     h.telemetryService.setTapAuthority(reassigned!.tapId, {
       levelSourceId: healthy!.sourceId,
       conditionSourceId: healthy!.sourceId,
+      flowSourceId: null,
     });
     const key = h.telemetryService.getSourceById(revoked!.sourceId)!.currentMachineKeyId;
     h.machineKeyService.revoke(key);
@@ -711,7 +712,7 @@ function seedLegacySimulation(dependencies: SimulationDependencies): readonly Si
       );
       telemetryService.setTapAuthority(
         tap.id,
-        { levelSourceId: source.id, conditionSourceId: source.id },
+        { levelSourceId: source.id, conditionSourceId: source.id, flowSourceId: null },
         actor,
       );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);

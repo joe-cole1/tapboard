@@ -380,6 +380,24 @@
           }
         }
       },
+      "DispensedVolumeReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "description": "A flow meter's cumulative dispensed volume since its last reset, calibrated on the device or bridge (Tapboard stores no K-factor). Supplied by the Tap's flow source. An increase opens or extends a pour; a decrease is a reset. With a flow source, pours come only from the flow meter.",
+        "properties": {
+          "metric": {
+            "const": "dispensed_volume"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0
+          },
+          "unit": {
+            "$ref": "#/components/schemas/VolumeUnit"
+          }
+        }
+      },
       "Reading": {
         "oneOf": [
           {
@@ -396,18 +414,21 @@
           },
           {
             "$ref": "#/components/schemas/PressureReading"
+          },
+          {
+            "$ref": "#/components/schemas/DispensedVolumeReading"
           }
         ],
-        "description": "One reading of a registered metric. total_weight, remaining_volume, and fill_percentage are keg-level metrics; temperature and pressure are condition metrics. Bounds apply to the value as sent, before unit conversion. An unregistered metric or a unit the metric does not accept is a 400 naming the metric."
+        "description": "One reading of a registered metric. total_weight, remaining_volume, and fill_percentage are keg-level metrics; temperature and pressure are condition metrics; dispensed_volume is the flow metric. Bounds apply to the value as sent, before unit conversion. An unregistered metric or a unit the metric does not accept is a 400 naming the metric."
       },
       "Readings": {
         "type": "array",
         "minItems": 1,
-        "maxItems": 5,
+        "maxItems": 6,
         "items": {
           "$ref": "#/components/schemas/Reading"
         },
-        "description": "The readings form of a sample. Each metric appears at most once and a sample carries at most one keg-level reading; either rule broken is a 400. A sample without a keg-level reading (for example temperature alone) is stored, updates the latest readings and health, and leaves the pour detector and keg-level status untouched. The two wire forms of the same values are the same sample for idempotency."
+        "description": "The readings form of a sample. Each metric appears at most once and a sample carries at most one keg-level reading; either rule broken is a 400. A sample without a keg-level reading (for example temperature alone) is stored, updates the latest readings and health, and leaves the keg-level detector and keg-level status untouched; a dispensed_volume reading feeds the flow pour detector. The two wire forms of the same values are the same sample for idempotency."
       },
       "TelemetrySample": {
         "type": "object",

@@ -325,7 +325,11 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
     (form, context, params) => {
       const { requiresFreshBaseline } = dependencies.telemetryService.setTapAuthority(
         params.id!,
-        { levelSourceId: form.levelSourceId, conditionSourceId: form.conditionSourceId },
+        {
+          levelSourceId: form.levelSourceId,
+          conditionSourceId: form.conditionSourceId,
+          flowSourceId: form.flowSourceId,
+        },
         actor(context),
       );
       return {

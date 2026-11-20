@@ -18,6 +18,7 @@ import type {
   EffectiveDetectorConfig,
   TelemetryEpoch,
   TelemetryEpochCloseReason,
+  TelemetryEpochFlowState,
   TelemetryEpochSample,
   TelemetryEpochState,
 } from "../epoch-types.ts";
@@ -542,6 +543,94 @@ export function listOpenPouringDetectorStatesForGroup(
     )
     .all(groupId)
     .map(due);
+}
+const flowCols =
+  "epoch_id,source_id,counter_ml,counter_at_epoch_ms,pour_session_id,pour_start_counter_ml,pour_started_at_epoch_ms,pour_last_flow_at_epoch_ms,updated_at";
+function flowState(r: Record<string, unknown>): TelemetryEpochFlowState {
+  return {
+    epochId: r.epoch_id as string,
+    sourceId: r.source_id as string,
+    counterMl: r.counter_ml as number | null,
+    counterAtMs: r.counter_at_epoch_ms as number | null,
+    pour:
+      r.pour_session_id === null
+        ? null
+        : {
+            sessionId: r.pour_session_id as string,
+            startCounterMl: r.pour_start_counter_ml as number,
+            startedAtMs: r.pour_started_at_epoch_ms as number,
+            lastFlowAtMs: r.pour_last_flow_at_epoch_ms as number,
+          },
+    updatedAt: r.updated_at as string,
+  };
+}
+const flowValues = (f: TelemetryEpochFlowState) => [
+  f.epochId,
+  f.sourceId,
+  f.counterMl,
+  f.counterAtMs,
+  f.pour?.sessionId ?? null,
+  f.pour?.startCounterMl ?? null,
+  f.pour?.startedAtMs ?? null,
+  f.pour?.lastFlowAtMs ?? null,
+  f.updatedAt,
+];
+export function insertTelemetryEpochFlowState(
+  db: DatabaseExecutor,
+  f: TelemetryEpochFlowState,
+): void {
+  db.prepare<unknown[]>(
+    `INSERT INTO telemetry_epoch_flow_state (${flowCols}) VALUES (${flowCols
+      .split(",")
+      .map(() => "?")
+      .join(",")})`,
+  ).run(...flowValues(f));
+}
+export function readTelemetryEpochFlowState(
+  db: DatabaseExecutor,
+  epochId: string,
+): TelemetryEpochFlowState | undefined {
+  const r = db
+    .prepare<[string], Record<string, unknown>>(
+      `SELECT ${flowCols} FROM telemetry_epoch_flow_state WHERE epoch_id=?`,
+    )
+    .get(epochId);
+  return r && flowState(r);
+}
+export function updateTelemetryEpochFlowState(
+  db: DatabaseExecutor,
+  f: TelemetryEpochFlowState,
+): boolean {
+  return (
+    db
+      .prepare<unknown[]>(
+        `UPDATE telemetry_epoch_flow_state SET ${flowCols
+          .split(",")
+          .slice(2)
+          .map((c) => `${c}=?`)
+          .join(",")} WHERE epoch_id=? AND source_id=?`,
+      )
+      .run(...flowValues(f).slice(2), f.epochId, f.sourceId).changes > 0
+  );
+}
+/** Open epochs whose flow meter has a pour in progress, oldest epoch first. */
+export function listOpenFlowPourEpochs(
+  db: DatabaseExecutor,
+): { readonly epoch: TelemetryEpoch; readonly flow: TelemetryEpochFlowState }[] {
+  // Both tables have a source_id, so the flow row is read on its own rather than joined.
+  return db
+    .prepare<[], Record<string, unknown>>(
+      `SELECT e.${epochCols.split(",").join(",e.")}
+       FROM telemetry_epochs e
+       JOIN telemetry_epoch_flow_state f ON f.epoch_id=e.id
+       WHERE e.ended_at IS NULL AND f.pour_session_id IS NOT NULL
+       ORDER BY e.started_at_epoch_ms,e.id`,
+    )
+    .all()
+    .map((r) => {
+      const open = epoch(r);
+      return { epoch: open, flow: readTelemetryEpochFlowState(db, open.id)! };
+    });
 }
 function pour(r: Record<string, unknown>): CompletedPour {
   return {
