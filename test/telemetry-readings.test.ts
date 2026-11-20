@@ -5,7 +5,11 @@ import { test } from "node:test";
 import { createAuthService } from "../src/features/auth/service.ts";
 import { createBeverageService } from "../src/features/beverages/service.ts";
 import { createFillService } from "../src/features/fills/service.ts";
-import { createHealthService, listHealthCheckStates } from "../src/features/health/index.ts";
+import {
+  createHealthService,
+  listHealthCheckStates,
+  listHealthIncidents,
+} from "../src/features/health/index.ts";
 import { createKegService } from "../src/features/kegs/service.ts";
 import { createMachineKeyService } from "../src/features/machine-keys/service.ts";
 import { createTapService } from "../src/features/taps/service.ts";
@@ -352,8 +356,8 @@ function harness() {
     conditionSourceId: source.id,
     flowSourceId: null,
   });
-  const assign = () => {
-    const keg = kegService.createKeg({ kegNumber: 1, capacityMl: 19_000, currentTareG: 4_000 });
+  const assign = (kegNumber = 1) => {
+    const keg = kegService.createKeg({ kegNumber, capacityMl: 19_000, currentTareG: 4_000 });
     const beverage = beverageService.createCustomBeverage({
       name: "Test beer",
       beverageType: "beer",
@@ -381,6 +385,7 @@ function harness() {
     detector,
     health,
     telemetryService,
+    tapService,
     tap,
     source,
     assign,
@@ -790,6 +795,71 @@ void test("scale health follows the level source and serving temperature the con
     assert.equal(check("scale_availability")?.reason, "no_authority");
     assert.equal(check("serving_temperature")?.reason, "temperature_normal");
     assert.equal(h.health.servingTemperatureC(h.tap.id), 4);
+  } finally {
+    h.database.close();
+  }
+});
+
+void test("a new level epoch keeps the probe's readings and open condition incidents (#215)", () => {
+  const h = harness();
+  const openIncidents = () =>
+    listHealthIncidents(h.database, h.tap.id)
+      .filter(({ resolvedAtMs }) => resolvedAtMs === null)
+      .map(({ checkId }) => checkId)
+      .sort();
+  const condition = () => ({
+    temperatureC: h.health.servingTemperatureC(h.tap.id),
+    pressureKpa: h.telemetryService.getCurrentTapReading(h.tap.id, "pressure")?.value ?? null,
+    openIncidents: openIncidents(),
+  });
+  try {
+    h.health.updateGlobalConfig(
+      {
+        serving_temperature: { durationMs: 1_000 },
+        serving_pressure: { enabled: true, durationMs: 1_000 },
+      },
+      { actorType: "admin", actorId: "admin-1", sessionId: "session-1" },
+    );
+    h.assign();
+    const { probe } = splitWithProbe(h, 500);
+    h.send(1_000, { measurement: { kind: "remaining_volume", value: 15_000, unit: "ml" } });
+    const warm = [
+      { metric: "temperature", value: 18, unit: "c" },
+      { metric: "pressure", value: 250, unit: "kpa" },
+    ];
+    h.send(2_000, { readings: warm }, probe);
+    h.send(4_000, { readings: warm }, probe);
+    const active = {
+      temperatureC: 18,
+      pressureKpa: 250,
+      openIncidents: ["serving_pressure", "serving_temperature"],
+    };
+    assert.deepEqual(condition(), active);
+
+    // Replacing the scale opens a new epoch on the same keg; the probe has not changed.
+    h.set(5_000);
+    const scale = h.telemetryService.createSource({ name: "new scale" }).source;
+    h.telemetryService.setTapAuthority(h.tap.id, {
+      levelSourceId: scale.id,
+      conditionSourceId: probe.id,
+      flowSourceId: null,
+    });
+    h.health.evaluateTap(h.tap.id);
+    assert.deepEqual(condition(), active);
+
+    // So does a manual rebaseline.
+    h.send(6_000, { measurement: { kind: "remaining_volume", value: 15_000, unit: "ml" } }, scale);
+    h.set(7_000);
+    h.detector.manualRebaseline(h.tap.id);
+    h.health.evaluateTap(h.tap.id);
+    assert.deepEqual(condition(), active);
+
+    // A new keg still starts without the previous keg's readings.
+    h.set(8_000);
+    h.tapService.unassign(h.tap.id);
+    h.assign(2);
+    h.health.evaluateTap(h.tap.id);
+    assert.deepEqual(condition(), { temperatureC: null, pressureKpa: null, openIncidents: [] });
   } finally {
     h.database.close();
   }

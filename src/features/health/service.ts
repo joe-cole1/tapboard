@@ -7,7 +7,12 @@ import {
 import { ApplicationError } from "../../shared/errors.ts";
 import { rejectUnknownKeys, requirePlainObject } from "../../shared/validation.ts";
 import { appendActivity } from "../activity/operations.ts";
-import { findTapById, listTaps, registerTapFirstUse } from "../taps/repository.ts";
+import {
+  findActiveAssignmentByTapId,
+  findTapById,
+  listTaps,
+  registerTapFirstUse,
+} from "../taps/repository.ts";
 import { validateTapId } from "../taps/tap-validation.ts";
 import type {
   AssignmentClosedContext,
@@ -521,6 +526,16 @@ export class HealthService
     const temperatureAuthorityChangedAtMs =
       conditionAuthority === undefined ? null : asMs(conditionAuthority.changed_at, "changed_at");
     const epoch = readOpenTelemetryEpochForTap(database, tap.id);
+    // Condition checks follow the keg, not the level detector: a new epoch on the same
+    // assignment resets only scale-driven timers.
+    const assignment =
+      epoch === undefined ? undefined : findActiveAssignmentByTapId(database, tap.id);
+    const assignmentStartedAtMs =
+      epoch === undefined
+        ? null
+        : assignment?.id === epoch.assignmentId
+          ? asMs(assignment.assignedAt, "assignedAt")
+          : epoch.startedAtEpochMs;
     const epochState =
       epoch === undefined ? undefined : readTelemetryEpochState(database, epoch.id);
     const status =
@@ -622,10 +637,13 @@ export class HealthService
         previous !== undefined &&
         checkAuthorityChangedAtMs !== null &&
         checkAuthorityChangedAtMs > previous.evaluatedAtMs;
+      const epochStartedAtMs = isConditionCheck(checkId)
+        ? assignmentStartedAtMs
+        : (epoch?.startedAtEpochMs ?? null);
       const epochReset =
         previous !== undefined &&
-        epoch !== undefined &&
-        epoch.startedAtEpochMs > previous.evaluatedAtMs;
+        epochStartedAtMs !== null &&
+        epochStartedAtMs > previous.evaluatedAtMs;
       const input: HealthEvaluationInput = {
         nowMs: evaluatedAtMs,
         enabled: tap.enabled,
