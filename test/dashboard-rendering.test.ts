@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 
 import type { PublicDashboardView, PublicTapCardView } from "../src/features/dashboard/types.ts";
 import { tapWarPercentages } from "../src/features/tap-wars/service.ts";
@@ -256,6 +257,72 @@ void test("live Mystery patches refresh the SVG accessible name from the incomin
     /applyGraphic\(svg, tap\);\s*svg\.setAttribute\("aria-label", graphicLabel\);\s*text\(svg\.querySelector\("title"\), graphicLabel\);/u,
   );
   assert.doesNotMatch(patch, /svg\.getAttribute\("aria-label"\)/u);
+});
+
+void test("a card retagged during a pour preview keeps everything but the preview class (#226)", async () => {
+  const source = await readFile(new URL("../public/js/dashboard.js", import.meta.url), "utf8");
+  const start = source.indexOf("function retagCard(card, tagName)");
+  const end = source.indexOf("function promoteStoryCard", start);
+  assert.ok(start >= 0 && end > start);
+
+  // Just enough of an element for retagCard: attributes, a class list and moved children.
+  class FakeElement {
+    readonly attributes: { name: string; value: string }[] = [];
+    readonly children: FakeElement[] = [];
+    parent: FakeElement | undefined;
+    replacedWith: FakeElement | undefined;
+    readonly tagName: string;
+    constructor(tagName: string) {
+      this.tagName = tagName;
+    }
+    setAttribute(name: string, value: string) {
+      const existing = this.attributes.find((attribute) => attribute.name === name);
+      if (existing) existing.value = value;
+      else this.attributes.push({ name, value });
+    }
+    getAttribute(name: string) {
+      return this.attributes.find((attribute) => attribute.name === name)?.value ?? null;
+    }
+    get classList() {
+      return {
+        remove: (name: string) =>
+          this.setAttribute(
+            "class",
+            (this.getAttribute("class") ?? "")
+              .split(/\s+/u)
+              .filter((value) => value !== "" && value !== name)
+              .join(" "),
+          ),
+      };
+    }
+    get firstChild(): FakeElement | null {
+      return this.children[0] ?? null;
+    }
+    // Appending moves the child, as in the DOM.
+    append(child: FakeElement) {
+      child.parent?.children.splice(child.parent.children.indexOf(child), 1);
+      child.parent = this;
+      this.children.push(child);
+    }
+    replaceWith(replacement: FakeElement) {
+      this.replacedWith = replacement;
+    }
+  }
+  const card = new FakeElement("a");
+  card.setAttribute("class", "tap-card is-pour-preview");
+  card.setAttribute("data-tap-id", "tap-1");
+  const graphic = new FakeElement("svg");
+  card.append(graphic);
+  const retagCard = runInNewContext(`${source.slice(start, end)}; retagCard`, {
+    document: { createElement: (tagName: string) => new FakeElement(tagName) },
+  }) as (card: FakeElement, tagName: string) => FakeElement;
+
+  const article = retagCard(card, "article");
+  assert.equal(article.tagName, "article");
+  assert.equal(card.replacedWith, article);
+  assert.equal(article.getAttribute("class"), "tap-card");
+  assert.equal(article.getAttribute("data-tap-id"), "tap-1");
+  assert.deepEqual(article.children, [graphic]);
 });
 
 void test("live header patches preserve the public brand while updating nested connectivity text", async () => {

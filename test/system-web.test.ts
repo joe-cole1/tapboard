@@ -649,6 +649,51 @@ void test("System saves units and serving temperature without touching the defau
   );
 });
 
+void test("Default theme autosave leaves units and serving temperature to System (#226)", async (context) => {
+  const f = await fixture(context);
+  const browser = await login(f);
+  const system = await (await get(f, "/admin/system", browser)).text();
+  await post(
+    f,
+    "/admin/system/units",
+    {
+      expectedDisplayRevision: inputValue(system, "expectedDisplayRevision"),
+      unitSystem: "metric",
+      showServingTemperature: "true",
+    },
+    browser,
+  );
+  const page = await (await get(f, "/admin/display/shared", browser)).text();
+  const autosaved = await fetch(`${f.base}/admin/display/shared`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-tapboard-enhancement": "autosave",
+      "x-csrf-token": browser.csrf,
+      cookie: browser.cookie,
+      origin: ORIGIN,
+    },
+    body: JSON.stringify({
+      expectedRevision: inputValue(page, "expectedRevision"),
+      tapboardName: "Autosaved Tapboard",
+      theme: "warm_pub",
+      font: "rye",
+      accent: "amber",
+      layoutMode: "scroll",
+    }),
+  });
+  assert.equal(autosaved.status, 200);
+  const after = await (await get(f, "/admin/system", browser)).text();
+  assert.match(after, /<option value="metric" selected>/u);
+  assert.match(after, /name="showServingTemperature" value="true" checked/u);
+  assert.match(
+    await (await get(f, "/admin/display", browser)).text(),
+    /<dt>Theme<\/dt><dd>Warm Pub<\/dd>/u,
+  );
+});
+
 void test("Default theme saves a custom accent and leaves units to System", async (context) => {
   const f = await fixture(context);
   const browser = await login(f);

@@ -300,6 +300,7 @@ let currentPublicPreview: typeof normalMysteryNamedPreview | typeof redactedMyst
 let previewAssignment: unknown = null;
 let previewMysteryEnabled = false;
 let previewMysteryLookupThrows = false;
+let unitSystem: "metric" | "us" = "metric";
 
 function activePreviewAssignment(id: string) {
   return {
@@ -462,7 +463,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
     },
     displayService: {
       getSettings: () => ({
-        unitSystem: "metric",
+        unitSystem,
         tapboardName: "QC Tapboard",
         accent: "amber",
         theme: "modern_dark",
@@ -933,6 +934,18 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(tapDetailHtml, /name="levelSourceId"/);
   assert.match(tapDetailHtml, /name="conditionSourceId"/);
   assert.match(tapDetailHtml, /name="flowSourceId"/);
+  // Every role dropdown offers the enabled source and none offers the disabled one (#225).
+  assert.equal(tapDetailHtml.match(/<option value="telemetry-active-qc"/g)?.length, 3);
+  assert.doesNotMatch(tapDetailHtml, /<option value="telemetry-disabled-qc"/);
+  unitSystem = "us";
+  try {
+    const usTapDetailHtml = await (
+      await fetch(`${base}/admin/taps/${TAP_ID}`, { headers: getHeaders })
+    ).text();
+    assert.match(usTapDetailHtml, /Latest pressure: 12\.0 psi, measured Aug 1, 2026/);
+  } finally {
+    unitSystem = "metric";
+  }
   assert.match(tapDetailHtml, /Mystery Tap reveal fields/);
   assert.match(tapDetailHtml, /Permanent deletion/);
   assert.match(tapDetailHtml, /class="admin-table admin-detail-table"/);
@@ -1126,6 +1139,15 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   ).text();
   assert.match(fillDetailHtml, /readonly value="Historical Lager — Keg 7 — QC Keg"/);
   assert.doesNotMatch(fillDetailHtml, /Featured on public card/);
+  // These doubles have no pour history, so a stale cursor must not add a second message (#226).
+  assert.match(fillDetailHtml, /Pour history is unavailable right now/);
+  const staleCursorFillHtml = await (
+    await fetch(`${base}/admin/keg-room/fills/${FILL_ID}?pours=not-a-cursor`, {
+      headers: getHeaders,
+    })
+  ).text();
+  assert.match(staleCursorFillHtml, /Pour history is unavailable right now/);
+  assert.doesNotMatch(staleCursorFillHtml, /no longer valid/);
   const activeFillDetailHtml = await (
     await fetch(`${base}/admin/keg-room/fills/${onTapFill.id}`, { headers: getHeaders })
   ).text();

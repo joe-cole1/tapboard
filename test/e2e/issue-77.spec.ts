@@ -598,6 +598,45 @@ test("Mystery redaction, reveal, finite graphics, and stable roots", async ({ br
   await context.close();
 });
 
+test("the manual density override autosaves and survives a reload (#227)", async ({ page }) => {
+  await login(page);
+  await page.goto("/admin/beverages");
+  const beverageLink = page
+    .locator("tbody tr")
+    .filter({ hasText: "E2E Pale Ale" })
+    .getByRole("link", { name: /E2E Pale Ale/u });
+  const beverageHref = await beverageLink.getAttribute("href");
+  expect(beverageHref).toMatch(/^\/admin\/beverages\/[^/]+$/u);
+  await beverageLink.click();
+  const presentationForm = page.locator('form[action$="/update"][data-autosave="blur"]');
+  const density = presentationForm.getByLabel("Manual density override");
+  const autosave = async (value: string) => {
+    await page.getByText("Edit presentation", { exact: true }).click();
+    await expect(presentationForm).toHaveAttribute("data-autosave-initialized", "true");
+    const request = page.waitForRequest(
+      (candidate) =>
+        candidate.method() === "POST" &&
+        new URL(candidate.url()).pathname === `${beverageHref}/update` &&
+        candidate.headers()["x-tapboard-enhancement"] === "autosave",
+    );
+    await density.fill(value);
+    await density.blur();
+    await request;
+    await expect(presentationForm.locator("[data-autosave-status]")).toHaveText("Saved");
+  };
+
+  await autosave("1.012");
+  await page.reload();
+  await page.getByText("Edit presentation", { exact: true }).click();
+  await expect(density).toHaveValue("1.012");
+  await page.reload();
+  // Clearing autosaves too, which leaves the fixture as it was.
+  await autosave("");
+  await page.reload();
+  await page.getByText("Edit presentation", { exact: true }).click();
+  await expect(density).toHaveValue("");
+});
+
 test("Fill Glass live updates use the server vessel contour and preserve the root SVG", async ({
   browser,
 }) => {

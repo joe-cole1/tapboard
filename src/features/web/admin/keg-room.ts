@@ -44,10 +44,10 @@ function fillPourHistory(
   requestUrl: string | undefined,
 ) {
   const path = `/admin/keg-room/fills/${encodeURIComponent(fillId)}`;
-  const requested = new URL(requestUrl ?? "/", "http://tapboard.local").searchParams.get("pours");
   let cursor: ForecastHistoryCursor | undefined;
   let cursorRejected = false;
   try {
+    const requested = new URL(requestUrl ?? "/", "http://tapboard.local").searchParams.get("pours");
     cursor = requested === null ? undefined : decodeForecastHistoryCursor(requested);
   } catch {
     // A stale or edited link falls back to the newest pours instead of failing the page.
@@ -83,9 +83,10 @@ function fillPourHistory(
       operation: "admin.fill.pour_history",
       ...(dependencies.logger ? { logger: dependencies.logger } : {}),
     });
+    // One message only: with no history to show, whether the link was valid does not matter.
     return {
       available: false,
-      cursorRejected,
+      cursorRejected: false,
       entries: [],
       isFirstPage: true,
       newestHref: path,

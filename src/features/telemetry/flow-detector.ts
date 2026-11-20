@@ -5,7 +5,9 @@ import type { DetectorConfig } from "./detector-config.ts";
  * `dispensed_volume` counter. The first reading sets the baseline; an increase opens or extends
  * a pour; `quietPeriodMs` without an increase closes it; a pour is at most `hardTimeoutMs` long
  * (later flow opens the next pour); a decrease is a reset that closes any open pour at the last
- * value and re-baselines. A pour below `minimumPourMl` is discarded.
+ * value and re-baselines. An increase that would make a pour larger than the keg is treated the
+ * same way, so one corrupt counter value cannot record an impossible pour. A pour below
+ * `minimumPourMl` is discarded.
  *
  * Readings arrive in measured order (the per-source watermark rejects older ones), so the
  * detector needs no sample history.
@@ -101,11 +103,13 @@ export function advanceFlow(
   return dueAt !== null && dueAt <= nowMs ? closeFlowPour(state, config) : { state, effects: [] };
 }
 
+/** `capacityMl` is the keg's: no single pour can be larger, so a bigger increase is a reset. */
 export function reduceFlow(
   previous: FlowDetectorState,
   sample: FlowSample,
   config: FlowDetectorConfig,
   sessionId: string,
+  capacityMl: number,
 ): FlowDetectorTransition {
   if (previous.counterAtMs !== null && sample.atMs <= previous.counterAtMs) {
     return { state: previous, effects: [] };
@@ -115,8 +119,13 @@ export function reduceFlow(
   const effects: FlowDetectorEffect[] = [...due.effects];
   let state = due.state;
   const counterMl = state.counterMl;
-  if (counterMl === null || sample.counterMl < counterMl) {
-    // First reading, or a reset (reboot or keg reset): close at the last value and re-baseline.
+  if (
+    counterMl === null ||
+    sample.counterMl < counterMl ||
+    sample.counterMl - (state.pour?.startCounterMl ?? counterMl) > capacityMl
+  ) {
+    // First reading, a reset (reboot or keg reset), or a counter jump no keg could pour (a
+    // corrupt reading): close at the last value and re-baseline.
     const closed = closeFlowPour(state, config);
     effects.push(...closed.effects, {
       type: "flow_baseline_established",

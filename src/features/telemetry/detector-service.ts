@@ -322,8 +322,11 @@ export class DetectorService
     // The level and flow sources feed the detectors; a condition change keeps the epoch.
     if (event.role === "condition" || event.previousSourceId === event.newSourceId) return;
     const at = asEpochMs(event.changedAt);
-    // A level change keeps the flow baseline; #open drops it when the flow source changed.
     const open = readOpenTelemetryEpochForTap(database, event.tapId);
+    // One save announces each changed role, but only after writing them all, so the epoch the
+    // first announcement opened already uses every new source and the rest keep it.
+    if (open !== undefined && this.#usesCurrentSources(database, open)) return;
+    // A level change keeps the flow baseline; #open drops it when the flow source changed.
     const carried = open === undefined ? undefined : this.#carriedFlow(database, open);
     this.#close(database, event.tapId, "source_changed", at);
     const assignment = findActiveAssignmentByTapId(database, event.tapId);
@@ -919,6 +922,15 @@ export class DetectorService
     return this.#open(database, epoch.tapId, epoch.fillId, epoch.assignmentId, at, carried);
   }
 
+  #usesCurrentSources(database: DatabaseExecutor, epoch: TelemetryEpoch): boolean {
+    const current = (role: "level" | "flow") =>
+      readTapTelemetryAuthority(database, epoch.tapId, role)?.source_id ?? null;
+    return (
+      epoch.sourceId === current("level") &&
+      (readTelemetryEpochFlowState(database, epoch.id)?.sourceId ?? null) === current("flow")
+    );
+  }
+
   #carriedFlow(database: DatabaseExecutor, epoch: TelemetryEpoch): CarriedFlowBaseline | undefined {
     const flow = readTelemetryEpochFlowState(database, epoch.id);
     if (flow === undefined || flow.counterMl === null || flow.counterAtMs === null)
@@ -954,7 +966,13 @@ export class DetectorService
       database,
       epoch,
       flow,
-      reduceFlow(flow, { counterMl, atMs: measuredAt }, epoch.config, this.#ids()),
+      reduceFlow(
+        flow,
+        { counterMl, atMs: measuredAt },
+        epoch.config,
+        this.#ids(),
+        epoch.capacityMl,
+      ),
       event.receivedAt,
       { id: event.measurementId, atMs: measuredAt },
     );

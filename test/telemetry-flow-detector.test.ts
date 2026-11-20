@@ -16,6 +16,7 @@ const config: FlowDetectorConfig = {
   hardTimeoutMs: 15_000,
   minimumPourMl: 30,
 };
+const capacityMl = 19_000;
 
 /** Feeds `[atMs, counterMl]` readings in order, collecting every effect. */
 function run(
@@ -26,7 +27,13 @@ function run(
   let session = 0;
   const effects: FlowDetectorEffect[] = [];
   for (const [atMs, counterMl] of readings) {
-    const transition = reduceFlow(state, { atMs, counterMl }, config, `pour-${++session}`);
+    const transition = reduceFlow(
+      state,
+      { atMs, counterMl },
+      config,
+      `pour-${++session}`,
+      capacityMl,
+    );
     state = transition.state;
     effects.push(...transition.effects);
   }
@@ -200,8 +207,55 @@ void test("a reading at or before the last one is ignored", () => {
     [0, 0],
     [1_000, 100],
   ]).state;
-  assert.deepEqual(reduceFlow(first, { atMs: 1_000, counterMl: 900 }, config, "x"), {
+  assert.deepEqual(reduceFlow(first, { atMs: 1_000, counterMl: 900 }, config, "x", capacityMl), {
     state: first,
     effects: [],
   });
+});
+
+void test("a counter jump larger than the keg is a reset, not a pour", () => {
+  const { effects, state } = run([
+    [0, 1_000],
+    [1_000, 1_100],
+    [2_000, 1e15],
+    [3_000, 1_300],
+    [4_000, 1_500],
+  ]);
+  assert.deepEqual(effects, [
+    { type: "flow_baseline_established", counterMl: 1_000 },
+    // The pour open before the jump is recorded at its last plausible value.
+    {
+      type: "flow_pour_completed",
+      sessionId: "pour-2",
+      volumeMl: 100,
+      startedAtMs: 1_000,
+      completedAtMs: 1_000,
+    },
+    { type: "flow_baseline_established", counterMl: 1e15 },
+    { type: "flow_baseline_established", counterMl: 1_300 },
+  ]);
+  assert.equal(state.pour?.startCounterMl, 1_300);
+});
+
+void test("a pour may reach the keg's capacity but not grow past it", () => {
+  const full = run([
+    [0, 0],
+    [1_000, capacityMl],
+  ]);
+  assert.equal(full.state.pour?.startCounterMl, 0);
+  const past = run([
+    [0, 0],
+    [1_000, capacityMl - 100],
+    [2_000, capacityMl + 1],
+  ]);
+  assert.deepEqual(pours(past.effects), [
+    {
+      type: "flow_pour_completed",
+      sessionId: "pour-2",
+      volumeMl: capacityMl - 100,
+      startedAtMs: 1_000,
+      completedAtMs: 1_000,
+    },
+  ]);
+  assert.deepEqual(past.state, { counterMl: capacityMl + 1, counterAtMs: 2_000, pour: null });
 });

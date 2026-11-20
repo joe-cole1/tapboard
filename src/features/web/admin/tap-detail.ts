@@ -3,6 +3,7 @@ import { reportFailure } from "../../../shared/diagnostics.ts";
 import type { HealthService } from "../../health/service.ts";
 import { tapDeletionConfirmationLabel, type TapService } from "../../taps/service.ts";
 import { DETECTOR_CONFIG_FIELDS, mergeDetectorConfig } from "../../telemetry/detector-config.ts";
+import { TELEMETRY_METRICS } from "../../telemetry/metrics.ts";
 import { HEALTH_CHECK_IDS } from "../../health/types.ts";
 import { type AdminContext } from "./context.ts";
 import {
@@ -22,6 +23,8 @@ import { HEALTH_SECTION_PRESENTATION } from "./health-presentation.ts";
 import { renderAdmin } from "./layout.ts";
 import { adminTimestampLabel } from "./presentation.ts";
 import type { RenderTapDetailDependencies } from "../contracts.ts";
+
+const KPA_PER_PSI = TELEMETRY_METRICS.pressure!.units.psi!(1);
 
 export function renderTapDetail(
   dependencies: RenderTapDetailDependencies,
@@ -60,11 +63,14 @@ export function renderTapDetail(
         ),
         mystery?.enabled === true,
       );
-  const telemetrySources = dependencies.telemetryService
-    .listSources()
+  const allTelemetrySources = dependencies.telemetryService.listSources();
+  // A disabled source cannot be assigned, so only enabled ones are offered; every name stays
+  // available for the summary of what is assigned.
+  const telemetrySources = allTelemetrySources
+    .filter((source) => source.disabledAt === null)
     .slice(0, 200)
     .map((source) => ({ id: source.id, name: source.name }));
-  const sourceNames = new Map(telemetrySources.map((source) => [source.id, source.name]));
+  const sourceNames = new Map(allTelemetrySources.map((source) => [source.id, source.name]));
 
   let levelSourceId = "";
   let conditionSourceId = "";
@@ -106,10 +112,24 @@ export function renderTapDetail(
   }
 
   let pressureLabel = "No reading";
+  let metric = false;
+  try {
+    metric = dependencies.displayService.getSettings().unitSystem === "metric";
+  } catch (error) {
+    // The reading is still worth showing; US units are the default.
+    reportFailure(error, {
+      operation: "admin.tap.unit_system",
+      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
+    });
+  }
   try {
     const pressure = dependencies.telemetryService.getCurrentTapReading(id, "pressure");
     if (pressure !== null) {
-      pressureLabel = `${Number(pressure.value.toFixed(1))} kPa, measured ${adminTimestampLabel(
+      // Readings are stored in kPa; US units show psi, like the gauges.
+      const value = metric
+        ? `${pressure.value.toFixed(1)} kPa`
+        : `${(pressure.value / KPA_PER_PSI).toFixed(1)} psi`;
+      pressureLabel = `${value}, measured ${adminTimestampLabel(
         new Date(pressure.measuredAtMs).toISOString(),
       )}`;
     }

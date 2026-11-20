@@ -77,7 +77,7 @@
         accent:
           document.documentElement.dataset.accent ??
           document.documentElement.dataset.sharedAccent ??
-          "amber",
+          "theme",
         font:
           document.documentElement.dataset.font ??
           document.documentElement.dataset.sharedFont ??
