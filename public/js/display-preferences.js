@@ -89,27 +89,39 @@ function sharedDatasetKey(key) {
   return `shared${key[0].toUpperCase()}${key.slice(1)}`;
 }
 
-export function stylesheetHref(values = {}) {
+let renderedParams;
+
+/** The stylesheet's parameters as the server rendered them, before any local change. */
+function serverStylesheetParams() {
+  if (renderedParams !== undefined) return renderedParams;
+  renderedParams = null;
   const existing = document.querySelector("[data-display-stylesheet]");
-  let existingParams;
   if (existing instanceof HTMLLinkElement) {
     try {
-      existingParams = new URL(existing.href, document.baseURI).searchParams;
+      renderedParams = new URL(existing.href, document.baseURI).searchParams;
     } catch {
-      existingParams = undefined;
+      renderedParams = null;
     }
   }
+  return renderedParams;
+}
+
+export function stylesheetHref(values = {}) {
+  const rendered = serverStylesheetParams();
+  // A value left at its default falls back to the server-rendered (shared) value, never to
+  // an earlier local override.
   const readValue = (name) => {
     const candidate =
       values[name] ??
       document.documentElement.dataset[name] ??
       document.documentElement.dataset[sharedDatasetKey(name)];
     if (typeof candidate === "string") return candidate;
-    return existingParams?.get(name) ?? "";
+    return rendered?.get(name) ?? "";
   };
   const theme = readValue("theme");
   const accent = readValue("accent");
-  const font = readValue("font");
+  // A page that loads every font face (the Admin display pages' font cards) keeps them all.
+  const font = rendered?.get("font") === "all" ? "all" : readValue("font");
   if (!theme || !accent || !font) return undefined;
   return `/assets/css/display.css?v=2&theme=${encodeURIComponent(theme)}&accent=${encodeURIComponent(accent)}&font=${encodeURIComponent(font)}`;
 }

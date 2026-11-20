@@ -1009,3 +1009,29 @@ test("targeted tap updates leave every card's bubble animation running", async (
   await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
   await context.close();
 });
+
+test("this display's local choices keep every font card and reset to the shared theme (#221)", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/admin/display/this-display");
+  const link = page.locator("link[data-display-stylesheet]");
+  const params = async () =>
+    Object.fromEntries(
+      new URL((await link.getAttribute("href")) ?? "", "http://tapboard.local").searchParams,
+    );
+  const shared = await params();
+  expect(shared.font).toBe("all");
+  const theme = shared.theme === "warm_pub" ? "cyberpunk" : "warm_pub";
+
+  await page.locator(`input[name="theme"][value="${theme}"]`).check({ force: true });
+  await page.locator('input[name="font"][value="rye"]').check({ force: true });
+  await expect.poll(params).toMatchObject({ theme, font: "all" });
+
+  await page.getByRole("button", { name: "Reset to default theme" }).click();
+  await expect.poll(params).toMatchObject({
+    theme: shared.theme,
+    accent: shared.accent,
+    font: "all",
+  });
+});
