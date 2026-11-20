@@ -68,12 +68,26 @@ jobs:
       # Specs share one fixture server, so an in-process Playwright retry would
       # start from the failed attempt's leftover state. Instead, rerun only the
       # failed specs once against a fresh server and database.
-      - name: Run browser tests (rerun failures once)
+      - name: Run browser tests
+        id: browser-tests
+        continue-on-error: true
+        run: npm run test:e2e
+      # The rerun clears test-results/, so keep the first run's traces and
+      # screenshots: a spec that passes on the rerun may still have failed
+      # because an earlier spec left state behind.
+      - name: Keep the first run's failure artifacts
+        if: steps.browser-tests.outcome == 'failure'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-first-run
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Rerun failed browser tests once
+        if: steps.browser-tests.outcome == 'failure'
         run: |
-          if ! npm run test:e2e; then
-            echo "::warning::Browser tests failed; rerunning only the failed specs once."
-            npm run test:e2e -- --last-failed
-          fi
+          echo "::warning::Browser tests failed; rerunning only the failed specs once. The first run's output is in the e2e-first-run artifact."
+          npm run test:e2e -- --last-failed
 
   production-container:
     runs-on: ubuntu-24.04

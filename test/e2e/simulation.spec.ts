@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { expect, test } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { SimulationStatus } from "../../src/features/simulation/ui-types.ts";
 import type { PublicDashboardView } from "../../src/features/dashboard/types.ts";
 
@@ -150,7 +150,18 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   await display.close();
 });
 
-test("simulation controls work with JavaScript disabled", async ({ browser }) => {
+async function simulationEnabled(page: Page): Promise<boolean> {
+  const response = await page.request.get("/api/admin/simulation");
+  return response.ok() && ((await response.json()) as SimulationStatus).enabled;
+}
+
+// Signs in without JavaScript, enters Simulation and runs `body`. Simulation is exited
+// afterwards even when `body` fails, so later specs start from the live workspace, and the
+// failure itself is what the test reports.
+async function withNoJavaScriptSimulation(
+  browser: Browser,
+  body: (page: Page) => Promise<void>,
+): Promise<void> {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   try {
@@ -164,6 +175,23 @@ test("simulation controls work with JavaScript disabled", async ({ browser }) =>
       await page.getByRole("switch", { name: "Enable simulation" }).click();
     } else await toggle.click();
     await expect(page.getByRole("heading", { name: "Simulator", exact: true })).toBeVisible();
+    await body(page);
+  } finally {
+    try {
+      // A dead page cannot report anything; the body's own failure is what matters then.
+      if (await simulationEnabled(page).catch(() => false)) {
+        await page.goto("/admin/simulator");
+        await page.getByRole("button", { name: "Exit simulation" }).click();
+        await expect(page).toHaveURL(/\/admin\/system/u);
+      }
+    } finally {
+      await context.close();
+    }
+  }
+}
+
+test("simulation controls work with JavaScript disabled", async ({ browser }) => {
+  await withNoJavaScriptSimulation(browser, async (page) => {
     const sensor = page.locator("[data-simulation-sensor]").first();
     await sensor.getByRole("button", { name: "Pause sensor" }).click();
     await expect(
@@ -174,9 +202,20 @@ test("simulation controls work with JavaScript disabled", async ({ browser }) =>
     ).toBeVisible();
     await page.getByRole("button", { name: "Exit simulation" }).click();
     await expect(page).toHaveURL(/\/admin\/system/u);
-  } finally {
-    await context.close();
-  }
+  });
+});
+
+test("a failure inside a no-JavaScript Simulation spec still exits Simulation", async ({
+  browser,
+  page,
+}) => {
+  await expect(
+    withNoJavaScriptSimulation(browser, () => Promise.reject(new Error("deliberate failure"))),
+  ).rejects.toThrow("deliberate failure");
+  await page.goto("/admin/login");
+  await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
+  await expect(page).toHaveURL(/\/admin\/overview/u);
+  expect(await simulationEnabled(page)).toBe(false);
 });
 
 for (const javaScriptEnabled of [true, false]) {
