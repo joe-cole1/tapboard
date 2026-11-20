@@ -21,8 +21,9 @@ export interface CurrentTapReading {
  * keg-level samples: a reading measured before its role's current authority was assigned
  * describes another source, and while a serving epoch is open only a reading attributed to
  * that epoch's assignment describes the current keg. A level reading must also come from the
- * epoch's source; a condition or flow reading comes from that role's source, which may be
- * another device.
+ * epoch's source and be measured after the epoch started. A condition or flow reading comes
+ * from that role's source, which may be another device, so a new epoch on the same keg (a
+ * level source change, a keg edit, a rebaseline) leaves it current.
  */
 export function currentTapReading(
   reading: TelemetrySourceTapReadingRow | undefined,
@@ -41,9 +42,9 @@ export function currentTapReading(
   if (measuredAtMs < Date.parse(authority.changed_at)) return null;
   if (
     epoch !== undefined &&
-    ((authority.role === "level" && epoch.sourceId !== reading.source_id) ||
-      epoch.assignmentId !== reading.captured_assignment_id ||
-      measuredAtMs < epoch.startedAtEpochMs)
+    (epoch.assignmentId !== reading.captured_assignment_id ||
+      (authority.role === "level" &&
+        (epoch.sourceId !== reading.source_id || measuredAtMs < epoch.startedAtEpochMs)))
   ) {
     return null;
   }
