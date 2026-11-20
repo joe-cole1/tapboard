@@ -136,7 +136,12 @@ test("Brew Story follows shared and local display preferences", async ({ browser
   await expect(volume.locator('[data-unit="metric"]')).toBeHidden();
   await expect(historyVolume).toHaveCount(1);
   await expect(historyVolume.locator('[data-unit="us"]')).toBeVisible();
-  await expect(historyVolume.locator('[data-unit="us"]')).toContainText("0.1 gal");
+  await expect(historyVolume.locator('[data-unit="us"]')).toContainText("16.9 fl oz");
+  await expect(historyVolume.locator("time")).toHaveAttribute(
+    "datetime",
+    "2026-08-15T11:59:30.000Z",
+  );
+  await expect(historyVolume.locator("time")).toHaveText("Aug 15, 2026, 11:59 AM UTC");
   await expect(historyVolume.locator('[data-unit="metric"]')).toBeHidden();
   await expect(temperature).toBeHidden();
 
@@ -151,7 +156,7 @@ test("Brew Story follows shared and local display preferences", async ({ browser
   await expect(volume.locator('[data-unit="metric"]')).toBeVisible();
   await expect(volume.locator('[data-unit="us"]')).toBeHidden();
   await expect(historyVolume.locator('[data-unit="metric"]')).toBeVisible();
-  await expect(historyVolume.locator('[data-unit="metric"]')).toContainText("0.5 L");
+  await expect(historyVolume.locator('[data-unit="metric"]')).toContainText("500 mL");
   await expect(historyVolume.locator('[data-unit="us"]')).toBeHidden();
   await expect(temperature).toBeHidden();
 

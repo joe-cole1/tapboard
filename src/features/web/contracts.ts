@@ -8,6 +8,7 @@ import type { DisplaySettingsService } from "../display/service.ts";
 import type { BeverageService } from "../beverages/service.ts";
 import type { KegService } from "../kegs/service.ts";
 import type { FillService } from "../fills/service.ts";
+import type { ForecastService } from "../forecasting/service.ts";
 import type { TapService } from "../taps/service.ts";
 import type { TelemetryService } from "../telemetry/service.ts";
 import type { DetectorService } from "../telemetry/detector-service.ts";
@@ -30,6 +31,7 @@ export interface WebRouteDependencies {
   readonly beverageService: BeverageService;
   readonly kegService: KegService;
   readonly fillService: FillService;
+  readonly forecastService: ForecastService;
   readonly tapService: TapService;
   readonly telemetryService: TelemetryService;
   readonly detectorService: DetectorService;
@@ -105,6 +107,7 @@ export type RegisterKegRoomPagesDependencies = Pick<
   | "dashboardService"
   | "displayService"
   | "fillService"
+  | "forecastService"
   | "kegService"
   | "logger"
   | "renderer"
