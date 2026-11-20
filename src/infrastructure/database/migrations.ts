@@ -58,7 +58,9 @@ export const TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION = 28;
 export const TELEMETRY_ROLE_AUTHORITY_MIGRATION_NAME = "telemetry-role-authority";
 export const TELEMETRY_FLOW_SCHEMA_VERSION = 29;
 export const TELEMETRY_FLOW_MIGRATION_NAME = "telemetry-flow";
-export const CURRENT_SCHEMA_VERSION = TELEMETRY_FLOW_SCHEMA_VERSION;
+export const TELEMETRY_ROLLUPS_SCHEMA_VERSION = 30;
+export const TELEMETRY_ROLLUPS_MIGRATION_NAME = "telemetry-rollups";
+export const CURRENT_SCHEMA_VERSION = TELEMETRY_ROLLUPS_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4405,6 +4407,95 @@ export const TELEMETRY_FLOW_MIGRATION: MigrationDefinition = {
   },
 };
 
+const ROLLUP_VALUE_CHECK = (column: string) => `typeof(${column}) IN ('integer', 'real')`;
+const rollupTableSql = (table: string, bucketMs: number) => `
+  CREATE TABLE ${table} (
+    tap_id TEXT NOT NULL REFERENCES taps(id) ON DELETE CASCADE,
+    metric TEXT NOT NULL CHECK (${TELEMETRY_METRIC_NAME_CHECK}),
+    bucket_start_epoch_ms INTEGER NOT NULL CHECK (typeof(bucket_start_epoch_ms) = 'integer' AND bucket_start_epoch_ms % ${bucketMs} = 0),
+    min_value REAL NOT NULL CHECK (${ROLLUP_VALUE_CHECK("min_value")}),
+    max_value REAL NOT NULL CHECK (${ROLLUP_VALUE_CHECK("max_value")}),
+    sum_value REAL NOT NULL CHECK (${ROLLUP_VALUE_CHECK("sum_value")}),
+    sample_count INTEGER NOT NULL CHECK (typeof(sample_count) = 'integer' AND sample_count >= 1),
+    last_value REAL NOT NULL CHECK (${ROLLUP_VALUE_CHECK("last_value")}),
+    last_measured_at_epoch_ms INTEGER NOT NULL CHECK (typeof(last_measured_at_epoch_ms) = 'integer' AND last_measured_at_epoch_ms >= bucket_start_epoch_ms AND last_measured_at_epoch_ms < bucket_start_epoch_ms + ${bucketMs}),
+    PRIMARY KEY (tap_id, metric, bucket_start_epoch_ms),
+    CHECK (min_value <= last_value AND last_value <= max_value)
+  ) WITHOUT ROWID;
+  CREATE INDEX idx_${table}_bucket ON ${table} (bucket_start_epoch_ms);
+`;
+
+/**
+ * v30 adds bounded reading history (#171): hourly and daily rollups per Tap and metric, written
+ * as readings are accepted and pruned by the System sweep. A bucket keeps min, max, sum and
+ * count (mean = sum / count) and the reading measured last. `telemetry_rollup_settings` holds
+ * the two retention horizons. Nothing existing changes.
+ */
+export const TELEMETRY_ROLLUPS_SCHEMA_SQL = `
+  CREATE TABLE telemetry_rollup_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    hourly_retention_days INTEGER NOT NULL DEFAULT 30 CHECK (typeof(hourly_retention_days) = 'integer' AND hourly_retention_days BETWEEN 1 AND 365),
+    daily_retention_days INTEGER NOT NULL DEFAULT 730 CHECK (typeof(daily_retention_days) = 'integer' AND daily_retention_days BETWEEN 1 AND 3650),
+    updated_at TEXT NOT NULL
+  );
+  ${rollupTableSql("telemetry_rollups_hourly", 3_600_000)}
+  ${rollupTableSql("telemetry_rollups_daily", 86_400_000)}
+`;
+
+const TELEMETRY_ROLLUPS_SCHEMA_OBJECTS = [
+  ...TELEMETRY_FLOW_SCHEMA_OBJECTS,
+  ["table", "telemetry_rollup_settings"],
+  ["table", "telemetry_rollups_hourly"],
+  ["index", "idx_telemetry_rollups_hourly_bucket"],
+  ["table", "telemetry_rollups_daily"],
+  ["index", "idx_telemetry_rollups_daily_bucket"],
+] as const;
+
+const ROLLUP_COLUMNS = [
+  { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+  { name: "metric", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+  { name: "bucket_start_epoch_ms", type: "INTEGER", notnull: 1, dflt_value: null, pk: 3 },
+  { name: "min_value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+  { name: "max_value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+  { name: "sum_value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+  { name: "sample_count", type: "INTEGER", notnull: 1, dflt_value: null, pk: 0 },
+  { name: "last_value", type: "REAL", notnull: 1, dflt_value: null, pk: 0 },
+  { name: "last_measured_at_epoch_ms", type: "INTEGER", notnull: 1, dflt_value: null, pk: 0 },
+] as const;
+
+function validateTelemetryRollupsSchema(database: DatabaseExecutor): void {
+  validateTelemetrySchemaDefinition(
+    database,
+    TELEMETRY_ROLLUPS_SCHEMA_OBJECTS,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_FLOW_SCHEMA_SQL}\n${TELEMETRY_ROLLUPS_SCHEMA_SQL}`,
+    TELEMETRY_ROLLUPS_SCHEMA_VERSION,
+    (schemaDatabase) => {
+      validateTelemetryReadingsColumns(schemaDatabase);
+      expectColumns(schemaDatabase, "telemetry_rollup_settings", [
+        { name: "id", type: "INTEGER", notnull: 0, dflt_value: null, pk: 1 },
+        { name: "hourly_retention_days", type: "INTEGER", notnull: 1, dflt_value: "30", pk: 0 },
+        { name: "daily_retention_days", type: "INTEGER", notnull: 1, dflt_value: "730", pk: 0 },
+        { name: "updated_at", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 },
+      ]);
+      expectColumns(schemaDatabase, "telemetry_rollups_hourly", ROLLUP_COLUMNS);
+      expectColumns(schemaDatabase, "telemetry_rollups_daily", ROLLUP_COLUMNS);
+    },
+  );
+}
+
+export const TELEMETRY_ROLLUPS_MIGRATION: MigrationDefinition = {
+  version: TELEMETRY_ROLLUPS_SCHEMA_VERSION,
+  name: TELEMETRY_ROLLUPS_MIGRATION_NAME,
+  apply(database) {
+    database.execute(`
+      ${TELEMETRY_ROLLUPS_SCHEMA_SQL}
+      INSERT INTO telemetry_rollup_settings (id, updated_at)
+        VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4436,6 +4527,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   TELEMETRY_READINGS_MIGRATION,
   TELEMETRY_ROLE_AUTHORITY_MIGRATION,
   TELEMETRY_FLOW_MIGRATION,
+  TELEMETRY_ROLLUPS_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4478,7 +4570,8 @@ function applyMigration(
         migration.version === DISPLAY_THEME_ACCENT_SCHEMA_VERSION ||
         migration.version === TELEMETRY_READINGS_SCHEMA_VERSION ||
         migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION ||
-        migration.version === TELEMETRY_FLOW_SCHEMA_VERSION)
+        migration.version === TELEMETRY_FLOW_SCHEMA_VERSION ||
+        migration.version === TELEMETRY_ROLLUPS_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4548,6 +4641,9 @@ function validateRequiredCanonicalState(database: DatabaseExecutor, version: num
     expectRequiredRows(database, "auth_session_settings", "id = 1", 1);
     expectRequiredRows(database, "outbox_retention", "id = 1", 1);
   }
+  if (version >= TELEMETRY_ROLLUPS_SCHEMA_VERSION) {
+    expectRequiredRows(database, "telemetry_rollup_settings", "id = 1", 1);
+  }
 }
 
 function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: number): void {
@@ -4612,6 +4708,8 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateTelemetryRoleAuthoritySchema(database);
   } else if (version === TELEMETRY_FLOW_SCHEMA_VERSION) {
     validateTelemetryFlowSchema(database);
+  } else if (version === TELEMETRY_ROLLUPS_SCHEMA_VERSION) {
+    validateTelemetryRollupsSchema(database);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

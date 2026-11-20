@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ApplicationError } from "../../shared/errors.ts";
+import { validationError } from "../../shared/validation.ts";
 import { sendJson } from "../../infrastructure/http/error-mapper.ts";
 import type { Router } from "../../infrastructure/http/router.ts";
 import {
@@ -30,6 +31,17 @@ import {
   validateExternalTelemetryPayload,
 } from "./telemetry-validation.ts";
 import type { BatchIngestResult, SingleIngestResult, TelemetrySource } from "./types.ts";
+
+/** The query string as an object of single values; a repeated key is a validation error. */
+function singleValueQuery(request: IncomingMessage): Record<string, string> {
+  const params = new URL(request.url ?? "/", "http://tapboard.local").searchParams;
+  const query: Record<string, string> = {};
+  for (const [key, value] of params) {
+    if (Object.hasOwn(query, key)) throw validationError("query", "contains a repeated parameter");
+    query[key] = value;
+  }
+  return query;
+}
 
 export interface TelemetryRouteDependencies {
   readonly router: Router;
@@ -227,6 +239,13 @@ export function registerTelemetryRoutes(dependencies: TelemetryRouteDependencies
     requireSession(request, authService);
     sendJson(response, 200, {
       diagnostics: detectorService.diagnostics(validateTapId(params.tapId ?? "", "tapId")),
+    });
+  });
+
+  router.get("/api/admin/taps/:tapId/telemetry/rollups", (request, response, params) => {
+    requireSession(request, authService);
+    sendJson(response, 200, {
+      rollups: telemetryService.getTapRollups(params.tapId ?? "", singleValueQuery(request)),
     });
   });
 

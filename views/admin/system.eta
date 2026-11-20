@@ -104,9 +104,11 @@
         <label>Raw telemetry (seconds)<input type="number" name="rawSeconds" min="300" max="86400" step="1" required value="<%= it.system.retention.telemetry.rawRetentionSeconds %>" /></label>
         <label>Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600" max="604800" step="1" required value="<%= it.system.retention.telemetry.receiptRetentionSeconds %>" /></label>
         <label>Reconnect horizon (seconds)<input type="number" name="reconnectSeconds" min="60" max="86400" step="1" required value="<%= it.system.retention.telemetry.reconnectHorizonSeconds %>" /></label>
+        <label>Hourly reading history (days)<input type="number" name="hourlyRollupDays" min="1" max="365" step="1" required value="<%= it.system.retention.telemetry.hourlyRollupRetentionDays %>" /></label>
+        <label>Daily reading history (days)<input type="number" name="dailyRollupDays" min="1" max="3650" step="1" required value="<%= it.system.retention.telemetry.dailyRollupRetentionDays %>" /></label>
         <label>Terminal outbound history (days)<input type="number" name="outboxDays" min="1" max="3650" step="1" required value="<%= it.system.retention.outbox.retentionDays %>" /></label>
       </div>
-      <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon. Old raw measurements are pruned before their receipts.</p>
+      <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon. Old raw measurements are pruned before their receipts. Reading history keeps hourly and daily minimum, maximum, mean and last values per Tap and metric after raw measurements are pruned.</p>
       <button type="submit">Save retention settings</button>
     </form>
   </section>
@@ -116,6 +118,7 @@
       <div><dt>Activity rows</dt><dd><%= it.system.diagnostics.counts.activity %></dd></div>
       <div><dt>Raw telemetry rows</dt><dd><%= it.system.diagnostics.counts.rawTelemetry %></dd></div>
       <div><dt>Ingest receipts</dt><dd><%= it.system.diagnostics.counts.ingestReceipts %></dd></div>
+      <div><dt>Reading history rows</dt><dd><%= it.system.diagnostics.counts.telemetryRollups %></dd></div>
       <div><dt>Pending deliveries</dt><dd><%= it.system.diagnostics.counts.outboxPending %></dd></div>
       <div><dt>Leased deliveries</dt><dd><%= it.system.diagnostics.counts.outboxLeased %></dd></div>
       <div><dt>Retrying deliveries</dt><dd><%= it.system.diagnostics.counts.outboxRetry %></dd></div>

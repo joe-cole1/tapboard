@@ -4,6 +4,9 @@ import type {
   TelemetryAuthorityRole,
   TelemetryIngestReceiptRow,
   TelemetryMeasurementRow,
+  TelemetryRollupResolution,
+  TelemetryRollupRow,
+  TelemetryRollupSettingsRow,
   TelemetrySettingsRow,
   TelemetrySourceRow,
   TelemetrySourceTapReadingRow,
@@ -368,6 +371,136 @@ export function updateTelemetrySettings(
       settings.rate_limit_burst_samples,
       settings.updated_at,
     );
+}
+
+export function readTelemetryRollupSettings(
+  database: DatabaseExecutor,
+): TelemetryRollupSettingsRow {
+  const row = database
+    .prepare<[], TelemetryRollupSettingsRow>(
+      `SELECT hourly_retention_days, daily_retention_days, updated_at
+       FROM telemetry_rollup_settings
+       WHERE id = 1`,
+    )
+    .get();
+  if (!row) throw new Error("telemetry_rollup_settings row 1 is missing");
+  return row;
+}
+
+export function updateTelemetryRollupSettings(
+  database: DatabaseExecutor,
+  settings: TelemetryRollupSettingsRow,
+): void {
+  database
+    .prepare<[number, number, string]>(
+      `UPDATE telemetry_rollup_settings
+       SET hourly_retention_days = ?, daily_retention_days = ?, updated_at = ?
+       WHERE id = 1`,
+    )
+    .run(settings.hourly_retention_days, settings.daily_retention_days, settings.updated_at);
+}
+
+// --- Rollups ---
+
+const ROLLUP_TABLES: Readonly<Record<TelemetryRollupResolution, string>> = {
+  hourly: "telemetry_rollups_hourly",
+  daily: "telemetry_rollups_daily",
+};
+
+/** Bucket width of each rollup resolution. Buckets are aligned to UTC. */
+export const TELEMETRY_ROLLUP_BUCKET_MS: Readonly<Record<TelemetryRollupResolution, number>> = {
+  hourly: 3_600_000,
+  daily: 86_400_000,
+};
+
+/**
+ * Merge one reading into its bucket. A reading measured before the bucket's latest one (a late
+ * sample) still counts toward min, max, sum and count but does not replace `last_value`.
+ */
+export function mergeTelemetryRollup(
+  database: DatabaseExecutor,
+  resolution: TelemetryRollupResolution,
+  reading: {
+    readonly tapId: string;
+    readonly metric: string;
+    readonly value: number;
+    readonly measuredAtEpochMs: number;
+  },
+): void {
+  const bucketMs = TELEMETRY_ROLLUP_BUCKET_MS[resolution];
+  const bucketStart = Math.floor(reading.measuredAtEpochMs / bucketMs) * bucketMs;
+  database
+    .prepare<[string, string, number, number, number, number, number, number]>(
+      `INSERT INTO ${ROLLUP_TABLES[resolution]} (
+         tap_id, metric, bucket_start_epoch_ms, min_value, max_value, sum_value, sample_count,
+         last_value, last_measured_at_epoch_ms
+       ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+       ON CONFLICT (tap_id, metric, bucket_start_epoch_ms) DO UPDATE SET
+         min_value = min(min_value, excluded.min_value),
+         max_value = max(max_value, excluded.max_value),
+         sum_value = sum_value + excluded.sum_value,
+         sample_count = sample_count + 1,
+         last_value = CASE
+           WHEN excluded.last_measured_at_epoch_ms >= last_measured_at_epoch_ms
+             THEN excluded.last_value
+           ELSE last_value
+         END,
+         last_measured_at_epoch_ms = max(last_measured_at_epoch_ms, excluded.last_measured_at_epoch_ms)`,
+    )
+    .run(
+      reading.tapId,
+      reading.metric,
+      bucketStart,
+      reading.value,
+      reading.value,
+      reading.value,
+      reading.value,
+      reading.measuredAtEpochMs,
+    );
+}
+
+/** Delete at most one batch of buckets that start before the cutoff. */
+export function pruneTelemetryRollupsOlderThan(
+  database: DatabaseExecutor,
+  resolution: TelemetryRollupResolution,
+  cutoffEpochMs: number,
+): number {
+  const table = ROLLUP_TABLES[resolution];
+  return database
+    .prepare<[number]>(
+      `DELETE FROM ${table}
+       WHERE (tap_id, metric, bucket_start_epoch_ms) IN (
+         SELECT tap_id, metric, bucket_start_epoch_ms
+         FROM ${table}
+         WHERE bucket_start_epoch_ms < ?
+         ORDER BY bucket_start_epoch_ms ASC, tap_id ASC, metric ASC
+         LIMIT ${TELEMETRY_PRUNE_BATCH_SIZE}
+       )`,
+    )
+    .run(cutoffEpochMs).changes;
+}
+
+export function listTelemetryRollups(
+  database: DatabaseExecutor,
+  resolution: TelemetryRollupResolution,
+  query: {
+    readonly tapId: string;
+    readonly metric: string;
+    readonly fromEpochMs: number;
+    readonly toEpochMs: number;
+    readonly limit: number;
+  },
+): readonly TelemetryRollupRow[] {
+  return database
+    .prepare<[string, string, number, number, number], TelemetryRollupRow>(
+      `SELECT bucket_start_epoch_ms, min_value, max_value, sum_value, sample_count, last_value,
+              last_measured_at_epoch_ms
+       FROM ${ROLLUP_TABLES[resolution]}
+       WHERE tap_id = ? AND metric = ? AND bucket_start_epoch_ms >= ? AND bucket_start_epoch_ms < ?
+       ORDER BY bucket_start_epoch_ms ASC
+       LIMIT ?`,
+    )
+    .all(query.tapId, query.metric, query.fromEpochMs, query.toEpochMs, query.limit);
 }
 
 // --- Ingest Receipts ---

@@ -94,6 +94,8 @@ export class SystemService {
         rawRetentionSeconds: telemetry.rawRetentionSeconds,
         receiptRetentionSeconds: telemetry.receiptRetentionSeconds,
         reconnectHorizonSeconds: telemetry.reconnectHorizonSeconds,
+        hourlyRollupRetentionDays: telemetry.hourlyRollupRetentionDays,
+        dailyRollupRetentionDays: telemetry.dailyRollupRetentionDays,
         updatedAt: telemetry.updatedAt,
       },
       outbox: readOutboxRetentionSettings(this.#dependencies.database),
@@ -125,7 +127,9 @@ export class SystemService {
         validated.telemetry !== undefined &&
         (telemetry.rawRetentionSeconds !== current.telemetry.rawRetentionSeconds ||
           telemetry.receiptRetentionSeconds !== current.telemetry.receiptRetentionSeconds ||
-          telemetry.reconnectHorizonSeconds !== current.telemetry.reconnectHorizonSeconds)
+          telemetry.reconnectHorizonSeconds !== current.telemetry.reconnectHorizonSeconds ||
+          telemetry.hourlyRollupRetentionDays !== current.telemetry.hourlyRollupRetentionDays ||
+          telemetry.dailyRollupRetentionDays !== current.telemetry.dailyRollupRetentionDays)
       ) {
         this.#dependencies.telemetryService.updateSettings(validated.telemetry, {
           ...validatedActor,
@@ -159,6 +163,8 @@ export class SystemService {
             raw_retention_seconds: result.telemetry.rawRetentionSeconds,
             receipt_retention_seconds: result.telemetry.receiptRetentionSeconds,
             reconnect_horizon_seconds: result.telemetry.reconnectHorizonSeconds,
+            hourly_rollup_retention_days: result.telemetry.hourlyRollupRetentionDays,
+            daily_rollup_retention_days: result.telemetry.dailyRollupRetentionDays,
             outbox_retention_days: result.outbox.retentionDays,
           },
         });
@@ -222,6 +228,7 @@ export class SystemService {
           activity,
           rawTelemetry: telemetry.prunedMeasurementsCount,
           ingestReceipts: telemetry.prunedReceiptsCount,
+          telemetryRollups: telemetry.prunedRollupsCount,
           outboxDeliveries: outbox.deliveries,
           outboxEvents: outbox.events,
           outboxVersions: outbox.versions,

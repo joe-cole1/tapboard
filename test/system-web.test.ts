@@ -336,6 +336,8 @@ void test("invalid retention horizons reject every setting atomically while vali
     rawSeconds: "300",
     receiptSeconds: "3600",
     reconnectSeconds: "60",
+    hourlyRollupDays: "7",
+    dailyRollupDays: "90",
     outboxDays: "7",
   };
   for (const invalid of [

@@ -41,8 +41,12 @@ import {
   listTelemetrySources,
   countTelemetrySourcesPage,
   listTelemetrySourcePage,
+  listTelemetryRollups,
+  mergeTelemetryRollup,
   pruneMeasurementsOlderThan,
   pruneReceiptsOlderThan,
+  pruneTelemetryRollupsOlderThan,
+  readTelemetryRollupSettings,
   readReceiptByClientSampleId,
   readReceiptByFallbackIdentity,
   readSourceTapWatermark,
@@ -51,6 +55,7 @@ import {
   readTelemetrySourceByCurrentMachineKeyId,
   readTelemetrySourceById,
   readTelemetrySourceByName,
+  updateTelemetryRollupSettings,
   updateTelemetrySettings,
   updateTelemetrySourceCurrentMachineKey,
   updateTelemetrySourceName,
@@ -63,7 +68,9 @@ import {
   validateCreateTelemetrySourceInput,
   validateRenameTelemetrySourceInput,
   validateRotateTelemetrySourceInput,
+  TELEMETRY_ROLLUP_MAX_BUCKETS,
   validateTapId,
+  validateTelemetryRollupQuery,
   validateTelemetrySourceId,
   validateUpdateTelemetrySettingsInput,
 } from "./telemetry-validation.ts";
@@ -84,6 +91,7 @@ import type {
   TelemetryAuthorityExtensionPort,
   TelemetryAuthorityRole,
   TelemetryRateLimiter,
+  TelemetryRollupSeries,
   TelemetrySettings,
   TelemetrySource,
   TelemetrySourceRow,
@@ -688,6 +696,7 @@ export class TelemetryService {
 
   getSettings(): TelemetrySettings {
     const row = readTelemetrySettings(this.database);
+    const rollups = readTelemetryRollupSettings(this.database);
     return {
       maxBatchSize: row.max_batch_size,
       maxFutureSkewSeconds: row.max_future_skew_seconds,
@@ -696,7 +705,9 @@ export class TelemetryService {
       receiptRetentionSeconds: row.receipt_retention_seconds,
       rateLimitSamplesPerMinute: row.rate_limit_samples_per_minute,
       rateLimitBurstSamples: row.rate_limit_burst_samples,
-      updatedAt: row.updated_at,
+      hourlyRollupRetentionDays: rollups.hourly_retention_days,
+      dailyRollupRetentionDays: rollups.daily_retention_days,
+      updatedAt: row.updated_at > rollups.updated_at ? row.updated_at : rollups.updated_at,
     };
   }
 
@@ -704,8 +715,13 @@ export class TelemetryService {
     const input: UpdateTelemetrySettingsInput = validateUpdateTelemetrySettingsInput(inputRaw);
     return this.database.withTransaction(() => {
       const current = readTelemetrySettings(this.database);
+      const currentRollups = readTelemetryRollupSettings(this.database);
 
       const merged = {
+        hourlyRollupRetentionDays:
+          input.hourlyRollupRetentionDays ?? currentRollups.hourly_retention_days,
+        dailyRollupRetentionDays:
+          input.dailyRollupRetentionDays ?? currentRollups.daily_retention_days,
         maxBatchSize: input.maxBatchSize ?? current.max_batch_size,
         maxFutureSkewSeconds: input.maxFutureSkewSeconds ?? current.max_future_skew_seconds,
         reconnectHorizonSeconds: input.reconnectHorizonSeconds ?? current.reconnect_horizon_seconds,
@@ -751,21 +767,37 @@ export class TelemetryService {
         rate_limit_burst_samples: merged.rateLimitBurstSamples,
         updated_at: nowIso,
       });
+      updateTelemetryRollupSettings(this.database, {
+        hourly_retention_days: merged.hourlyRollupRetentionDays,
+        daily_retention_days: merged.dailyRollupRetentionDays,
+        updated_at: nowIso,
+      });
 
-      appendActivity(
-        this.database,
-        {
-          category: "admin",
-          action: "configuration_changed",
-          actorType: options.actorType ?? "operator",
-          ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
-          ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
-          entityType: "telemetry_settings",
-          entityId: "1",
-          details: merged,
-        },
-        { now: this.clock },
-      );
+      // Activity details hold at most eight keys, so rollup retention gets its own entry, and
+      // only when it changed.
+      const { hourlyRollupRetentionDays, dailyRollupRetentionDays, ...ingestSettings } = merged;
+      const activity = (details: Readonly<Record<string, number>>) =>
+        appendActivity(
+          this.database,
+          {
+            category: "admin",
+            action: "configuration_changed",
+            actorType: options.actorType ?? "operator",
+            ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
+            ...(options.sessionId !== undefined ? { sessionId: options.sessionId } : {}),
+            entityType: "telemetry_settings",
+            entityId: "1",
+            details,
+          },
+          { now: this.clock },
+        );
+      activity(ingestSettings);
+      if (
+        hourlyRollupRetentionDays !== currentRollups.hourly_retention_days ||
+        dailyRollupRetentionDays !== currentRollups.daily_retention_days
+      ) {
+        activity({ hourlyRollupRetentionDays, dailyRollupRetentionDays });
+      }
 
       return {
         ...merged,
@@ -1241,6 +1273,18 @@ export class TelemetryService {
       created_at: receivedAtIso,
     });
     insertTelemetryReadings(db, measurementId, sample.readings);
+    // Rollups keep bounded history after raw pruning. The daily bucket takes the same merge as
+    // the hourly one, so it always equals the aggregate of its hours, even once they are pruned.
+    for (const reading of sample.readings) {
+      const rollup = {
+        tapId,
+        metric: reading.metric,
+        value: reading.value,
+        measuredAtEpochMs: sample.measuredAtEpochMs,
+      };
+      mergeTelemetryRollup(db, "hourly", rollup);
+      mergeTelemetryRollup(db, "daily", rollup);
+    }
 
     // Advance the latest readings, and for a level sample the latest status, with
     // database-level monotonic guards. If a concurrent writer won after the pre-check, abort
@@ -1349,6 +1393,7 @@ export class TelemetryService {
   pruneTelemetry(now?: Date): {
     readonly prunedMeasurementsCount: number;
     readonly prunedReceiptsCount: number;
+    readonly prunedRollupsCount: number;
   } {
     const referenceDate = now ?? this.clock();
 
@@ -1366,12 +1411,64 @@ export class TelemetryService {
       // available for the full receipt horizon.
       const prunedMeasurementsCount = pruneMeasurementsOlderThan(this.database, rawCutoffIso);
       const prunedReceiptsCount = pruneReceiptsOlderThan(this.database, receiptCutoffIso);
+      const prunedRollupsCount =
+        pruneTelemetryRollupsOlderThan(
+          this.database,
+          "hourly",
+          referenceDate.getTime() - settings.hourlyRollupRetentionDays * 86_400_000,
+        ) +
+        pruneTelemetryRollupsOlderThan(
+          this.database,
+          "daily",
+          referenceDate.getTime() - settings.dailyRollupRetentionDays * 86_400_000,
+        );
 
       return {
         prunedMeasurementsCount,
         prunedReceiptsCount,
+        prunedRollupsCount,
       };
     });
+  }
+
+  // --- Rollups ---
+
+  /** Admin-only rollup series of one Tap metric, oldest bucket first, in canonical units. */
+  getTapRollups(tapIdRaw: string, queryRaw: unknown): TelemetryRollupSeries {
+    const tapId = validateTapId(tapIdRaw);
+    const query = validateTelemetryRollupQuery(queryRaw, this.clock().getTime());
+    if (!findTapById(this.database, tapId)) {
+      throw new ApplicationError({
+        category: "not_found",
+        code: "taps.tap_not_found",
+        clientMessage: "Tap not found.",
+        details: { tapId },
+      });
+    }
+    const rows = listTelemetryRollups(this.database, query.resolution, {
+      tapId,
+      metric: query.metric,
+      fromEpochMs: query.fromEpochMs,
+      toEpochMs: query.toEpochMs,
+      limit: TELEMETRY_ROLLUP_MAX_BUCKETS,
+    });
+    return {
+      tapId,
+      metric: query.metric,
+      unit: query.unit,
+      resolution: query.resolution,
+      from: new Date(query.fromEpochMs).toISOString(),
+      to: new Date(query.toEpochMs).toISOString(),
+      buckets: rows.map((row) => ({
+        start: new Date(row.bucket_start_epoch_ms).toISOString(),
+        min: row.min_value,
+        max: row.max_value,
+        mean: row.sum_value / row.sample_count,
+        last: row.last_value,
+        lastMeasuredAt: new Date(row.last_measured_at_epoch_ms).toISOString(),
+        count: row.sample_count,
+      })),
+    };
   }
 
   // --- Status Queries ---

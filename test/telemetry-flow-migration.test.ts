@@ -67,7 +67,8 @@ void test("v28 databases upgrade to v29 with every row unchanged and no flow sta
     v28.close();
   }
 
-  const upgraded = openDatabase(path);
+  const v29Migrations = MIGRATIONS.slice(0, TELEMETRY_FLOW_SCHEMA_VERSION);
+  const upgraded = openDatabase(path, { migrations: v29Migrations });
   try {
     assert.equal(
       upgraded.pragma<number>("user_version", { simple: true }),
@@ -103,7 +104,7 @@ void test("v28 databases upgrade to v29 with every row unchanged and no flow sta
   }
 
   // The upgraded file validates as canonical when reopened.
-  openDatabase(path).close();
+  openDatabase(path, { migrations: v29Migrations }).close();
 });
 
 void test("flow state rows keep a pour's columns together", () => {
