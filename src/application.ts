@@ -355,14 +355,20 @@ class FoundationApplication implements Application {
       this.#liveUpdates = liveUpdates;
       const rawDetectorService = new DetectorService(this.#database, {
         onPourCompleted: (database, pour) => outboundService.pourCompleted(database, pour),
-        // A pour closed by maintenance has no ingest behind it, so refresh its Tap's display
-        // and health here. Runs only after maintenance or the Simulation starts, once
+        // A pour closed by maintenance has no ingest behind it, so refresh its Tap's health
+        // and display here. Health goes first, so the display's refresh for
+        // telemetry.updated already carries the new badges; a health failure still refreshes
+        // the display. Runs only after maintenance or the Simulation starts, once
         // healthService exists.
         onPoursCommitted: (tapIds, at) => {
           for (const tapId of tapIds) {
             try {
-              liveUpdates.publish({ name: "telemetry.updated", tapId });
               healthService.evaluateTap(tapId, at);
+            } catch {
+              this.#logger.error("Evaluating health after a pour failed");
+            }
+            try {
+              liveUpdates.publish({ name: "telemetry.updated", tapId });
             } catch {
               this.#logger.error("Refreshing a Tap after a pour failed");
             }

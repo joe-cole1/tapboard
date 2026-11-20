@@ -61,6 +61,7 @@ function fixture(
     readonly tapCardMetricSettings?: TapCardMetricSettings;
     readonly displaySettingsFailure?: boolean;
     readonly detectorFailure?: Error;
+    readonly healthFailure?: Error;
     readonly logger?: Logger;
     readonly now?: Date;
     readonly flavorBatch?: Record<string, unknown>;
@@ -68,6 +69,7 @@ function fixture(
     readonly overrideFlags?: Partial<BrewfatherPresentationOverrides>;
   } = {},
 ) {
+  let healthOverviewReads = 0;
   let currentNow = options.now;
   let tap: AdminTapView = {
     id: TAP_ID,
@@ -338,13 +340,17 @@ function fixture(
     },
     healthService: {
       servingTemperatureC: () => 4.5,
-      getAdminOverview: () => ({
-        aggregate: { state: "healthy", severity: "none" },
-        checks:
-          lowKeg === null
-            ? []
-            : [{ checkId: "low_keg", state: lowKeg.state, severity: lowKeg.severity }],
-      }),
+      getAdminOverview: () => {
+        healthOverviewReads += 1;
+        if (options.healthFailure !== undefined) throw options.healthFailure;
+        return {
+          aggregate: { state: "healthy", severity: "none" },
+          checks:
+            lowKeg === null
+              ? []
+              : [{ checkId: "low_keg", state: lowKeg.state, severity: lowKeg.severity }],
+        };
+      },
     },
     now: currentNow === undefined ? undefined : () => currentNow!,
     logger: options.logger,
@@ -382,6 +388,7 @@ function fixture(
     setFeatured: (value: boolean) => {
       featured = value;
     },
+    healthOverviewReads: () => healthOverviewReads,
     setLowKeg: (state: string, severity: string) => {
       lowKeg = { state, severity };
     },
@@ -458,6 +465,37 @@ void test("public card badges derive actionable low, UTC new, and featured in ca
   assert.deepEqual(service.getCard(TAP_ID)?.badges, ["featured"]);
   setFillDate("2026-08-11");
   assert.deepEqual(service.getCard(TAP_ID)?.badges, ["new", "featured"]);
+});
+
+void test("each Tap card and Story reads health once (#228)", () => {
+  const { service, healthOverviewReads, setLowKeg } = fixture();
+  setLowKeg("active", "warning");
+  const card = service.getCard(TAP_ID);
+  assert.equal(card?.health, "healthy");
+  assert.deepEqual(card?.badges, ["low"]);
+  assert.equal(healthOverviewReads(), 1);
+  assert.equal(service.listCards().length, 1);
+  assert.equal(healthOverviewReads(), 2);
+  assert.ok(service.getStory(TAP_ID));
+  assert.equal(healthOverviewReads(), 3);
+});
+
+void test("a failed health read degrades a card once and keeps it (#228)", () => {
+  const { records, logger } = capturedLogger();
+  const { service, setLowKeg } = fixture({
+    healthFailure: new Error("health unavailable"),
+    logger,
+    now: new Date("2026-08-03T12:00:00.000Z"),
+  });
+  setLowKeg("active", "warning");
+  const card = service.getCard(TAP_ID);
+  assert.equal(card?.title, "Secret Beverage Name");
+  assert.equal(card?.health, "unknown");
+  assert.ok(!card?.badges.includes("low"));
+  assert.deepEqual(
+    records().map((record) => record.context.operation),
+    ["story.health"],
+  );
 });
 
 void test("Mystery suppresses New until history is revealed while Featured remains visible", () => {
