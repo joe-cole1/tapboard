@@ -118,11 +118,11 @@ requirements.
 - Cloud sessions (claude.ai/code) have no WSL launcher or Docker daemon; say what couldn't be
   verified.
 - Branch from the latest `origin/main`. "Ship it" means: commit, push, open the PR, and enable
-  auto-merge (`gh pr merge --auto`). `main` requires the `check`, `e2e`, and
-  `production-container` jobs and lands PRs through a merge queue: once the PR's checks pass,
-  GitHub queues it, runs the same jobs on the squashed result against the latest `main`, and
-  merges only if they pass, so every commit on `main` was tested as it is. Don't wait on or poll
-  CI. A failing PR or queue check blocks the merge and gets fixed on the same PR.
+  squash auto-merge. `main` requires the `check`, `e2e`, and `production-container` jobs and
+  requires the PR to be up to date with `main`, so every commit on `main` was tested as it is.
+  GitHub merges once CI passes; don't wait on or poll CI. A PR that falls behind (another PR
+  merged first) waits until `gh pr update-branch <number>` brings it up to date and its rerun
+  passes. A failing check blocks the merge and gets fixed on the same PR.
 
 ## Operator workstation (WSL): only when `/home/joeadmin/.local/bin/tapboard-dev` exists
 
