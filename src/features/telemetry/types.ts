@@ -203,7 +203,48 @@ export interface TelemetrySettings {
   readonly receiptRetentionSeconds: number;
   readonly rateLimitSamplesPerMinute: number;
   readonly rateLimitBurstSamples: number;
+  readonly hourlyRollupRetentionDays: number;
+  readonly dailyRollupRetentionDays: number;
   readonly updatedAt: string;
+}
+
+export interface TelemetryRollupSettingsRow {
+  readonly hourly_retention_days: number;
+  readonly daily_retention_days: number;
+  readonly updated_at: string;
+}
+
+export type TelemetryRollupResolution = "hourly" | "daily";
+
+export interface TelemetryRollupRow {
+  readonly bucket_start_epoch_ms: number;
+  readonly min_value: number;
+  readonly max_value: number;
+  readonly sum_value: number;
+  readonly sample_count: number;
+  readonly last_value: number;
+  readonly last_measured_at_epoch_ms: number;
+}
+
+/** One rollup bucket of one Tap metric, in the metric's canonical unit. */
+export interface TelemetryRollupBucket {
+  readonly start: string;
+  readonly min: number;
+  readonly max: number;
+  readonly mean: number;
+  readonly last: number;
+  readonly lastMeasuredAt: string;
+  readonly count: number;
+}
+
+export interface TelemetryRollupSeries {
+  readonly tapId: string;
+  readonly metric: string;
+  readonly unit: string;
+  readonly resolution: TelemetryRollupResolution;
+  readonly from: string;
+  readonly to: string;
+  readonly buckets: readonly TelemetryRollupBucket[];
 }
 
 export interface TelemetryIngestReceipt {
@@ -288,6 +329,8 @@ export interface UpdateTelemetrySettingsInput {
   readonly receiptRetentionSeconds?: number;
   readonly rateLimitSamplesPerMinute?: number;
   readonly rateLimitBurstSamples?: number;
+  readonly hourlyRollupRetentionDays?: number;
+  readonly dailyRollupRetentionDays?: number;
 }
 
 /** One reading in its metric's canonical unit. */

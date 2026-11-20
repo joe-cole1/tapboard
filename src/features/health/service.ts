@@ -39,7 +39,9 @@ import type { EffectiveDensityChangedEvent } from "../beverages/types.ts";
 import {
   DEFAULT_HEALTH_CONFIG,
   HEALTH_CONFIG_FIELDS,
+  THRESHOLD_HEALTH_CHECKS,
   calculateLineCleaningDue,
+  isThresholdHealthCheckId,
   resolveHealthConfig,
 } from "./config.ts";
 import { evaluateHealthCheck, temperatureIsFresh } from "./engine.ts";
@@ -94,8 +96,10 @@ import {
 } from "./projections.ts";
 import {
   HEALTH_CHECK_IDS,
+  THRESHOLD_HEALTH_CHECK_IDS,
   type HealthAuthoritativeMeasurement,
   type HealthCheckId,
+  type HealthConditionMeasurement,
   type HealthConfig,
   type HealthConfigOverride,
   type HealthCurrentEpochEvidence,
@@ -220,13 +224,14 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function cloneConfig(config: HealthConfig): HealthConfig {
-  return {
-    low_keg: { ...config.low_keg },
-    scale_availability: { ...config.scale_availability },
-    suspected_leak: { ...config.suspected_leak },
-    serving_temperature: { ...config.serving_temperature },
-    line_cleaning_due: { ...config.line_cleaning_due },
-  };
+  const clone: Record<string, object> = {};
+  for (const id of HEALTH_CHECK_IDS) clone[id] = { ...config[id] };
+  return clone as HealthConfig;
+}
+
+/** Checks that read the condition source; the others follow the level source. */
+function isConditionCheck(checkId: HealthCheckId): boolean {
+  return checkId === "serving_temperature" || isThresholdHealthCheckId(checkId);
 }
 
 function parseGlobalPatch(input: unknown, current: HealthConfig): HealthConfig {
@@ -305,7 +310,7 @@ function overridesEqual(
   right: HealthConfigOverride | null,
 ): boolean {
   const a = left as Record<string, Record<string, unknown> | null | undefined> | undefined;
-  const b = right as Record<string, Record<string, unknown> | null | undefined> | null;
+  const b: Record<string, Record<string, unknown> | null | undefined> | null = right;
   for (const checkId of HEALTH_CHECK_IDS) {
     for (const field of HEALTH_CONFIG_FIELDS[checkId]) {
       if ((a?.[checkId]?.[field] ?? null) !== (b?.[checkId]?.[field] ?? null)) return false;
@@ -548,6 +553,28 @@ export class HealthService
             receivedAtMs: temperatureReading.receivedAtMs,
             tempC: temperatureReading.value,
           };
+    // Each enabled threshold check reads its own condition metric from the condition source,
+    // with the same current-keg rule as temperature.
+    const latestConditionMeasurements: Record<string, HealthConditionMeasurement> = {};
+    for (const checkId of THRESHOLD_HEALTH_CHECK_IDS) {
+      if (!effective[checkId].enabled) continue;
+      const { metric } = THRESHOLD_HEALTH_CHECKS[checkId];
+      const reading = currentTapReading(
+        conditionAuthority === undefined
+          ? undefined
+          : readSourceTapReading(database, conditionAuthority.source_id, tap.id, metric),
+        conditionAuthority,
+        epoch,
+      );
+      if (reading !== null && reading.measurementId !== null) {
+        latestConditionMeasurements[metric] = {
+          measurementId: reading.measurementId,
+          measuredAtMs: reading.measuredAtMs,
+          receivedAtMs: reading.receivedAtMs,
+          value: reading.value,
+        };
+      }
+    }
     const statusMeasurement = this.#measurement(status, epoch === undefined, epochState);
     const measurement =
       statusMeasurement !== null &&
@@ -588,8 +615,9 @@ export class HealthService
     const changedCheckIds: HealthCheckId[] = [];
     for (const checkId of HEALTH_CHECK_IDS) {
       const previous = readHealthCheckState(database, tap.id, checkId);
-      const checkAuthorityChangedAtMs =
-        checkId === "serving_temperature" ? temperatureAuthorityChangedAtMs : authorityChangedAtMs;
+      const checkAuthorityChangedAtMs = isConditionCheck(checkId)
+        ? temperatureAuthorityChangedAtMs
+        : authorityChangedAtMs;
       const authorityReset =
         previous !== undefined &&
         checkAuthorityChangedAtMs !== null &&
@@ -608,6 +636,7 @@ export class HealthService
         latestMeasurement: measurement,
         latestScaleMeasurement,
         latestTemperatureMeasurement,
+        latestConditionMeasurements,
         latestAuthoritativeMeasurement: measurement,
         currentEpoch,
         currentEpochEvidence: currentEpoch,
@@ -656,9 +685,15 @@ export class HealthService
               ? timers.scaleUnavailableSinceMs
               : checkId === "serving_temperature"
                 ? timers.temperatureOutsideSinceMs
-                : null,
+                : isThresholdHealthCheckId(checkId)
+                  ? timers.thresholdOutsideSinceMs
+                  : null,
         lastObservationAtMs:
-          checkId === "serving_temperature" ? timers.temperatureLastMeasuredAtMs : null,
+          checkId === "serving_temperature"
+            ? timers.temperatureLastMeasuredAtMs
+            : isThresholdHealthCheckId(checkId)
+              ? timers.thresholdLastMeasuredAtMs
+              : null,
         suppressionUntilMs: checkId === "suspected_leak" ? timers.leakSuppressedUntilMs : null,
         cooldownUntilMs: persistedCooldownUntilMs,
         evaluatedAtMs,
@@ -1227,6 +1262,10 @@ export class HealthService
     if (state.checkId === "serving_temperature") {
       timers.temperatureOutsideSinceMs = resetTimers ? null : state.conditionStartedAtMs;
       timers.temperatureLastMeasuredAtMs = resetTimers ? null : state.lastObservationAtMs;
+    }
+    if (isThresholdHealthCheckId(state.checkId)) {
+      timers.thresholdOutsideSinceMs = resetTimers ? null : state.conditionStartedAtMs;
+      timers.thresholdLastMeasuredAtMs = resetTimers ? null : state.lastObservationAtMs;
     }
     if (state.checkId === "suspected_leak") timers.leakSuppressedUntilMs = state.suppressionUntilMs;
     return {

@@ -6,7 +6,9 @@
  *   detector, so a new level metric also needs code in `interpretation.ts` and a migration
  *   (`primary_kind` keeps a CHECK list). A sample carries at most one level reading.
  * - `condition` metrics (temperature, pressure) describe serving conditions. Temperature feeds
- *   health and the display; pressure is shown on the Admin Tap page.
+ *   the `serving_temperature` health check and the display; every other condition metric has a
+ *   threshold health check (`THRESHOLD_HEALTH_CHECKS` in `health/config.ts`, which a test keeps
+ *   in step with this registry). Pressure is also shown on the Admin Tap page.
  * - `flow` metrics come from a flow meter: `dispensed_volume` is a cumulative counter,
  *   calibrated on the device, that feeds the flow pour detector (`flow-detector.ts`).
  * - `recorded` metrics are stored only.

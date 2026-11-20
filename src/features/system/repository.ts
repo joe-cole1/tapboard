@@ -113,6 +113,8 @@ export function readSystemDiagnostics(database: DatabaseExecutor): {
        (SELECT count(*) FROM activity_log) AS activity,
        (SELECT count(*) FROM telemetry_measurements) AS rawTelemetry,
        (SELECT count(*) FROM telemetry_ingest_receipts) AS ingestReceipts,
+       (SELECT count(*) FROM telemetry_rollups_hourly)
+         + (SELECT count(*) FROM telemetry_rollups_daily) AS telemetryRollups,
        (SELECT count(*) FROM outbound_deliveries WHERE state = 'pending') AS outboxPending,
        (SELECT count(*) FROM outbound_deliveries WHERE state = 'leased') AS outboxLeased,
        (SELECT count(*) FROM outbound_deliveries WHERE state = 'retry') AS outboxRetry,
@@ -126,6 +128,7 @@ export function readSystemDiagnostics(database: DatabaseExecutor): {
       activity: safeInteger(row.activity),
       rawTelemetry: safeInteger(row.rawTelemetry),
       ingestReceipts: safeInteger(row.ingestReceipts),
+      telemetryRollups: safeInteger(row.telemetryRollups),
       outboxPending: safeInteger(row.outboxPending),
       outboxLeased: safeInteger(row.outboxLeased),
       outboxRetry: safeInteger(row.outboxRetry),

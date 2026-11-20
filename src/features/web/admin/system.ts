@@ -96,6 +96,8 @@ export function registerSystemMutations(dependencies: RegisterSystemMutationsDep
         "rawSeconds",
         "receiptSeconds",
         "reconnectSeconds",
+        "hourlyRollupDays",
+        "dailyRollupDays",
         "outboxDays",
       ]);
       requireSystemService(dependencies).updateRetentionSettings(
@@ -105,6 +107,8 @@ export function registerSystemMutations(dependencies: RegisterSystemMutationsDep
             rawRetentionSeconds: systemFormNumber(form, "rawSeconds"),
             receiptRetentionSeconds: systemFormNumber(form, "receiptSeconds"),
             reconnectHorizonSeconds: systemFormNumber(form, "reconnectSeconds"),
+            hourlyRollupRetentionDays: systemFormNumber(form, "hourlyRollupDays"),
+            dailyRollupRetentionDays: systemFormNumber(form, "dailyRollupDays"),
           },
           outbox: { retentionDays: systemFormNumber(form, "outboxDays") },
         },

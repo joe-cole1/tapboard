@@ -21,6 +21,7 @@ import type {
   ExternalTelemetryRequestInput,
   RenameTelemetrySourceInput,
   RotateTelemetrySourceInput,
+  TelemetryRollupResolution,
   UpdateTelemetrySettingsInput,
 } from "./types.ts";
 
@@ -134,6 +135,8 @@ export function validateUpdateTelemetrySettingsInput(input: unknown): UpdateTele
       "receiptRetentionSeconds",
       "rateLimitSamplesPerMinute",
       "rateLimitBurstSamples",
+      "hourlyRollupRetentionDays",
+      "dailyRollupRetentionDays",
     ],
     "body",
   );
@@ -198,7 +201,18 @@ export function validateUpdateTelemetrySettingsInput(input: unknown): UpdateTele
     );
   }
 
+  const hourlyRollupRetentionDays =
+    obj.hourlyRollupRetentionDays === undefined
+      ? undefined
+      : requireIntegerInRange(obj.hourlyRollupRetentionDays, "hourlyRollupRetentionDays", 1, 365);
+  const dailyRollupRetentionDays =
+    obj.dailyRollupRetentionDays === undefined
+      ? undefined
+      : requireIntegerInRange(obj.dailyRollupRetentionDays, "dailyRollupRetentionDays", 1, 3650);
+
   return {
+    ...(hourlyRollupRetentionDays !== undefined ? { hourlyRollupRetentionDays } : {}),
+    ...(dailyRollupRetentionDays !== undefined ? { dailyRollupRetentionDays } : {}),
     ...(maxBatchSize !== undefined ? { maxBatchSize } : {}),
     ...(maxFutureSkewSeconds !== undefined ? { maxFutureSkewSeconds } : {}),
     ...(reconnectHorizonSeconds !== undefined ? { reconnectHorizonSeconds } : {}),
@@ -206,6 +220,62 @@ export function validateUpdateTelemetrySettingsInput(input: unknown): UpdateTele
     ...(receiptRetentionSeconds !== undefined ? { receiptRetentionSeconds } : {}),
     ...(rateLimitSamplesPerMinute !== undefined ? { rateLimitSamplesPerMinute } : {}),
     ...(rateLimitBurstSamples !== undefined ? { rateLimitBurstSamples } : {}),
+  };
+}
+
+/** Most buckets one rollup read returns: 31 days of hourly or 2.7 years of daily rows. */
+export const TELEMETRY_ROLLUP_MAX_BUCKETS = 1000;
+
+function rollupTimestamp(value: unknown, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return parseRfc3339Timestamp(value).measuredAtEpochMs;
+  } catch {
+    throw validationError(field, "must be an RFC 3339 timestamp with an explicit offset");
+  }
+}
+
+/**
+ * Validate an Admin rollup query. Without `from`/`to` it returns the most recent window the
+ * bucket cap allows, ending now.
+ */
+export function validateTelemetryRollupQuery(
+  input: unknown,
+  nowEpochMs: number,
+): {
+  readonly metric: string;
+  readonly unit: string;
+  readonly resolution: TelemetryRollupResolution;
+  readonly fromEpochMs: number;
+  readonly toEpochMs: number;
+} {
+  const obj = requirePlainObject(input, "query");
+  rejectUnknownKeys(obj, ["metric", "resolution", "from", "to"], "query");
+  if (typeof obj.metric !== "string" || telemetryMetric(obj.metric) === undefined) {
+    throw validationError("metric", `must be one of ${quotedList(telemetryMetricNames())}`);
+  }
+  const resolution = obj.resolution ?? "hourly";
+  if (resolution !== "hourly" && resolution !== "daily") {
+    throw validationError("resolution", 'must be "hourly" or "daily"');
+  }
+  const bucketMs = resolution === "hourly" ? 3_600_000 : 86_400_000;
+  const toEpochMs = rollupTimestamp(obj.to, "to") ?? nowEpochMs;
+  const fromEpochMs =
+    rollupTimestamp(obj.from, "from") ?? toEpochMs - TELEMETRY_ROLLUP_MAX_BUCKETS * bucketMs;
+  if (fromEpochMs >= toEpochMs) throw validationError("from", "must be before to");
+  // Reject a window the bucket cap would truncate rather than silently dropping buckets.
+  if (toEpochMs - fromEpochMs > TELEMETRY_ROLLUP_MAX_BUCKETS * bucketMs) {
+    throw validationError(
+      "from",
+      `must be at most ${TELEMETRY_ROLLUP_MAX_BUCKETS} buckets before to`,
+    );
+  }
+  return {
+    metric: obj.metric,
+    unit: telemetryMetric(obj.metric)!.canonicalUnit,
+    resolution,
+    fromEpochMs,
+    toEpochMs,
   };
 }
 

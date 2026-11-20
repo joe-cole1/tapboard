@@ -94,6 +94,8 @@ export interface SystemRetentionSettings {
     readonly rawRetentionSeconds: number;
     readonly receiptRetentionSeconds: number;
     readonly reconnectHorizonSeconds: number;
+    readonly hourlyRollupRetentionDays: number;
+    readonly dailyRollupRetentionDays: number;
     readonly updatedAt: string;
   };
   readonly outbox: OutboxRetentionSettings;
@@ -105,6 +107,8 @@ export interface UpdateSystemRetentionSettingsInput {
     readonly rawRetentionSeconds?: number;
     readonly receiptRetentionSeconds?: number;
     readonly reconnectHorizonSeconds?: number;
+    readonly hourlyRollupRetentionDays?: number;
+    readonly dailyRollupRetentionDays?: number;
   };
   readonly outbox?: { readonly retentionDays: number };
 }
@@ -118,6 +122,7 @@ export interface RetentionCounts {
   readonly activity: number;
   readonly rawTelemetry: number;
   readonly ingestReceipts: number;
+  readonly telemetryRollups: number;
   readonly outboxDeliveries: number;
   readonly outboxEvents: number;
   readonly outboxVersions: number;
@@ -132,6 +137,7 @@ export interface SystemDiagnosticCounts {
   readonly activity: number;
   readonly rawTelemetry: number;
   readonly ingestReceipts: number;
+  readonly telemetryRollups: number;
   readonly outboxPending: number;
   readonly outboxLeased: number;
   readonly outboxRetry: number;

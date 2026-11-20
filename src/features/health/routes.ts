@@ -27,11 +27,12 @@ import type {
   HealthMaintenanceCursor,
 } from "./repository.ts";
 import type { HealthService } from "./service.ts";
-import type {
-  HealthConfig,
-  HealthConfigInheritance,
-  HealthConfigOverride,
-  HealthEvidenceScalar,
+import {
+  HEALTH_CHECK_IDS,
+  type HealthConfig,
+  type HealthConfigInheritance,
+  type HealthConfigOverride,
+  type HealthEvidenceScalar,
 } from "./types.ts";
 import { validateTapId } from "../taps/tap-validation.ts";
 
@@ -165,43 +166,25 @@ function pagination(
   };
 }
 
+/** Copy exactly the declared fields of every check section, so nothing else reaches a DTO. */
+function pickSections(
+  source: object,
+  pick: (section: Record<string, unknown> | null | undefined, field: string) => unknown,
+): Record<string, Record<string, unknown>> {
+  const sections = source as Record<string, Record<string, unknown> | null | undefined>;
+  const result: Record<string, Record<string, unknown>> = {};
+  for (const id of HEALTH_CHECK_IDS) {
+    const section: Record<string, unknown> = {};
+    for (const field of HEALTH_CONFIG_FIELDS[id] as readonly string[]) {
+      section[field] = pick(sections[id], field);
+    }
+    result[id] = section;
+  }
+  return result;
+}
+
 function toConfigDto(config: HealthConfig): HealthConfig {
-  return {
-    low_keg: {
-      enabled: config.low_keg.enabled,
-      thresholdPercent: config.low_keg.thresholdPercent,
-      criticalPercent: config.low_keg.criticalPercent,
-      fixedThresholdMl: config.low_keg.fixedThresholdMl,
-      settlingMs: config.low_keg.settlingMs,
-    },
-    scale_availability: {
-      enabled: config.scale_availability.enabled,
-      degradedAfterMs: config.scale_availability.degradedAfterMs,
-      activeAfterMs: config.scale_availability.activeAfterMs,
-    },
-    suspected_leak: {
-      enabled: config.suspected_leak.enabled,
-      lossThresholdMl: config.suspected_leak.lossThresholdMl,
-      windowMs: config.suspected_leak.windowMs,
-      pourGraceMs: config.suspected_leak.pourGraceMs,
-      settlingMs: config.suspected_leak.settlingMs,
-      resetMovementMl: config.suspected_leak.resetMovementMl,
-      maxSamples: config.suspected_leak.maxSamples,
-    },
-    serving_temperature: {
-      enabled: config.serving_temperature.enabled,
-      normalMinC: config.serving_temperature.normalMinC,
-      normalMaxC: config.serving_temperature.normalMaxC,
-      criticalMinC: config.serving_temperature.criticalMinC,
-      criticalMaxC: config.serving_temperature.criticalMaxC,
-      durationMs: config.serving_temperature.durationMs,
-    },
-    line_cleaning_due: {
-      enabled: config.line_cleaning_due.enabled,
-      intervalDays: config.line_cleaning_due.intervalDays,
-      criticalGraceDays: config.line_cleaning_due.criticalGraceDays,
-    },
-  };
+  return pickSections(config, (section, field) => section?.[field]) as unknown as HealthConfig;
 }
 
 function toSettingsDto(settings: HealthGlobalConfig) {
@@ -227,82 +210,20 @@ function toOverrideDto(
   override: HealthConfigOverride | null | undefined,
 ): HealthConfigOverride | null {
   if (override === undefined || override === null) return null;
-  return {
-    ...(override.low_keg === undefined
-      ? {}
-      : { low_keg: toOverrideSection(override.low_keg, HEALTH_CONFIG_FIELDS.low_keg) }),
-    ...(override.scale_availability === undefined
-      ? {}
-      : {
-          scale_availability: toOverrideSection(
-            override.scale_availability,
-            HEALTH_CONFIG_FIELDS.scale_availability,
-          ),
-        }),
-    ...(override.suspected_leak === undefined
-      ? {}
-      : {
-          suspected_leak: toOverrideSection(
-            override.suspected_leak,
-            HEALTH_CONFIG_FIELDS.suspected_leak,
-          ),
-        }),
-    ...(override.serving_temperature === undefined
-      ? {}
-      : {
-          serving_temperature: toOverrideSection(
-            override.serving_temperature,
-            HEALTH_CONFIG_FIELDS.serving_temperature,
-          ),
-        }),
-    ...(override.line_cleaning_due === undefined
-      ? {}
-      : {
-          line_cleaning_due: toOverrideSection(
-            override.line_cleaning_due,
-            HEALTH_CONFIG_FIELDS.line_cleaning_due,
-          ),
-        }),
-  } as HealthConfigOverride;
+  const sections = override as Record<string, object | null | undefined>;
+  const result: Record<string, unknown> = {};
+  for (const id of HEALTH_CHECK_IDS) {
+    if (sections[id] === undefined) continue;
+    result[id] = toOverrideSection(sections[id], HEALTH_CONFIG_FIELDS[id]);
+  }
+  return result;
 }
 
 function toInheritanceDto(inheritance: HealthConfigInheritance): HealthConfigInheritance {
-  return {
-    low_keg: {
-      enabled: inheritance.low_keg.enabled,
-      thresholdPercent: inheritance.low_keg.thresholdPercent,
-      criticalPercent: inheritance.low_keg.criticalPercent,
-      fixedThresholdMl: inheritance.low_keg.fixedThresholdMl,
-      settlingMs: inheritance.low_keg.settlingMs,
-    },
-    scale_availability: {
-      enabled: inheritance.scale_availability.enabled,
-      degradedAfterMs: inheritance.scale_availability.degradedAfterMs,
-      activeAfterMs: inheritance.scale_availability.activeAfterMs,
-    },
-    suspected_leak: {
-      enabled: inheritance.suspected_leak.enabled,
-      lossThresholdMl: inheritance.suspected_leak.lossThresholdMl,
-      windowMs: inheritance.suspected_leak.windowMs,
-      pourGraceMs: inheritance.suspected_leak.pourGraceMs,
-      settlingMs: inheritance.suspected_leak.settlingMs,
-      resetMovementMl: inheritance.suspected_leak.resetMovementMl,
-      maxSamples: inheritance.suspected_leak.maxSamples,
-    },
-    serving_temperature: {
-      enabled: inheritance.serving_temperature.enabled,
-      normalMinC: inheritance.serving_temperature.normalMinC,
-      normalMaxC: inheritance.serving_temperature.normalMaxC,
-      criticalMinC: inheritance.serving_temperature.criticalMinC,
-      criticalMaxC: inheritance.serving_temperature.criticalMaxC,
-      durationMs: inheritance.serving_temperature.durationMs,
-    },
-    line_cleaning_due: {
-      enabled: inheritance.line_cleaning_due.enabled,
-      intervalDays: inheritance.line_cleaning_due.intervalDays,
-      criticalGraceDays: inheritance.line_cleaning_due.criticalGraceDays,
-    },
-  };
+  return pickSections(
+    inheritance,
+    (section, field) => section?.[field],
+  ) as unknown as HealthConfigInheritance;
 }
 
 function toEvidenceDto(

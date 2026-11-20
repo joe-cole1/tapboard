@@ -18,8 +18,16 @@ import {
   type ScaleAvailabilityHealthConfig,
   type ServingTemperatureHealthConfig,
   type SuspectedLeakHealthConfig,
+  THRESHOLD_HEALTH_CHECK_IDS,
+  type NullableOverride,
+  type ThresholdHealthCheckId,
+  type ThresholdHealthConfig,
 } from "./types.ts";
-import { HEALTH_CONFIG_FIELDS } from "./config.ts";
+import {
+  HEALTH_CONFIG_FIELDS,
+  THRESHOLD_CONFIG_FIELDS,
+  THRESHOLD_HEALTH_CHECKS,
+} from "./config.ts";
 
 /**
  * Repository code intentionally owns SQL only.  Callers provide the
@@ -105,10 +113,134 @@ function rowNullableNumberOrBoolean(
   return field === "enabled" ? rowBoolean(row, key) : rowNullableNumber(row, key);
 }
 
-function mapGlobalConfig(row: Record<string, unknown>): HealthGlobalConfig {
+// --- Threshold check config (one row per check, so a new check needs no migration) ---
+
+const THRESHOLD_COLUMNS = THRESHOLD_CONFIG_FIELDS.map(snakeCase);
+
+type ThresholdSections<T> = Record<ThresholdHealthCheckId, T>;
+
+function thresholdSectionFromRow<T>(row: Record<string, unknown>, nullable: boolean): T {
+  const result: Record<string, boolean | number | null> = {};
+  THRESHOLD_CONFIG_FIELDS.forEach((field, index) => {
+    const key = THRESHOLD_COLUMNS[index]!;
+    result[field] = nullable
+      ? rowNullableNumberOrBoolean(row, key, field)
+      : valueFromRow(row, key, field);
+  });
+  return result as T;
+}
+
+function thresholdValues(section: object | null | undefined): unknown[] {
+  const values = section as Record<string, unknown> | null | undefined;
+  return THRESHOLD_CONFIG_FIELDS.map((field) => {
+    const value = values?.[field];
+    if (value === undefined || value === null) return null;
+    return field === "enabled" ? (value === true ? 1 : 0) : value;
+  });
+}
+
+/** Stored global threshold sections; a check without a row uses its code defaults. */
+function readThresholdGlobalConfig(
+  database: DatabaseExecutor,
+): ThresholdSections<ThresholdHealthConfig> {
+  const rows = database
+    .prepare<[], Record<string, unknown>>(
+      `SELECT check_id, ${THRESHOLD_COLUMNS.join(", ")} FROM health_threshold_global_config`,
+    )
+    .all();
+  const result = {} as ThresholdSections<ThresholdHealthConfig>;
+  for (const id of THRESHOLD_HEALTH_CHECK_IDS) {
+    const row = rows.find((candidate) => candidate.check_id === id);
+    result[id] =
+      row === undefined
+        ? { ...THRESHOLD_HEALTH_CHECKS[id].defaults }
+        : thresholdSectionFromRow<ThresholdHealthConfig>(row, false);
+  }
+  return result;
+}
+
+function writeThresholdGlobalConfig(database: DatabaseExecutor, config: HealthConfig): void {
+  const statement = database.prepare<unknown[]>(
+    `INSERT INTO health_threshold_global_config (check_id, ${THRESHOLD_COLUMNS.join(", ")})
+     VALUES (?, ${THRESHOLD_COLUMNS.map(() => "?").join(", ")})
+     ON CONFLICT (check_id) DO UPDATE SET
+       ${THRESHOLD_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+  );
+  for (const id of THRESHOLD_HEALTH_CHECK_IDS) statement.run(id, ...thresholdValues(config[id]));
+}
+
+/** Stored per-Tap threshold overrides, by Tap; absent checks inherit every field. */
+function readThresholdTapOverrides(
+  database: DatabaseExecutor,
+  tapId?: string,
+): Map<string, Partial<ThresholdSections<NullableOverride<ThresholdHealthConfig>>>> {
+  const rows = database
+    .prepare<unknown[], Record<string, unknown>>(
+      `SELECT tap_id, check_id, ${THRESHOLD_COLUMNS.join(", ")}
+       FROM health_threshold_tap_overrides
+       ${tapId === undefined ? "" : "WHERE tap_id = ?"}`,
+    )
+    .all(...(tapId === undefined ? [] : [tapId]));
+  const result = new Map<
+    string,
+    Partial<ThresholdSections<NullableOverride<ThresholdHealthConfig>>>
+  >();
+  for (const row of rows) {
+    const id = row.check_id;
+    if (typeof id !== "string" || !(THRESHOLD_HEALTH_CHECK_IDS as readonly string[]).includes(id)) {
+      continue;
+    }
+    const tap = requireText(row, "tap_id");
+    const sections = result.get(tap) ?? {};
+    sections[id as ThresholdHealthCheckId] = thresholdSectionFromRow(row, true);
+    result.set(tap, sections);
+  }
+  return result;
+}
+
+function writeThresholdTapOverrides(
+  database: DatabaseExecutor,
+  tapId: string,
+  override: HealthConfigOverride,
+): void {
+  const upsert = database.prepare<unknown[]>(
+    `INSERT INTO health_threshold_tap_overrides (tap_id, check_id, ${THRESHOLD_COLUMNS.join(", ")})
+     VALUES (?, ?, ${THRESHOLD_COLUMNS.map(() => "?").join(", ")})
+     ON CONFLICT (tap_id, check_id) DO UPDATE SET
+       ${THRESHOLD_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}`,
+  );
+  const remove = database.prepare<[string, string]>(
+    "DELETE FROM health_threshold_tap_overrides WHERE tap_id = ? AND check_id = ?",
+  );
+  for (const id of THRESHOLD_HEALTH_CHECK_IDS) {
+    const values = thresholdValues(override[id]);
+    if (values.every((value) => value === null)) remove.run(tapId, id);
+    else upsert.run(tapId, id, ...values);
+  }
+}
+
+function allConfigValues(config: HealthConfig): unknown[] {
+  return [
+    ...configValues(config),
+    ...THRESHOLD_HEALTH_CHECK_IDS.flatMap((id) => thresholdValues(config[id])),
+  ];
+}
+
+function allOverrideValues(override: HealthConfigOverride): unknown[] {
+  return [
+    ...overrideValues(override),
+    ...THRESHOLD_HEALTH_CHECK_IDS.flatMap((id) => thresholdValues(override[id])),
+  ];
+}
+
+function mapGlobalConfig(
+  row: Record<string, unknown>,
+  thresholds: ThresholdSections<ThresholdHealthConfig>,
+): HealthGlobalConfig {
   return {
     revision: rowNumber(row, "revision"),
     config: {
+      ...thresholds,
       low_keg: configSectionFromRow<LowKegHealthConfig>(row, "low_keg", false),
       scale_availability: configSectionFromRow<ScaleAvailabilityHealthConfig>(
         row,
@@ -131,8 +263,12 @@ function mapGlobalConfig(row: Record<string, unknown>): HealthGlobalConfig {
   };
 }
 
-function mapOverride(row: Record<string, unknown>): HealthConfigOverride {
+function mapOverride(
+  row: Record<string, unknown>,
+  thresholds: Partial<ThresholdSections<NullableOverride<ThresholdHealthConfig>>> = {},
+): HealthConfigOverride {
   return {
+    ...thresholds,
     low_keg: configSectionFromRow<NonNullable<HealthConfigOverride["low_keg"]>>(
       row,
       "low_keg",
@@ -193,7 +329,7 @@ export function readHealthGlobalConfig(database: DatabaseExecutor): HealthGlobal
     )
     .get();
   if (row === undefined) throw new Error("health_global_config row 1 is missing");
-  return mapGlobalConfig(row);
+  return mapGlobalConfig(row, readThresholdGlobalConfig(database));
 }
 
 const configValues = (config: HealthConfig): unknown[] =>
@@ -210,9 +346,9 @@ export function updateHealthGlobalConfig(
   updatedAt: string,
 ): UpdateHealthConfigResult<HealthGlobalConfig> {
   const previous = readHealthGlobalConfig(database);
-  const values = configValues(config);
-  const oldValues = configValues(previous.config);
-  const changed = values.some((value, index) => value !== oldValues[index]);
+  const newValues = allConfigValues(config);
+  const oldValues = allConfigValues(previous.config);
+  const changed = newValues.some((value, index) => value !== oldValues[index]);
   if (!changed) return { previous, current: previous, changed: false };
   database
     .prepare<unknown[]>(
@@ -222,7 +358,8 @@ export function updateHealthGlobalConfig(
            updated_at = ?
        WHERE id = 1`,
     )
-    .run(...values, updatedAt);
+    .run(...configValues(config), updatedAt);
+  writeThresholdGlobalConfig(database, config);
   return { previous, current: readHealthGlobalConfig(database), changed: true };
 }
 
@@ -241,13 +378,14 @@ export function readHealthTapOverride(
   return {
     tapId: requireText(row, "tap_id"),
     revision: rowNumber(row, "revision"),
-    override: mapOverride(row),
+    override: mapOverride(row, readThresholdTapOverrides(database, tapId).get(tapId)),
     updatedAt: requireText(row, "updated_at"),
   };
 }
 
 /** Enumerate every persisted Tap override for atomic global-config validation. */
 export function listHealthTapOverrides(database: DatabaseExecutor): HealthTapOverride[] {
+  const thresholds = readThresholdTapOverrides(database);
   return database
     .prepare<[], Record<string, unknown>>(
       `SELECT tap_id, revision, ${CONFIG_SELECT}, updated_at
@@ -258,7 +396,7 @@ export function listHealthTapOverrides(database: DatabaseExecutor): HealthTapOve
     .map((row) => ({
       tapId: requireText(row, "tap_id"),
       revision: rowNumber(row, "revision"),
-      override: mapOverride(row),
+      override: mapOverride(row, thresholds.get(requireText(row, "tap_id"))),
       updatedAt: requireText(row, "updated_at"),
     }));
 }
@@ -287,16 +425,17 @@ export function upsertHealthTapOverride(
   updatedAt: string,
 ): UpdateHealthConfigResult<HealthTapOverride | undefined> {
   const previous = readHealthTapOverride(database, tapId);
-  const values = overrideValues(override);
-  if (!values.some((value) => value !== null)) {
+  const newValues = allOverrideValues(override);
+  if (!newValues.some((value) => value !== null)) {
     if (previous === undefined) return { previous, current: previous, changed: false };
     deleteHealthTapOverride(database, tapId);
     return { previous, current: undefined, changed: true };
   }
-  const oldValues = previous === undefined ? [] : overrideValues(previous.override);
+  const oldValues = previous === undefined ? [] : allOverrideValues(previous.override);
   const changed =
-    previous === undefined || values.some((value, index) => value !== oldValues[index]);
+    previous === undefined || newValues.some((value, index) => value !== oldValues[index]);
   if (!changed) return { previous, current: previous, changed: false };
+  const values = overrideValues(override);
 
   if (previous === undefined) {
     database
@@ -317,6 +456,7 @@ export function upsertHealthTapOverride(
       )
       .run(...values, updatedAt, tapId);
   }
+  writeThresholdTapOverrides(database, tapId, override);
   return { previous, current: readHealthTapOverride(database, tapId), changed: true };
 }
 
@@ -427,17 +567,12 @@ export function listHealthCheckStates(
     .prepare<[string], HealthCheckStateRow>(
       `SELECT ${STATE_COLUMNS}
        FROM health_check_state
-       WHERE tap_id = ?
-       ORDER BY CASE check_id
-         WHEN 'low_keg' THEN 1
-         WHEN 'scale_availability' THEN 2
-         WHEN 'suspected_leak' THEN 3
-         WHEN 'serving_temperature' THEN 4
-         WHEN 'line_cleaning_due' THEN 5
-       END`,
+       WHERE tap_id = ?`,
     )
     .all(tapId)
-    .map(mapCheckState);
+    .map(mapCheckState)
+    .filter(({ checkId }) => HEALTH_CHECK_IDS.includes(checkId))
+    .sort((a, b) => HEALTH_CHECK_IDS.indexOf(a.checkId) - HEALTH_CHECK_IDS.indexOf(b.checkId));
 }
 
 export function seedHealthCheckStates(

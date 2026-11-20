@@ -1,5 +1,6 @@
 import type { DatabaseExecutor } from "../../infrastructure/database/connection.ts";
 import type { EventEnvelope, EventType } from "../events/types.ts";
+import type { HealthCheckId } from "../health/types.ts";
 import type { TransportAttemptResult } from "./transport-types.ts";
 
 /** The two provider-neutral outbound transports supported by v2. */
@@ -226,12 +227,7 @@ export interface HealthEvaluationLike {
 
 export interface HealthTransitionEventContext {
   readonly tapId: string;
-  readonly checkId:
-    | "low_keg"
-    | "scale_availability"
-    | "suspected_leak"
-    | "serving_temperature"
-    | "line_cleaning_due";
+  readonly checkId: HealthCheckId;
   readonly previousState?: string | null;
   readonly previousSeverity?: string | null;
   readonly current: HealthEvaluationLike;

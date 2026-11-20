@@ -179,6 +179,8 @@ void test("a clean file database bootstraps the canonical v22 migration ledger",
         { type: "index", name: "idx_telemetry_receipts_client_identity" },
         { type: "index", name: "idx_telemetry_receipts_fallback_identity" },
         { type: "index", name: "idx_telemetry_receipts_processed_at" },
+        { type: "index", name: "idx_telemetry_rollups_daily_bucket" },
+        { type: "index", name: "idx_telemetry_rollups_hourly_bucket" },
         { type: "index", name: "idx_telemetry_source_tap_readings_tap" },
         { type: "index", name: "idx_telemetry_source_tap_status_tap" },
         { type: "index", name: "idx_telemetry_sources_current_machine_key" },
@@ -218,6 +220,8 @@ void test("a clean file database bootstraps the canonical v22 migration ledger",
         { type: "table", name: "health_incidents" },
         { type: "table", name: "health_leak_samples" },
         { type: "table", name: "health_tap_overrides" },
+        { type: "table", name: "health_threshold_global_config" },
+        { type: "table", name: "health_threshold_tap_overrides" },
         { type: "table", name: "keg_maintenance_records" },
         { type: "table", name: "keg_tare_history" },
         { type: "table", name: "kegs" },
@@ -255,6 +259,9 @@ void test("a clean file database bootstraps the canonical v22 migration ledger",
         { type: "table", name: "telemetry_ingest_receipts" },
         { type: "table", name: "telemetry_measurements" },
         { type: "table", name: "telemetry_readings" },
+        { type: "table", name: "telemetry_rollup_settings" },
+        { type: "table", name: "telemetry_rollups_daily" },
+        { type: "table", name: "telemetry_rollups_hourly" },
         { type: "table", name: "telemetry_settings" },
         { type: "table", name: "telemetry_source_tap_readings" },
         { type: "table", name: "telemetry_source_tap_status" },
@@ -367,7 +374,7 @@ void test("an in-memory database bootstraps the same canonical schema", () => {
           "SELECT type, name FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
         )
         .all().length,
-      170,
+      177,
     );
     assert.equal(
       database
@@ -1017,6 +1024,8 @@ void test("an exact v1 database upgrades to v22 with all ledger entries", (conte
         { version: 27, name: "telemetry-readings" },
         { version: 28, name: "telemetry-role-authority" },
         { version: 29, name: "telemetry-flow" },
+        { version: 30, name: "telemetry-rollups" },
+        { version: 31, name: "health-threshold-checks" },
       ],
     );
   } finally {
@@ -1547,7 +1556,7 @@ void test("a clean version 0 database upgrades through the canonical v22 schema"
 
   withFixture(path, (database) => {
     assert.equal(readUserVersion(database), CURRENT_SCHEMA_VERSION);
-    assert.equal(readSchemaObjects(database).length, 170);
+    assert.equal(readSchemaObjects(database).length, 177);
   });
 });
 

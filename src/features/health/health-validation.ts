@@ -7,6 +7,7 @@ import {
 import { DEFAULT_HEALTH_CONFIG, HEALTH_CONFIG_FIELDS, mergeHealthConfig } from "./config.ts";
 import {
   HEALTH_CHECK_IDS,
+  THRESHOLD_HEALTH_CHECK_IDS,
   type HealthConfig,
   type HealthConfigOverride,
   type HealthEvidence,
@@ -17,6 +18,8 @@ export const MAX_HEALTH_EVIDENCE_BYTES = 2_048;
 export const MAX_HEALTH_DURATION_MS = 365 * 86_400_000;
 export const MAX_HEALTH_VOLUME_ML = 1_000_000_000;
 export const MAX_HEALTH_DAYS = 3_650;
+/** Bound on a threshold check's range values, in any metric's canonical unit. */
+export const MAX_HEALTH_THRESHOLD = 1_000_000;
 
 function finiteNumber(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -164,41 +167,42 @@ function validateEffectiveConfig(config: HealthConfig): HealthConfig {
     "line_cleaning_due.criticalGraceDays",
     MAX_HEALTH_DAYS,
   );
+
+  for (const id of THRESHOLD_HEALTH_CHECK_IDS) {
+    const threshold = config[id];
+    for (const field of ["normalMin", "normalMax", "criticalMin", "criticalMax"] as const) {
+      boundedNumber(
+        threshold[field],
+        `${id}.${field}`,
+        -MAX_HEALTH_THRESHOLD,
+        MAX_HEALTH_THRESHOLD,
+      );
+    }
+    if (!(
+      threshold.criticalMin < threshold.normalMin &&
+      threshold.normalMin < threshold.normalMax &&
+      threshold.normalMax < threshold.criticalMax
+    )) {
+      throw invalid(id, "criticalMin < normalMin < normalMax < criticalMax is required");
+    }
+    positiveSafeInteger(threshold.durationMs, `${id}.durationMs`, MAX_HEALTH_DURATION_MS);
+  }
   return config;
+}
+
+function parseSections(object: Record<string, unknown>, allowNullFields: boolean) {
+  const sections: Record<string, Record<string, unknown> | null> = {};
+  for (const id of HEALTH_CHECK_IDS) {
+    sections[id] = parseSectionFields(object[id], id, allowNullFields);
+  }
+  return sections as unknown as HealthConfigOverride;
 }
 
 /** Validate a complete config or a partial default-inheriting config. */
 export function validateHealthConfig(value: unknown = DEFAULT_HEALTH_CONFIG): HealthConfig {
   const object = requirePlainObject(value, "healthConfig");
   rejectUnknownKeys(object, HEALTH_CHECK_IDS, "healthConfig");
-  const sections = {
-    low_keg: parseSectionFields(
-      object.low_keg,
-      "low_keg",
-      false,
-    ) as HealthConfigOverride["low_keg"],
-    scale_availability: parseSectionFields(
-      object.scale_availability,
-      "scale_availability",
-      false,
-    ) as HealthConfigOverride["scale_availability"],
-    suspected_leak: parseSectionFields(
-      object.suspected_leak,
-      "suspected_leak",
-      false,
-    ) as HealthConfigOverride["suspected_leak"],
-    serving_temperature: parseSectionFields(
-      object.serving_temperature,
-      "serving_temperature",
-      false,
-    ) as HealthConfigOverride["serving_temperature"],
-    line_cleaning_due: parseSectionFields(
-      object.line_cleaning_due,
-      "line_cleaning_due",
-      false,
-    ) as HealthConfigOverride["line_cleaning_due"],
-  } as unknown as HealthConfigOverride;
-  const effective = mergeHealthConfig(DEFAULT_HEALTH_CONFIG, sections);
+  const effective = mergeHealthConfig(DEFAULT_HEALTH_CONFIG, parseSections(object, false));
   return validateEffectiveConfig(effective);
 }
 
@@ -207,29 +211,7 @@ export function validateHealthConfigOverride(value: unknown): HealthConfigOverri
   if (value === null || value === undefined) return null;
   const object = requirePlainObject(value, "healthConfigOverride");
   rejectUnknownKeys(object, HEALTH_CHECK_IDS, "healthConfigOverride");
-  const parsed = {
-    low_keg: parseSectionFields(object.low_keg, "low_keg", true) as HealthConfigOverride["low_keg"],
-    scale_availability: parseSectionFields(
-      object.scale_availability,
-      "scale_availability",
-      true,
-    ) as HealthConfigOverride["scale_availability"],
-    suspected_leak: parseSectionFields(
-      object.suspected_leak,
-      "suspected_leak",
-      true,
-    ) as HealthConfigOverride["suspected_leak"],
-    serving_temperature: parseSectionFields(
-      object.serving_temperature,
-      "serving_temperature",
-      true,
-    ) as HealthConfigOverride["serving_temperature"],
-    line_cleaning_due: parseSectionFields(
-      object.line_cleaning_due,
-      "line_cleaning_due",
-      true,
-    ) as HealthConfigOverride["line_cleaning_due"],
-  } as unknown as HealthConfigOverride;
+  const parsed = parseSections(object, true);
   validateEffectiveConfig(mergeHealthConfig(DEFAULT_HEALTH_CONFIG, parsed));
   return parsed;
 }
@@ -303,6 +285,7 @@ export function validateHealthEvaluationInput(value: unknown): HealthEvaluationI
       "latestMeasurement",
       "latestScaleMeasurement",
       "latestTemperatureMeasurement",
+      "latestConditionMeasurements",
       "latestAuthoritativeMeasurement",
       "measurement",
       "currentEpoch",

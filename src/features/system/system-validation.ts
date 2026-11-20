@@ -80,7 +80,13 @@ export function validateRetentionSettings(input: unknown): UpdateSystemRetention
   if (Object.hasOwn(object, "telemetry")) {
     const group = inputObject(
       object.telemetry,
-      ["rawRetentionSeconds", "receiptRetentionSeconds", "reconnectHorizonSeconds"],
+      [
+        "rawRetentionSeconds",
+        "receiptRetentionSeconds",
+        "reconnectHorizonSeconds",
+        "hourlyRollupRetentionDays",
+        "dailyRollupRetentionDays",
+      ],
       "telemetry",
     );
     if (Object.keys(group).length === 0) throw invalid("telemetry", "requires a setting");
@@ -97,6 +103,12 @@ export function validateRetentionSettings(input: unknown): UpdateSystemRetention
       ...(validated.reconnectHorizonSeconds === undefined
         ? {}
         : { reconnectHorizonSeconds: validated.reconnectHorizonSeconds }),
+      ...(validated.hourlyRollupRetentionDays === undefined
+        ? {}
+        : { hourlyRollupRetentionDays: validated.hourlyRollupRetentionDays }),
+      ...(validated.dailyRollupRetentionDays === undefined
+        ? {}
+        : { dailyRollupRetentionDays: validated.dailyRollupRetentionDays }),
     };
   }
   if (Object.hasOwn(object, "outbox")) {

@@ -1,3 +1,5 @@
+import type { HealthCheckId } from "../health/types.ts";
+
 export const EVENT_TYPES = [
   "fill.assigned",
   "fill.ended",
@@ -34,12 +36,7 @@ export interface KegLowData {
 }
 
 export interface HealthTransitionedData {
-  readonly check_id:
-    | "low_keg"
-    | "scale_availability"
-    | "suspected_leak"
-    | "serving_temperature"
-    | "line_cleaning_due";
+  readonly check_id: HealthCheckId;
   readonly state: "healthy" | "degraded" | "active";
   readonly severity: "none" | "info" | "warning" | "critical";
 }

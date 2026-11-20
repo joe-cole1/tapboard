@@ -1,4 +1,9 @@
-import { DEFAULT_HEALTH_CONFIG, calculateLineCleaningDue, mergeHealthConfig } from "./config.ts";
+import {
+  DEFAULT_HEALTH_CONFIG,
+  THRESHOLD_HEALTH_CHECKS,
+  calculateLineCleaningDue,
+  mergeHealthConfig,
+} from "./config.ts";
 import { validateHealthConfigOverride, validateHealthEvidence } from "./health-validation.ts";
 import {
   HEALTH_CHECK_IDS,
@@ -20,6 +25,8 @@ import {
   type HealthReason,
   type HealthSeverity,
   type HealthState,
+  type ThresholdHealthCheckId,
+  type ThresholdHealthConfig,
 } from "./types.ts";
 
 const EMPTY_TIMERS: HealthEvaluationTimers = {
@@ -27,6 +34,8 @@ const EMPTY_TIMERS: HealthEvaluationTimers = {
   scaleUnavailableSinceMs: null,
   temperatureOutsideSinceMs: null,
   temperatureLastMeasuredAtMs: null,
+  thresholdOutsideSinceMs: null,
+  thresholdLastMeasuredAtMs: null,
   leakSuppressedUntilMs: null,
 };
 
@@ -76,6 +85,10 @@ function timersFor(input: HealthEvaluationInput): HealthEvaluationTimers {
       finite(nested.temperatureLastMeasuredAtMs) ??
       finite(previous?.temperatureLastMeasuredAtMs) ??
       null,
+    thresholdOutsideSinceMs:
+      finite(direct.thresholdOutsideSinceMs) ?? finite(nested.thresholdOutsideSinceMs) ?? null,
+    thresholdLastMeasuredAtMs:
+      finite(direct.thresholdLastMeasuredAtMs) ?? finite(nested.thresholdLastMeasuredAtMs) ?? null,
     leakSuppressedUntilMs:
       finite(direct.leakSuppressedUntilMs) ??
       finite(nested.leakSuppressedUntilMs) ??
@@ -533,16 +546,92 @@ export function temperatureIsFresh(
   return ageMs >= 0 && ageMs < fallbackScaleDegradedMs(config);
 }
 
-/** Evaluate canonical Celsius temperature with continuous-valid evidence timing. */
-export function evaluateServingTemperature(
+/**
+ * How one threshold check names its reasons, evidence and timers. Serving temperature keeps the
+ * names it had before other condition metrics were checked; other checks use generic ones.
+ */
+interface ThresholdNaming {
+  readonly reasons: {
+    readonly normal: HealthReason;
+    readonly invalid: HealthReason;
+    readonly stale: HealthReason;
+    readonly outOfRange: HealthReason;
+    readonly critical: HealthReason;
+    readonly continuityReset: HealthReason;
+  };
+  readonly evidence: (
+    value: number,
+    range: ThresholdHealthConfig,
+    includeCritical: boolean,
+  ) => HealthEvidence;
+  readonly sinceTimer: "temperatureOutsideSinceMs" | "thresholdOutsideSinceMs";
+  readonly lastTimer: "temperatureLastMeasuredAtMs" | "thresholdLastMeasuredAtMs";
+}
+
+const TEMPERATURE_NAMING: ThresholdNaming = {
+  reasons: {
+    normal: "temperature_normal",
+    invalid: "temperature_invalid",
+    stale: "temperature_stale",
+    outOfRange: "temperature_out_of_range",
+    critical: "temperature_critical",
+    continuityReset: "temperature_continuity_reset",
+  },
+  evidence: (value, range, includeCritical) => ({
+    temperatureC: value,
+    normalMinC: range.normalMin,
+    normalMaxC: range.normalMax,
+    ...(includeCritical
+      ? { criticalMinC: range.criticalMin, criticalMaxC: range.criticalMax }
+      : {}),
+  }),
+  sinceTimer: "temperatureOutsideSinceMs",
+  lastTimer: "temperatureLastMeasuredAtMs",
+};
+
+function genericThresholdNaming(metric: string): ThresholdNaming {
+  return {
+    reasons: {
+      normal: "threshold_normal",
+      invalid: "threshold_invalid",
+      stale: "threshold_stale",
+      outOfRange: "threshold_out_of_range",
+      critical: "threshold_critical",
+      continuityReset: "threshold_continuity_reset",
+    },
+    evidence: (value, range, includeCritical) => ({
+      metric,
+      value,
+      normalMin: range.normalMin,
+      normalMax: range.normalMax,
+      ...(includeCritical
+        ? { criticalMin: range.criticalMin, criticalMax: range.criticalMax }
+        : {}),
+    }),
+    sinceTimer: "thresholdOutsideSinceMs",
+    lastTimer: "thresholdLastMeasuredAtMs",
+  };
+}
+
+/**
+ * Evaluate one condition reading against a normal and a critical range. The reading must stay
+ * outside the normal range for `durationMs` of continuous readings before the check is active;
+ * a gap longer than the scale-freshness window restarts that timer.
+ */
+function evaluateRange(
+  id: HealthCheckId,
   input: HealthEvaluationInput,
-  suppliedConfig: HealthConfig | HealthConfigOverride = DEFAULT_HEALTH_CONFIG,
+  config: HealthConfig,
+  range: ThresholdHealthConfig,
+  reading: { readonly measurement: unknown; readonly value: number | null },
+  naming: ThresholdNaming,
 ): HealthEvaluation {
-  const id = "serving_temperature" as const;
-  if (isRetired(input)) return retiredResult(id, input);
-  const config = validConfig(suppliedConfig);
-  if (!config.serving_temperature.enabled) return disabledResult(id, input);
   const timers = timersFor(input);
+  const withTimers = (since: number | null, last: number | null): HealthEvaluationTimers => ({
+    ...timers,
+    [naming.sinceTimer]: since,
+    [naming.lastTimer]: last,
+  });
   if (!hasTemperatureAuthority(input)) {
     return result(
       id,
@@ -551,22 +640,22 @@ export function evaluateServingTemperature(
       "no_authority",
       input.nowMs,
       { reason: "no_authority" },
-      { ...timers, temperatureOutsideSinceMs: null, temperatureLastMeasuredAtMs: null },
+      withTimers(null, null),
       samplesFor(input),
       false,
     );
   }
-  // Temperature has its own input: it may arrive in samples without a keg-level reading.
-  const measurement = input.latestTemperatureMeasurement ?? null;
-  if (!measurementIsUsable(measurement) || temperatureValue(measurement) === null) {
+  // A condition reading has its own input: it may arrive in samples without a keg-level reading.
+  const measurement = reading.measurement as HealthAuthoritativeMeasurement | null;
+  if (!measurementIsUsable(measurement) || reading.value === null) {
     return result(
       id,
       "degraded",
       "info",
-      "temperature_invalid",
+      naming.reasons.invalid,
       input.nowMs,
-      { reason: "temperature_invalid" },
-      { ...timers, temperatureOutsideSinceMs: null, temperatureLastMeasuredAtMs: null },
+      { reason: naming.reasons.invalid },
+      withTimers(null, null),
       samplesFor(input),
       false,
     );
@@ -578,62 +667,53 @@ export function evaluateServingTemperature(
       id,
       "degraded",
       "info",
-      "temperature_stale",
+      naming.reasons.stale,
       input.nowMs,
-      { measurementAgeMs: ageMs, reason: "temperature_stale" },
-      { ...timers, temperatureOutsideSinceMs: null, temperatureLastMeasuredAtMs: measuredAtMs },
+      { measurementAgeMs: ageMs, reason: naming.reasons.stale },
+      withTimers(null, measuredAtMs),
       samplesFor(input),
       false,
     );
   }
-  const value = temperatureValue(measurement)!;
-  const temperatureConfig = config.serving_temperature;
-  const normal = value >= temperatureConfig.normalMinC && value <= temperatureConfig.normalMaxC;
+  const value = reading.value;
+  const normal = value >= range.normalMin && value <= range.normalMax;
   if (normal) {
     return result(
       id,
       "healthy",
       "none",
-      "temperature_normal",
+      naming.reasons.normal,
       input.nowMs,
-      {
-        temperatureC: value,
-        normalMinC: temperatureConfig.normalMinC,
-        normalMaxC: temperatureConfig.normalMaxC,
-        reason: "temperature_normal",
-      },
-      { ...timers, temperatureOutsideSinceMs: null, temperatureLastMeasuredAtMs: measuredAtMs },
+      { ...naming.evidence(value, range, false), reason: naming.reasons.normal },
+      withTimers(null, measuredAtMs),
       samplesFor(input),
       false,
     );
   }
-  const previousMeasuredAt = timers.temperatureLastMeasuredAtMs;
+  const previousMeasuredAt = timers[naming.lastTimer];
   const gap =
     previousMeasuredAt !== null &&
     measuredAtMs - previousMeasuredAt > fallbackScaleDegradedMs(config);
-  const existingSince = timers.temperatureOutsideSinceMs;
+  const existingSince = timers[naming.sinceTimer];
   const since =
     !gap && existingSince !== null && existingSince <= input.nowMs ? existingSince : input.nowMs;
   const outOfRangeDurationMs = input.nowMs - since;
-  const critical = value < temperatureConfig.criticalMinC || value > temperatureConfig.criticalMaxC;
+  const critical = value < range.criticalMin || value > range.criticalMax;
   const evidence = {
-    temperatureC: value,
-    normalMinC: temperatureConfig.normalMinC,
-    normalMaxC: temperatureConfig.normalMaxC,
-    criticalMinC: temperatureConfig.criticalMinC,
-    criticalMaxC: temperatureConfig.criticalMaxC,
+    ...naming.evidence(value, range, true),
     outOfRangeDurationMs,
-    durationMs: temperatureConfig.durationMs,
+    durationMs: range.durationMs,
   };
-  if (outOfRangeDurationMs < temperatureConfig.durationMs) {
+  if (outOfRangeDurationMs < range.durationMs) {
+    const reason = gap ? naming.reasons.continuityReset : naming.reasons.outOfRange;
     return result(
       id,
       "degraded",
       "info",
-      gap ? "temperature_continuity_reset" : "temperature_out_of_range",
+      reason,
       input.nowMs,
-      { ...evidence, reason: gap ? "temperature_continuity_reset" : "temperature_out_of_range" },
-      { ...timers, temperatureOutsideSinceMs: since, temperatureLastMeasuredAtMs: measuredAtMs },
+      { ...evidence, reason },
+      withTimers(since, measuredAtMs),
       samplesFor(input),
       false,
     );
@@ -642,11 +722,60 @@ export function evaluateServingTemperature(
     id,
     "active",
     critical ? "critical" : "warning",
-    critical ? "temperature_critical" : "temperature_out_of_range",
+    critical ? naming.reasons.critical : naming.reasons.outOfRange,
     input.nowMs,
     evidence,
-    { ...timers, temperatureOutsideSinceMs: since, temperatureLastMeasuredAtMs: measuredAtMs },
+    withTimers(since, measuredAtMs),
     samplesFor(input),
+  );
+}
+
+/** Evaluate canonical Celsius temperature with continuous-valid evidence timing. */
+export function evaluateServingTemperature(
+  input: HealthEvaluationInput,
+  suppliedConfig: HealthConfig | HealthConfigOverride = DEFAULT_HEALTH_CONFIG,
+): HealthEvaluation {
+  const id = "serving_temperature" as const;
+  if (isRetired(input)) return retiredResult(id, input);
+  const config = validConfig(suppliedConfig);
+  const temperature = config.serving_temperature;
+  if (!temperature.enabled) return disabledResult(id, input);
+  const measurement = input.latestTemperatureMeasurement ?? null;
+  return evaluateRange(
+    id,
+    input,
+    config,
+    {
+      enabled: temperature.enabled,
+      normalMin: temperature.normalMinC,
+      normalMax: temperature.normalMaxC,
+      criticalMin: temperature.criticalMinC,
+      criticalMax: temperature.criticalMaxC,
+      durationMs: temperature.durationMs,
+    },
+    { measurement, value: temperatureValue(measurement) },
+    TEMPERATURE_NAMING,
+  );
+}
+
+/** Evaluate a threshold check's condition metric, in its canonical unit. */
+export function evaluateThresholdCheck(
+  id: ThresholdHealthCheckId,
+  input: HealthEvaluationInput,
+  suppliedConfig: HealthConfig | HealthConfigOverride = DEFAULT_HEALTH_CONFIG,
+): HealthEvaluation {
+  if (isRetired(input)) return retiredResult(id, input);
+  const config = validConfig(suppliedConfig);
+  if (!config[id].enabled) return disabledResult(id, input);
+  const { metric } = THRESHOLD_HEALTH_CHECKS[id];
+  const measurement = input.latestConditionMeasurements?.[metric] ?? null;
+  return evaluateRange(
+    id,
+    input,
+    config,
+    config[id],
+    { measurement, value: finite(measurement?.value) },
+    genericThresholdNaming(metric),
   );
 }
 
@@ -1108,6 +1237,8 @@ export function evaluateHealthCheck(
       return evaluateServingTemperature(input, suppliedConfig);
     case "line_cleaning_due":
       return evaluateLineCleaningDue(input, suppliedConfig);
+    default:
+      return evaluateThresholdCheck(id, input, suppliedConfig);
   }
 }
 
