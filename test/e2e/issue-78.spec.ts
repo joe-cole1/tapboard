@@ -642,3 +642,46 @@ test("Tap Wars meters show the split without inline styles, with and without Jav
   await noJsContext.close();
   await context.close();
 });
+
+test("a live update with no Tap War running keeps the start form (#220)", async ({ page }) => {
+  // Record the page's EventSource so the test can make it reconnect.
+  await page.addInitScript(() => {
+    const sources: EventSource[] = [];
+    const Native = window.EventSource;
+    window.EventSource = class extends Native {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        sources.push(this);
+      }
+    };
+    (window as unknown as { recordedSources: EventSource[] }).recordedSources = sources;
+  });
+  await login(page);
+  await closeCurrentWar(page);
+  await page.goto("/admin/tap-wars");
+  const form = page.locator("[data-tap-wars-start]");
+  await expect(form).toBeVisible();
+  const first = form.locator("[data-tap-wars-selector]").nth(0);
+  const value = await first.locator("option[data-tap-number]").first().getAttribute("value");
+  if (value === null) throw new Error("Expected a fixture competitor.");
+  await first.selectOption(value);
+  await page.evaluate(() => {
+    (window as unknown as { notReloaded?: boolean }).notReloaded = true;
+  });
+
+  // The stream drops and reconnects; the page refreshes its war state.
+  const refreshed = page.waitForResponse((response) =>
+    response.url().endsWith("/api/admin/tap-wars"),
+  );
+  await page.evaluate(() => {
+    const sources = (window as unknown as { recordedSources: EventSource[] }).recordedSources;
+    const admin = sources.filter((source) => source.url.endsWith("/api/admin/events"));
+    admin.at(-1)?.dispatchEvent(new Event("error"));
+  });
+  await refreshed;
+  await page.waitForTimeout(500);
+  expect(
+    await page.evaluate(() => (window as unknown as { notReloaded?: boolean }).notReloaded),
+  ).toBe(true);
+  await expect(first).toHaveValue(value);
+});
