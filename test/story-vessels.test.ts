@@ -444,7 +444,11 @@ void test("display color validates explicit hex and uses finite SRM palette", ()
   assert.match(displayColorForSrm(0) ?? "", /^#[0-9A-F]{6}$/);
   assert.equal(resolveDisplayColor({ srm: "not-a-number" }), SAFE_DISPLAY_COLOR);
   assert.equal(displayColorForSrm(-1), null);
-  assert.equal(displayColorForSrm(51), null);
+  // Beverages accept SRM 0–100; anything darker than 50 is the darkest swatch (#219).
+  assert.equal(displayColorForSrm(50), "#080100");
+  for (const srm of [51, 66, 100]) assert.equal(displayColorForSrm(srm), "#080100", String(srm));
+  assert.equal(resolveDisplayColor({ srm: 66 }), "#080100");
+  assert.equal(displayColorForSrm(101), null);
 });
 
 void test("recipe projections cap, sanitize, and never expose source internals", () => {
