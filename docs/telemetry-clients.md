@@ -112,7 +112,8 @@ Kegboard and Keg Cop do; Tapboard stores no K-factor. With ESPHome, for example,
   closes it, and its hard timeout bounds it (flow that continues opens the next pour). A pour
   below the minimum pour is discarded. The detector settings are the Tap's usual ones.
 - A decrease is a reset (reboot or keg reset): an open pour closes at the last value, and the
-  new value is the baseline.
+  new value is the baseline. An increase that would make one pour larger than the keg's
+  capacity (a corrupt reading) is handled the same way, so it records no pour.
 - **Flow pours, scale truth.** When a Tap has a flow source, pours come only from the flow
   meter. A scale, if the Tap also has a level source, still gives remaining volume and keeps
   low-keg and leak evidence, but records no pours. Without a scale, remaining volume is the

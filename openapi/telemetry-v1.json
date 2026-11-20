@@ -384,7 +384,7 @@
         "type": "object",
         "required": ["metric", "value", "unit"],
         "additionalProperties": false,
-        "description": "A flow meter's cumulative dispensed volume since its last reset, calibrated on the device or bridge (Tapboard stores no K-factor). Supplied by the Tap's flow source. An increase opens or extends a pour; a decrease is a reset. With a flow source, pours come only from the flow meter.",
+        "description": "A flow meter's cumulative dispensed volume since its last reset, calibrated on the device or bridge (Tapboard stores no K-factor). Supplied by the Tap's flow source. An increase opens or extends a pour; a decrease is a reset. An increase that would make one pour larger than the keg's capacity is accepted but treated as a reset, so a corrupt counter value records no pour. With a flow source, pours come only from the flow meter.",
         "properties": {
           "metric": {
             "const": "dispensed_volume"
