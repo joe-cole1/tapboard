@@ -296,6 +296,52 @@ void test("the rollup query validates its input", () => {
   );
 });
 
+void test("a window starting inside a bucket includes that bucket (#218)", () => {
+  const h = harness();
+  h.send(30 * MINUTE, h.temperature(4));
+  const read = (resolution: "hourly" | "daily", from: string, to: string) =>
+    h.telemetryService
+      .getTapRollups(h.tap.id, { metric: "temperature", resolution, from, to })
+      .buckets.map(({ start }) => start);
+  assert.deepEqual(read("hourly", at(15 * MINUTE), at(HOUR)), [at(0)]);
+  assert.deepEqual(read("daily", at(HOUR), at(2 * HOUR)), ["2026-11-19T00:00:00.000Z"]);
+  // A bucket that ends at or before the window start is still excluded.
+  assert.deepEqual(read("hourly", at(HOUR), at(2 * HOUR)), []);
+  // The widest window, starting mid-bucket, overlaps 1,001 buckets and returns them all.
+  h.telemetryService.updateSettings({ hourlyRollupRetentionDays: 365 });
+  for (let hour = 1; hour <= 1_000; hour += 1) h.send(hour * HOUR, h.temperature(5));
+  const widest = read("hourly", at(30 * MINUTE), at(1_000 * HOUR + 30 * MINUTE));
+  assert.equal(widest.length, 1_001);
+  assert.equal(widest.at(-1), at(1_000 * HOUR));
+});
+
+void test("changing only rollup retention logs one Activity entry (#218)", () => {
+  const h = harness();
+  const entries = () =>
+    h.database
+      .prepare<[], { details_json: string }>(
+        "SELECT details_json FROM activity_log WHERE entity_type = 'telemetry_settings'",
+      )
+      .all()
+      .map(({ details_json }) => Object.keys(JSON.parse(details_json) as object).sort());
+  const ingestUpdatedAt = () =>
+    h.database
+      .prepare<[], { updated_at: string }>("SELECT updated_at FROM telemetry_settings")
+      .get()!.updated_at;
+  const before = ingestUpdatedAt();
+  // Well after the migration stamped the settings rows with the real time.
+  h.set(365 * DAY);
+  const saved = h.telemetryService.updateSettings({ hourlyRollupRetentionDays: 14 });
+  assert.equal(saved.updatedAt, at(365 * DAY));
+  assert.equal(h.telemetryService.getSettings().updatedAt, saved.updatedAt);
+  assert.deepEqual(entries(), [["dailyRollupRetentionDays", "hourlyRollupRetentionDays"]]);
+  assert.equal(ingestUpdatedAt(), before);
+  assert.equal(h.telemetryService.getSettings().hourlyRollupRetentionDays, 14);
+  h.telemetryService.updateSettings({ maxBatchSize: 50 });
+  assert.equal(entries().length, 2);
+  assert.equal(h.telemetryService.getSettings().maxBatchSize, 50);
+});
+
 void test("GET /api/admin/taps/:tapId/telemetry/rollups requires an Admin session", async (context) => {
   const ORIGIN = "http://127.0.0.1:3000";
   const database = openDatabase(":memory:");
@@ -349,6 +395,13 @@ void test("GET /api/admin/taps/:tapId/telemetry/rollups requires an Admin sessio
     (await fetch(url("metric=temperature&metric=pressure"), { headers: { cookie } })).status,
     400,
   );
+  // A prototype key is an ordinary unknown parameter, single or repeated (#218).
+  for (const query of [
+    "metric=temperature&__proto__=1",
+    "metric=temperature&__proto__=1&__proto__=2",
+  ]) {
+    assert.equal((await fetch(url(query), { headers: { cookie } })).status, 400, query);
+  }
   const response = await fetch(url("metric=temperature&resolution=daily"), {
     headers: { cookie },
   });
