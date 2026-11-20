@@ -89,6 +89,22 @@ export function renderTapDetail(
     authoritySummary = "Unavailable";
   }
 
+  let pressureLabel = "No reading";
+  try {
+    const pressure = dependencies.telemetryService.getCurrentTapReading(id, "pressure");
+    if (pressure !== null) {
+      pressureLabel = `${Number(pressure.value.toFixed(1))} kPa, measured ${adminTimestampLabel(
+        new Date(pressure.measuredAtMs).toISOString(),
+      )}`;
+    }
+  } catch (error) {
+    reportFailure(error, {
+      operation: "admin.tap.pressure",
+      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
+    });
+    pressureLabel = "Unavailable";
+  }
+
   let detectorFields: readonly Record<string, unknown>[] = [];
   try {
     const detectorGlobal = dependencies.detectorService.getGlobalConfig();
@@ -321,6 +337,7 @@ export function renderTapDetail(
           authoritySummary,
           levelSourceId,
           conditionSourceId,
+          pressureLabel,
           sources: telemetrySources,
         },
         detector: { fields: detectorFields, groups: detectorGroups },

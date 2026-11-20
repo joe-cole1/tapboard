@@ -22,6 +22,7 @@ import {
   registeredMetric,
   type NormalizedTelemetrySample,
 } from "./normalization.ts";
+import { readCurrentTapReading, type CurrentTapReading } from "./current-reading.ts";
 import { InMemoryTelemetryRateLimiter } from "./rate-limiter.ts";
 import { TELEMETRY_AUTHORITY_ROLES, TELEMETRY_NORMALIZATION_VERSION } from "./types.ts";
 import {
@@ -566,6 +567,11 @@ export class TelemetryService {
 
   getTapAuthority(tapIdRaw: string): TapTelemetryAuthority {
     return readTapAuthority(this.database, validateTapId(tapIdRaw));
+  }
+
+  /** The Tap's latest `metric` reading from the source holding that metric's role, if current. */
+  getCurrentTapReading(tapIdRaw: string, metric: string): CurrentTapReading | null {
+    return readCurrentTapReading(this.database, validateTapId(tapIdRaw), metric);
   }
 
   listAuthorities(): readonly TapTelemetryAuthority[] {

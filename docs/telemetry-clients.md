@@ -11,7 +11,7 @@ device or bridge side. The machine contract is [`openapi/telemetry-v1.json`](../
    name (for example `Keg scale 1`). The machine key (`tbk_…`) is shown **once**; store it in
    the device or bridge configuration, not in a shared document.
 2. Open the Tap in Admin (**Taps → the Tap → Telemetry authority**), choose a **Level source**
-   (the scale: keg level and pours) and a **Condition source** (temperature), and save. One
+   (the scale: keg level and pours) and a **Condition source** (temperature, pressure), and save. One
    device can hold both roles; a separate probe can hold the condition role for a Tap whose scale
    is another device. Changing the level source needs a fresh baseline; changing the condition
    source does not.
@@ -82,13 +82,15 @@ card's temperature, and leaves pour detection untouched.
 
 Tapboard accepts only these metrics. Bounds apply to the value as sent, before unit conversion.
 
-| Metric             | Role                                                                             | Units                           | Bounds      | Stored as   |
-| ------------------ | -------------------------------------------------------------------------------- | ------------------------------- | ----------- | ----------- |
-| `total_weight`     | keg level: keg plus beer, interpreted with the keg's tare and the beer's density | `g`, `kg`, `oz`, `lb`           | ≥ 0         | grams       |
-| `remaining_volume` | keg level                                                                        | `ml`, `l`, `us_fl_oz`, `us_gal` | ≥ 0         | millilitres |
-| `fill_percentage`  | keg level                                                                        | `percent`                       | 0–100       | percent     |
-| `temperature`      | condition: serving-temperature health and the tap card                           | `c`, `f`                        | −100 to 150 | Celsius     |
+| Metric             | Role                                                                             | Units                           | Bounds       | Stored as   |
+| ------------------ | -------------------------------------------------------------------------------- | ------------------------------- | ------------ | ----------- |
+| `total_weight`     | keg level: keg plus beer, interpreted with the keg's tare and the beer's density | `g`, `kg`, `oz`, `lb`           | ≥ 0          | grams       |
+| `remaining_volume` | keg level                                                                        | `ml`, `l`, `us_fl_oz`, `us_gal` | ≥ 0          | millilitres |
+| `fill_percentage`  | keg level                                                                        | `percent`                       | 0–100        | percent     |
+| `temperature`      | condition: serving-temperature health and the tap card                           | `c`, `f`                        | −100 to 150  | Celsius     |
+| `pressure`         | condition: gauge serving pressure, shown on the Admin Tap page                   | `kpa`, `psi`, `bar`             | −100 to 1000 | kPa         |
 
+Pressure bounds apply in whichever unit is sent, so the range is loose for `psi` and `bar`.
 Values are rounded to six decimal places after conversion. An unregistered metric or a unit the
 metric does not accept is a 400 whose `details.reason` names the metric.
 

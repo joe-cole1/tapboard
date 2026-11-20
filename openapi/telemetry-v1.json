@@ -202,6 +202,10 @@
         "type": "string",
         "enum": ["c", "f"]
       },
+      "PressureUnit": {
+        "type": "string",
+        "enum": ["kpa", "psi", "bar"]
+      },
       "PercentageUnit": {
         "type": "string",
         "const": "percent"
@@ -357,6 +361,25 @@
           }
         }
       },
+      "PressureReading": {
+        "type": "object",
+        "required": ["metric", "value", "unit"],
+        "additionalProperties": false,
+        "description": "Gauge serving pressure, stored in kPa (psi × 6.894757293168, bar × 100). Supplied by the Tap's condition source.",
+        "properties": {
+          "metric": {
+            "const": "pressure"
+          },
+          "value": {
+            "type": "number",
+            "minimum": -100,
+            "maximum": 1000
+          },
+          "unit": {
+            "$ref": "#/components/schemas/PressureUnit"
+          }
+        }
+      },
       "Reading": {
         "oneOf": [
           {
@@ -370,14 +393,17 @@
           },
           {
             "$ref": "#/components/schemas/TemperatureReading"
+          },
+          {
+            "$ref": "#/components/schemas/PressureReading"
           }
         ],
-        "description": "One reading of a registered metric. total_weight, remaining_volume, and fill_percentage are keg-level metrics; temperature is a condition metric. Bounds apply to the value as sent, before unit conversion. An unregistered metric or a unit the metric does not accept is a 400 naming the metric."
+        "description": "One reading of a registered metric. total_weight, remaining_volume, and fill_percentage are keg-level metrics; temperature and pressure are condition metrics. Bounds apply to the value as sent, before unit conversion. An unregistered metric or a unit the metric does not accept is a 400 naming the metric."
       },
       "Readings": {
         "type": "array",
         "minItems": 1,
-        "maxItems": 4,
+        "maxItems": 5,
         "items": {
           "$ref": "#/components/schemas/Reading"
         },
