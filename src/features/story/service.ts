@@ -80,8 +80,7 @@ export interface PublicStoryServiceDependencies {
 type DegradedOperation =
   | "story.detector_diagnostics"
   | "story.forecast_summary"
-  | "story.health_aggregate"
-  | "story.health_badges"
+  | "story.health"
   | "story.display_settings"
   | "story.pour_history"
   | "story.recipe_snapshots"
@@ -96,6 +95,8 @@ interface StoryContext {
   readonly beverage: BeverageDetailResult | null;
   readonly fill: AdminFillView | null;
 }
+
+type HealthOverview = ReturnType<HealthService["getAdminOverview"]>;
 
 interface RuntimeProjection {
   readonly remainingVolumeMl: number | null;
@@ -607,7 +608,7 @@ export class PublicStoryService {
     };
   }
 
-  #runtimeFor(context: StoryContext): RuntimeProjection {
+  #runtimeFor(context: StoryContext, overview: HealthOverview | undefined): RuntimeProjection {
     if (context.assignment === null) {
       return {
         remainingVolumeMl: null,
@@ -617,7 +618,7 @@ export class PublicStoryService {
         servingsRemaining: null,
         daysRemaining: null,
         fillPercent: null,
-        health: this.#health(context.tap.id),
+        health: this.#health(overview),
       };
     }
 
@@ -665,42 +666,44 @@ export class PublicStoryService {
       servingsRemaining,
       daysRemaining,
       fillPercent: clampedPercent(remainingVolumeMl, capacityMl),
-      health: this.#health(context.tap.id),
+      health: this.#health(overview),
     };
   }
 
-  #health(tapId: string): PublicTapCardView["health"] {
+  /** One health read per projection, shared by the aggregate and the badges. */
+  #healthOverview(tapId: string): HealthOverview | undefined {
     try {
-      const aggregate = this.#dependencies.healthService.getAdminOverview(tapId).aggregate;
-      if (aggregate.state === "healthy") return "healthy";
-      if (aggregate.severity === "warning" || aggregate.severity === "critical") return "degraded";
-      return "unknown";
+      return this.#dependencies.healthService.getAdminOverview(tapId);
     } catch (error) {
-      this.#degraded("story.health_aggregate", { tapId }, error);
-      return "unknown";
+      // Health is additive; its failure must not blank the card.
+      this.#degraded("story.health", { tapId }, error);
+      return undefined;
     }
   }
 
-  #badgesFor(context: StoryContext, policy: MysteryVisibilityPolicy): readonly PublicTapBadge[] {
+  #health(overview: HealthOverview | undefined): PublicTapCardView["health"] {
+    const aggregate = overview?.aggregate;
+    if (aggregate?.state === "healthy") return "healthy";
+    if (aggregate?.severity === "warning" || aggregate?.severity === "critical") return "degraded";
+    return "unknown";
+  }
+
+  #badgesFor(
+    context: StoryContext,
+    policy: MysteryVisibilityPolicy,
+    overview: HealthOverview | undefined,
+  ): readonly PublicTapBadge[] {
     if (context.assignment === null || context.beverage === null || context.fill === null) {
       return [];
     }
 
     const badges: PublicTapBadge[] = [];
-    try {
-      const overview = this.#dependencies.healthService.getAdminOverview(context.tap.id);
-      const lowKeg = overview.checks.find((check) => check.checkId === "low_keg");
-      if (
-        lowKeg !== undefined &&
-        (lowKeg.state === "active" ||
-          lowKeg.severity === "warning" ||
-          lowKeg.severity === "critical")
-      ) {
-        badges.push("low");
-      }
-    } catch (error) {
-      // Badge projection is additive; health failures must not blank the card.
-      this.#degraded("story.health_badges", { tapId: context.tap.id }, error);
+    const lowKeg = overview?.checks.find((check) => check.checkId === "low_keg");
+    if (
+      lowKeg !== undefined &&
+      (lowKeg.state === "active" || lowKeg.severity === "warning" || lowKeg.severity === "critical")
+    ) {
+      badges.push("low");
     }
 
     if (
@@ -790,6 +793,7 @@ export class PublicStoryService {
     hypotheticalSettings?: PublicTapCardMetricSettings,
   ): PublicTapCardView {
     const tap = context.tap;
+    const overview = this.#healthOverview(tap.id);
     if (context.assignment === null || context.beverage === null || context.fill === null) {
       const vessel = resolveVessel({ fillGlass: null, style: null });
       return {
@@ -815,14 +819,14 @@ export class PublicStoryService {
         daysRemaining: null,
         temperatureC: null,
         waitingForMeasurement: false,
-        health: this.#health(tap.id),
+        health: this.#health(overview),
         badges: [],
       };
     }
 
     const presentation = context.beverage.effectivePresentation;
     const policy = mysteryVisibilityPolicy(context.mystery);
-    const runtime = this.#runtimeFor(context);
+    const runtime = this.#runtimeFor(context, overview);
     const visiblePresentation = this.#presentation(presentation, policy);
     const vessel = this.#vessel(presentation);
     const title = policy.title ?? presentation.name;
@@ -852,7 +856,7 @@ export class PublicStoryService {
       temperatureC: runtime.temperatureC,
       waitingForMeasurement: runtime.waitingForMeasurement,
       health: runtime.health,
-      badges: this.#badgesFor(context, policy),
+      badges: this.#badgesFor(context, policy, overview),
     };
   }
 
@@ -883,7 +887,7 @@ export class PublicStoryService {
     const presentation = beverage.effectivePresentation;
     const visiblePresentation = this.#presentation(presentation, policy);
     const vessel = this.#vessel(presentation);
-    const runtime = this.#runtimeFor(context);
+    const runtime = this.#runtimeFor(context, this.#healthOverview(context.tap.id));
     const guidance = this.getBeverageGuidance(assignment.beverageId);
     const recipes: PublicStoryRecipesView | null = visible(policy, "recipe")
       ? {
