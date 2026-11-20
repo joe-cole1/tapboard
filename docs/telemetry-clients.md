@@ -106,6 +106,7 @@ Kegboard and Keg Cop do; Tapboard stores no K-factor. With ESPHome, for example,
 `total` of a `pulse_meter` sensor after a `multiply` filter that converts pulses to ml.
 
 - Post on change, at most once a second while beer flows, and a heartbeat every 60 s when idle.
+  On a Tap with no scale, the heartbeat is what keeps the Tap's availability health green.
 - The first reading after the flow source is assigned (or the Tap gets a new Fill) is the
   baseline. An increase opens or extends a pour; the detector's quiet period with no increase
   closes it, and its hard timeout bounds it (flow that continues opens the next pour). A pour
