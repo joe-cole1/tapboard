@@ -1,5 +1,12 @@
+import { ML_PER_US_FL_OZ } from "../../forecasting/forecast.ts";
+
 export function volume(ml: number, unit: string): string {
   return unit === "metric" ? `${(ml / 1000).toFixed(1)} L` : `${(ml / 3785.411784).toFixed(1)} gal`;
+}
+
+/** A single pour is too small for litres or gallons. */
+export function pourVolume(ml: number, unit: string): string {
+  return unit === "metric" ? `${Math.round(ml)} mL` : `${(ml / ML_PER_US_FL_OZ).toFixed(1)} fl oz`;
 }
 
 export function capacityLabel(ml: number, unit: string): string {
@@ -45,4 +52,46 @@ export function adminTimestampLabel(value: string | null | undefined): string {
   const hour = hour24 % 12 || 12;
   const minute = String(date.getUTCMinutes()).padStart(2, "0");
   return `${ADMIN_TIMESTAMP_MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}, ${hour}:${minute} ${hour24 < 12 ? "AM" : "PM"} UTC`;
+}
+
+const RELATIVE_TIME = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
+const DAY_MS = 86_400_000;
+
+/**
+ * "12 seconds ago", "5 minutes ago", "3 hours ago", "yesterday", "4 days ago".
+ * Hours apply only within the same calendar day, so a pour before midnight
+ * reads "yesterday". Days follow adminTimestampLabel and use UTC.
+ */
+export function relativeTimeLabel(value: string, now: string): string {
+  const at = Date.parse(value);
+  const current = Date.parse(now);
+  if (!Number.isFinite(at) || !Number.isFinite(current)) return "Unknown";
+  const seconds = Math.floor(Math.max(0, current - at) / 1000);
+  if (seconds < 60) return RELATIVE_TIME.format(-seconds, "second");
+  if (seconds < 3600) return RELATIVE_TIME.format(-Math.floor(seconds / 60), "minute");
+  const days = Math.floor(current / DAY_MS) - Math.floor(at / DAY_MS);
+  if (days === 0) return RELATIVE_TIME.format(-Math.floor(seconds / 3600), "hour");
+  return RELATIVE_TIME.format(-days, "day");
+}
+
+export interface PourHistoryEntry {
+  readonly completedAt: string;
+  readonly relativeLabel: string;
+  readonly absoluteLabel: string;
+  readonly volumeLabels: { readonly us: string; readonly metric: string };
+}
+
+export function pourHistoryEntry(
+  pour: { readonly volumeMl: number; readonly completedAt: string },
+  now: string,
+): PourHistoryEntry {
+  return {
+    completedAt: pour.completedAt,
+    relativeLabel: relativeTimeLabel(pour.completedAt, now),
+    absoluteLabel: adminTimestampLabel(pour.completedAt),
+    volumeLabels: {
+      us: pourVolume(pour.volumeMl, "us"),
+      metric: pourVolume(pour.volumeMl, "metric"),
+    },
+  };
 }

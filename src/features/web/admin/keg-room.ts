@@ -21,7 +21,12 @@ import {
 } from "./http.ts";
 import { safePublicTapCards } from "./tap-presentation.ts";
 import { renderAdmin } from "./layout.ts";
-import { capacityLabel, tareLabel } from "./presentation.ts";
+import { capacityLabel, pourHistoryEntry, tareLabel } from "./presentation.ts";
+import { reportFailure } from "../../../shared/diagnostics.ts";
+import {
+  decodeForecastHistoryCursor,
+  type ForecastHistoryCursor,
+} from "../../forecasting/forecast-validation.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
 import { actor } from "./context.ts";
 import { safeVesselForDisplay, boundedAdminString } from "./beverage-presentation.ts";
@@ -29,6 +34,65 @@ import type {
   RegisterKegRoomPagesDependencies,
   RegisterKegRoomMutationsDependencies,
 } from "../contracts.ts";
+
+const POUR_HISTORY_PAGE_SIZE = 25;
+
+/** One page of a Fill's pours, newest first, paged by the forecast history cursor. */
+function fillPourHistory(
+  dependencies: RegisterKegRoomPagesDependencies,
+  fillId: string,
+  requestUrl: string | undefined,
+) {
+  const path = `/admin/keg-room/fills/${encodeURIComponent(fillId)}`;
+  const requested = new URL(requestUrl ?? "/", "http://tapboard.local").searchParams.get("pours");
+  let cursor: ForecastHistoryCursor | undefined;
+  let cursorRejected = false;
+  try {
+    cursor = requested === null ? undefined : decodeForecastHistoryCursor(requested);
+  } catch {
+    // A stale or edited link falls back to the newest pours instead of failing the page.
+    cursorRejected = true;
+  }
+  try {
+    const unitSystem =
+      dependencies.displayService.getSettings().unitSystem === "metric" ? "metric" : "us";
+    const page = dependencies.forecastService.getPourHistory(fillId, {
+      limit: POUR_HISTORY_PAGE_SIZE,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    const now = new Date().toISOString();
+    return {
+      available: true,
+      cursorRejected,
+      entries: page.pours.map((pour) => {
+        const entry = pourHistoryEntry(
+          { volumeMl: pour.canonicalVolumeMl, completedAt: pour.completedAt },
+          now,
+        );
+        return { ...entry, volumeLabel: entry.volumeLabels[unitSystem] };
+      }),
+      isFirstPage: cursor === undefined,
+      newestHref: `${path}#pour-history`,
+      olderHref:
+        page.nextCursor === null
+          ? null
+          : `${path}?pours=${encodeURIComponent(page.nextCursor)}#pour-history`,
+    };
+  } catch (error) {
+    reportFailure(error, {
+      operation: "admin.fill.pour_history",
+      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
+    });
+    return {
+      available: false,
+      cursorRejected,
+      entries: [],
+      isFirstPage: true,
+      newestHref: path,
+      olderHref: null,
+    };
+  }
+}
 
 export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependencies): void {
   // Canonical Keg Room index. Ended fills are deliberately omitted unless the
@@ -276,6 +340,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         .map((tap) => ({ id: tap.id, tapNumber: tap.tapNumber, name: tap.name }));
       const publicCards = safePublicTapCards(dependencies.dashboardService, dependencies.logger);
       const card = safeFillCard(fill, dependencies.dashboardService, publicCards);
+      const pourHistory = fillPourHistory(dependencies, fill.id, request.url);
       renderAdmin(
         dependencies,
         response,
@@ -289,6 +354,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           fillRecord: fill,
           activeTap,
           availableTaps,
+          pourHistory,
           roomHref: "/admin/keg-room",
         },
       );

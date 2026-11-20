@@ -871,6 +871,7 @@ class FoundationApplication implements Application {
         beverageService,
         kegService,
         fillService,
+        forecastService,
         tapService,
         telemetryService,
         detectorService,

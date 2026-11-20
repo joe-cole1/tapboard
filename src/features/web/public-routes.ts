@@ -7,13 +7,28 @@ import { ApplicationError, isApplicationError } from "../../shared/errors.ts";
 import { errorStatus, reportFailure } from "../../shared/diagnostics.ts";
 import { buildSensoryRadar } from "../story/index.ts";
 import { adminContext, messageLocation } from "./admin/context.ts";
-import { temperature, volume } from "./admin/presentation.ts";
+import {
+  pourHistoryEntry,
+  temperature,
+  volume,
+  type PourHistoryEntry,
+} from "./admin/presentation.ts";
+import type { PublicStoryHistoryItem } from "../story/types.ts";
 import { recipeAmount, recipeMass, recipeNumber } from "./recipe-presentation.ts";
 import { acceptsJson, oneRequestHeader } from "./admin/http.ts";
 import type {
   RegisterPublicRoutesDependencies,
   SendTapWarsVoteErrorDependencies,
 } from "./contracts.ts";
+
+/** Formats only the fields the story projection already selected. */
+function storyPourHistory(
+  history: readonly PublicStoryHistoryItem[] | null,
+): readonly PourHistoryEntry[] | null {
+  if (history === null) return null;
+  const now = new Date().toISOString();
+  return history.map((item) => pourHistoryEntry(item, now));
+}
 
 export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependencies): void {
   dependencies.router.get("/", (request, response) => {
@@ -61,6 +76,7 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
         recipeMass,
         recipeNumber,
         story,
+        pourHistory: isAdmin ? storyPourHistory(story.history) : null,
       }),
       { vary: "Cookie" },
     );

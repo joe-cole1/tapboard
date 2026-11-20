@@ -75,7 +75,7 @@
         </div>
         <% if (current.waitingForMeasurement) { %><p>Waiting for a current measurement.</p><% } %>
       </section>
-      <% if (story.history) { %><section class="story-operations" aria-labelledby="story-history"><h2 id="story-history">Fill history</h2><% if (story.history.length === 0) { %><p>No pour history recorded.</p><% } else { %><ol><% for (const item of story.history) { %><li data-field="history-volume"><span data-unit="metric"><%= it.volume(item.volumeMl, "metric") %></span><span data-unit="us"><%= it.volume(item.volumeMl, "us") %></span> · <%= item.startedAt %> to <%= item.completedAt %></li><% } %></ol><% } %></section><% } %>
+      <% if (it.pourHistory) { %><section class="story-operations" aria-labelledby="story-history"><h2 id="story-history">Fill history</h2><% if (it.pourHistory.length === 0) { %><p>No pour history recorded.</p><% } else { %><ol><% for (const item of it.pourHistory) { %><li data-field="history-volume"><span data-unit="metric"><%= item.volumeLabels.metric %></span><span data-unit="us"><%= item.volumeLabels.us %></span> · <%= item.relativeLabel %> — <time datetime="<%= item.completedAt %>"><%= item.absoluteLabel %></time></li><% } %></ol><% } %></section><% } %>
     <% } %>
     <div data-story data-tap-id="<%= it.tapId %>" data-sse-path="<%= it.ssePath %>"></div>
   <% } %>

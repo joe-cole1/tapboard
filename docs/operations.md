@@ -132,6 +132,7 @@ Recoverable integration API keys remain encrypted in server SQLite. Configure th
 Authenticated Admin operational errors carry a reference matching a structured JSON log event. Known failures explain the recovery step; unexpected exceptions use a safe fallback. The event includes a static operation identifier, error code/category, HTTP status, and bounded provider status/retry delay where available. Routine validation and authorization rejections do not create operational error noise. Brewfather background failures are reported on changes and reset suppression after verified recovery.
 
 The public display keeps rendering when detector diagnostics, forecasting, health, display settings, pour history, or recipe snapshots fail, falling back to "waiting for measurement", a missing forecast, or hidden metrics. Each fallback logs a `warn` event, `Public story projection degraded`, with the operation (for example `story.detector_diagnostics`), the tap or beverage id, and the error code/category, at most once per 15 minutes per operation and tap or beverage. A tap showing "waiting for measurement" alongside these events points to a bug or unavailable dependency rather than missing telemetry.
+The Admin Filled Keg page also keeps rendering when pour history fails. It shows "Pour history is unavailable right now" and reports the failure as operation `admin.fill.pour_history`.
 
 Inspect production logs using the same deployment environment file and project:
 
