@@ -22,6 +22,8 @@ class CapturedResponse extends EventEmitter {
   status = 200;
   headers: Record<string, string> = {};
   chunks: string[] = [];
+  /** Runs as each chunk is written, to see what a client reacting to it would read. */
+  onWrite: (() => void) | undefined;
   setHeader(name: string, value: string): void {
     this.headers[name.toLowerCase()] = value;
   }
@@ -31,6 +33,7 @@ class CapturedResponse extends EventEmitter {
   }
   write(chunk: string): boolean {
     this.chunks.push(chunk);
+    this.onWrite?.();
     return true;
   }
   end(chunk?: string): void {
@@ -122,15 +125,22 @@ void test("a flow pour closed by maintenance refreshes the display and health wi
   await dispensed("pour", 850);
   assert.equal(lowKeg.get(tap.id)?.state, "healthy");
   events.chunks.length = 0;
+  // What a display refreshing on each event would see (#228).
+  const healthAtEvent: unknown[] = [];
+  events.onWrite = () => healthAtEvent.push(lowKeg.get(tap.id));
 
   // No more telemetry: a maintenance tick (every 200 ms) closes the pour after the quiet period.
   // Wait for it with a generous deadline so a slow machine does not fail the test.
   for (let waited = 0; events.chunks.length < 2 && waited < 5_000; waited += 50) await delay(50);
   const tapEvent = `data: {"tapId":"${tap.id}"}\n\n`;
+  // Health is evaluated before the display is told to refresh, so the first refresh already
+  // carries the new low-keg state.
   assert.deepEqual(events.chunks, [
-    `event: telemetry.updated\n${tapEvent}`,
     `event: health.updated\n${tapEvent}`,
+    `event: telemetry.updated\n${tapEvent}`,
   ]);
+  const evaluated = { state: "degraded", reason_code: "threshold_settling" };
+  assert.deepEqual(healthAtEvent, [evaluated, evaluated]);
   assert.equal(database.prepare<[], { n: number }>("SELECT count(*) AS n FROM pours").get()!.n, 1);
   // 150 ml of 1000 ml is below the 20% low-keg threshold, now settling before it opens.
   assert.deepEqual(lowKeg.get(tap.id), { state: "degraded", reason_code: "threshold_settling" });
