@@ -148,31 +148,7 @@ export function registerBeverageMutations(
     {},
     {
       handle: (body, context, params) => {
-        const fields = autosaveFieldStrings(body, [
-          "updatedAt",
-          "nameMode",
-          "name",
-          "beverageTypeMode",
-          "beverageType",
-          "styleMode",
-          "style",
-          "abvMode",
-          "abv",
-          "ibuMode",
-          "ibu",
-          "ogMode",
-          "og",
-          "fgMode",
-          "fg",
-          "srmMode",
-          "srm",
-          "displayColorMode",
-          "displayColor",
-          "descriptionMode",
-          "description",
-          "fillGlassMode",
-          "fillGlass",
-        ]);
+        const fields = autosaveFieldStrings(body, AUTOSAVE_OVERRIDE_FIELDS);
         const updated = dependencies.beverageService.autosavePresentationOverrides(
           params.id!,
           requiredAutosaveField(fields, "updatedAt"),
@@ -188,31 +164,7 @@ export function registerBeverageMutations(
         const detail = dependencies.beverageService.getBeverage(params.id!);
         return { current: safeBeverageCurrent(detail), revision: detail.beverage.updatedAt };
       },
-      validationFields: validationFieldsFor([
-        "updatedAt",
-        "nameMode",
-        "name",
-        "beverageTypeMode",
-        "beverageType",
-        "styleMode",
-        "style",
-        "abvMode",
-        "abv",
-        "ibuMode",
-        "ibu",
-        "ogMode",
-        "og",
-        "fgMode",
-        "fg",
-        "srmMode",
-        "srm",
-        "displayColorMode",
-        "displayColor",
-        "descriptionMode",
-        "description",
-        "fillGlassMode",
-        "fillGlass",
-      ]),
+      validationFields: validationFieldsFor(AUTOSAVE_OVERRIDE_FIELDS),
     },
   );
 
@@ -419,7 +371,14 @@ export const AUTOSAVE_BEVERAGE_FIELDS = [
   "displayColor",
   "description",
   "fillGlass",
+  "manualDensityOverride",
 ] as const;
+
+/** The Brewfather override form's autosave fields: a mode and a value per field. */
+const AUTOSAVE_OVERRIDE_FIELDS = [
+  "updatedAt",
+  ...AUTOSAVE_BEVERAGE_FIELDS.flatMap((field) => [`${field}Mode`, field]),
+];
 
 export function customBeverageAutosaveInput(
   body: Readonly<Record<string, unknown>>,
@@ -443,6 +402,9 @@ export function customBeverageAutosaveInput(
     ...(values.displayColor === undefined ? {} : { displayColor: nullable(values.displayColor)! }),
     ...(values.description === undefined ? {} : { description: nullable(values.description)! }),
     ...(values.fillGlass === undefined ? {} : { fillGlass: vesselFromForm(values.fillGlass)! }),
+    ...(values.manualDensityOverride === undefined
+      ? {}
+      : { manualDensityOverride: optionalNumber(values.manualDensityOverride) ?? null }),
   };
 }
 
@@ -461,6 +423,7 @@ export function safeBeverageCurrent(
     displayColor: detail.effectivePresentation.displayColor,
     description: detail.effectivePresentation.description,
     fillGlass: detail.effectivePresentation.fillGlass,
+    manualDensityOverride: detail.effectivePresentation.manualDensityOverride,
     updatedAt: detail.beverage.updatedAt,
   };
 }
@@ -480,6 +443,7 @@ export function safeCustomBeverageResource(
     displayColor: detail.effectivePresentation.displayColor ?? "",
     description: detail.effectivePresentation.description ?? "",
     fillGlass: detail.effectivePresentation.fillGlass ?? "",
+    manualDensityOverride: detail.effectivePresentation.manualDensityOverride ?? "",
   };
 }
 
@@ -488,26 +452,13 @@ export function safeBrewfatherResource(
 ): Readonly<Record<string, unknown>> {
   const overrides = detail.presentationOverrides;
   const effective = detail.effectivePresentation;
-  const fields = [
-    ["name", "Name"],
-    ["beverageType", "Beverage type"],
-    ["style", "Style"],
-    ["abv", "ABV"],
-    ["ibu", "IBU"],
-    ["og", "OG"],
-    ["fg", "FG"],
-    ["srm", "SRM"],
-    ["displayColor", "Display color"],
-    ["description", "Description"],
-    ["fillGlass", "Fill Glass"],
-  ] as const;
   const result: Record<string, unknown> = {};
-  for (const [field] of fields) {
+  for (const field of AUTOSAVE_BEVERAGE_FIELDS) {
     const capitalized = `${field[0]!.toUpperCase()}${field.slice(1)}`;
     const present = Boolean(overrides?.[`override${capitalized}Present` as keyof typeof overrides]);
     const overrideValue = overrides?.[field as keyof typeof overrides];
     const canClear = field !== "name" && field !== "beverageType";
-    const value = effective[field as keyof typeof effective];
+    const value = effective[field];
     result[`${field}Mode`] = !present
       ? "inherit"
       : canClear && overrideValue === null

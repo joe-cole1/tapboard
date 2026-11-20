@@ -24,7 +24,7 @@
       <dl class="key-value-list"><div><dt>Name</dt><dd><%= it.beverage.name %></dd></div><div><dt>Type and style</dt><dd><%= it.beverage.beverageType %><% if (it.beverage.style) { %> · <%= it.beverage.style %><% } %></dd></div><div><dt>ABV</dt><dd><%= it.beverage.abv === null ? "—" : `${it.beverage.abv}%` %></dd></div><div><dt>Fill glass</dt><dd><%= it.beverage.fillGlass || "Default" %></dd></div><div><dt>Description</dt><dd><%= it.beverage.description || "—" %></dd></div></dl>
       <details class="admin-disclosure admin-disclosure--editable">
         <summary><span><strong>Edit presentation</strong><small>Identity, metrics, color, glass, and public description.</small></span></summary>
-      <form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/update" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name,beverageType,style,abv,ibu,og,fg,srm,displayColor,description,fillGlass">
+      <form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/update" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name,beverageType,style,abv,ibu,og,fg,srm,manualDensityOverride,displayColor,description,fillGlass">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
         <div class="config-grid">
@@ -50,7 +50,7 @@
       <div class="section-heading"><div><h2 id="source-controls-heading">Brewfather presentation</h2><p class="muted">Source values remain read-only; local overrides are available when the inherited presentation needs adjustment.</p></div></div>
       <details class="admin-disclosure admin-disclosure--editable">
         <summary><span><strong>Edit source overrides</strong><small>Choose Override for a local value or Reset to inherited for the latest source value.</small></span></summary>
-      <form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/presentation" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="nameMode,name,beverageTypeMode,beverageType,styleMode,style,abvMode,abv,ibuMode,ibu,ogMode,og,fgMode,fg,srmMode,srm,displayColorMode,displayColor,descriptionMode,description,fillGlassMode,fillGlass">
+      <form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/presentation" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="nameMode,name,beverageTypeMode,beverageType,styleMode,style,abvMode,abv,ibuMode,ibu,ogMode,og,fgMode,fg,srmMode,srm,displayColorMode,displayColor,descriptionMode,description,fillGlassMode,fillGlass,manualDensityOverrideMode,manualDensityOverride">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
         <div class="source-control-grid">
