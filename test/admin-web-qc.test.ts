@@ -1139,6 +1139,15 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   ).text();
   assert.match(fillDetailHtml, /readonly value="Historical Lager — Keg 7 — QC Keg"/);
   assert.doesNotMatch(fillDetailHtml, /Featured on public card/);
+  // These doubles have no pour history, so a stale cursor must not add a second message (#226).
+  assert.match(fillDetailHtml, /Pour history is unavailable right now/);
+  const staleCursorFillHtml = await (
+    await fetch(`${base}/admin/keg-room/fills/${FILL_ID}?pours=not-a-cursor`, {
+      headers: getHeaders,
+    })
+  ).text();
+  assert.match(staleCursorFillHtml, /Pour history is unavailable right now/);
+  assert.doesNotMatch(staleCursorFillHtml, /no longer valid/);
   const activeFillDetailHtml = await (
     await fetch(`${base}/admin/keg-room/fills/${onTapFill.id}`, { headers: getHeaders })
   ).text();

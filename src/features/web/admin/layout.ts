@@ -58,7 +58,7 @@ export const ADMIN_NAV = [
     key: "system",
     label: "System",
     href: "/admin/system",
-    group: "Future",
+    group: "Configure",
     activePaths: ["/admin/system"],
   },
 ] as const;

@@ -106,7 +106,7 @@
   <section class="admin-card tap-public-preview" aria-labelledby="public-preview-heading">
     <div class="section-heading"><div><h2 id="public-preview-heading">Public preview</h2></div></div>
     <% if (it.tap.publicPreview) { %>
-      <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'amber' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults, previewMetricCatalog: it.tap.previewMetricCatalog }) %></div>
+      <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'theme' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults, previewMetricCatalog: it.tap.previewMetricCatalog }) %></div>
     <% } else { %>
       <p class="muted">No public card is available for this disabled, retired, or unassigned Tap.</p>
     <% } %>

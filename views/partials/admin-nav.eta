@@ -28,9 +28,9 @@
       { label: "Tap Wars", href: "/admin/tap-wars", group: "Manage" },
       { label: "System", href: "/admin/system", group: "Configure" },
     ];
-    const navItems = sourceItems.map((item) => ({ ...item, group: item.href === "/admin/system" ? "Configure" : item.group || (item.href === "/admin/overview" ? "Overview" : "Manage"), activePaths: item.activePaths || [item.href] }));
+    const navItems = sourceItems.map((item) => ({ ...item, group: item.group || (item.href === "/admin/overview" ? "Overview" : "Manage"), activePaths: item.activePaths || [item.href] }));
     if (it.page.workspace?.enabled && !navItems.some((item) => item.href === "/admin/simulator")) navItems.push({ label: "Simulator", href: "/admin/simulator", group: "Configure", activePaths: ["/admin/simulator"] }); %>
-    <% for (const group of ["Overview", "Manage", "Configure", "Future"]) { const groupItems = navItems.filter((item) => item.group === group); if (groupItems.length > 0) { %>
+    <% for (const group of ["Overview", "Manage", "Configure"]) { const groupItems = navItems.filter((item) => item.group === group); if (groupItems.length > 0) { %>
       <section class="admin-nav-group" aria-labelledby="admin-nav-<%= group.toLocaleLowerCase() %>">
         <h2 id="admin-nav-<%= group.toLocaleLowerCase() %>"><%= group %></h2>
         <ul>

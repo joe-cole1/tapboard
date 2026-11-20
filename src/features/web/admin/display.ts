@@ -148,10 +148,10 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
           "theme",
           "font",
           "accent",
-          "unitSystem",
-          "showServingTemperature",
           "layoutMode",
         ]);
+        // As in the form save above, units and serving temperature belong to System.
+        const current = dependencies.displayService.getSettings();
         const updated = dependencies.displayService.updateSettings(
           {
             expectedRevision: Number(requiredAutosaveField(fields, "expectedRevision")),
@@ -159,8 +159,8 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
             theme: fields.theme,
             font: fields.font,
             accent: fields.accent,
-            unitSystem: fields.unitSystem,
-            showServingTemperature: fields.showServingTemperature === "true",
+            unitSystem: current.unitSystem,
+            showServingTemperature: current.showServingTemperature,
             layoutMode: fields.layoutMode,
           },
           actor(context),
@@ -180,8 +180,6 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
         "theme",
         "font",
         "accent",
-        "unitSystem",
-        "showServingTemperature",
         "layoutMode",
       ]),
     },
