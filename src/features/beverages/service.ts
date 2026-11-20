@@ -852,10 +852,11 @@ export class BeverageService {
   }
 
   /**
-   * Autosave the safe public presentation fields for a Custom Beverage.  The
-   * caller supplies the whole resource revision that was rendered in the
-   * form; no recipe, sensory, density, lifecycle, or assignment field is
-   * accepted here.
+   * Autosave the presentation fields and manual density override of a Custom
+   * Beverage. The caller supplies the whole resource revision that was
+   * rendered in the form; no recipe, sensory, lifecycle, or assignment field
+   * is accepted here. A density change notifies the density extension, as an
+   * FG change does.
    */
   autosaveCustomPresentation(
     beverageId: string,
@@ -864,11 +865,7 @@ export class BeverageService {
     actorOptions: BeverageActorOptions = {},
   ): BeverageDetailResult {
     const validated = validateUpdateCustomBeverageInput(input);
-    if (
-      validated.manualDensityOverride !== undefined ||
-      validated.recipe !== undefined ||
-      validated.sensoryOverrides !== undefined
-    ) {
+    if (validated.recipe !== undefined || validated.sensoryOverrides !== undefined) {
       throw new ApplicationError({
         category: "validation",
         code: "beverage.autosave_unsafe_field",
@@ -914,6 +911,10 @@ export class BeverageService {
         description:
           validated.description !== undefined ? validated.description : current.description,
         fillGlass: validated.fillGlass !== undefined ? validated.fillGlass : current.fillGlass,
+        manualDensityOverride:
+          validated.manualDensityOverride !== undefined
+            ? validated.manualDensityOverride
+            : current.manualDensityOverride,
       };
       const changed = (
         [
@@ -928,6 +929,7 @@ export class BeverageService {
           "displayColor",
           "description",
           "fillGlass",
+          "manualDensityOverride",
         ] as const
       ).some((field) => desired[field] !== current[field]);
       if (!changed) return this.getBeverage(beverageId);
@@ -973,7 +975,7 @@ export class BeverageService {
     });
   }
 
-  /** Autosave the safe Brewfather override fields with a parent CAS. */
+  /** Autosave the Brewfather override fields, density included, with a parent CAS. */
   autosavePresentationOverrides(
     beverageId: string,
     expectedUpdatedAt: string,
@@ -981,13 +983,6 @@ export class BeverageService {
     actorOptions: BeverageActorOptions = {},
   ): BeverageDetailResult {
     const validated = validateUpdatePresentationOverridesInput(input);
-    if (validated.manualDensityOverride !== undefined) {
-      throw new ApplicationError({
-        category: "validation",
-        code: "beverage.autosave_unsafe_field",
-        clientMessage: "Density overrides require an explicit Save action.",
-      });
-    }
     const now = (actorOptions.now ?? this.#now)().toISOString();
     return this.#database.withTransaction(() => {
       const beverage = readBeverage(this.#database, beverageId);

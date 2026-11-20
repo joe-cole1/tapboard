@@ -84,6 +84,62 @@ void test("density extension emits only effective density changes", () => {
   }
 });
 
+void test("autosave saves the manual density override for Custom and linked Beverages (#227)", () => {
+  const events: Array<{ beverageId: string }> = [];
+  const { database, beverageService } = createTestContext({
+    onEffectiveDensityChanged: (_database, event) => events.push(event),
+  });
+  try {
+    const custom = beverageService.createCustomBeverage({ name: "Autosaved density", fg: 1.01 });
+    const saved = beverageService.autosaveCustomPresentation(
+      custom.beverage.id,
+      custom.beverage.updatedAt,
+      { manualDensityOverride: 1.012 },
+    );
+    assert.equal(saved.density.source, "manual_override");
+    assert.equal(
+      beverageService.getBeverage(custom.beverage.id).effectivePresentation.manualDensityOverride,
+      1.012,
+    );
+    assert.deepEqual(
+      events.map((event) => event.beverageId),
+      [custom.beverage.id],
+    );
+
+    beverageService.configureBrewfatherAccount({ userId: "density-user" });
+    database
+      .prepare(
+        `INSERT INTO brewfather_candidate_cache
+         (id, account_id, source_batch_id, batch_name, status, raw_summary_json,
+          summary_fingerprint, synced_at)
+         VALUES (?, 'default', ?, ?, 'Completed', ?, ?, ?)`,
+      )
+      .run(
+        randomUUID(),
+        "density-batch",
+        "Density batch",
+        '{"beverageType":"beer"}',
+        "d".repeat(64),
+        "2026-08-15T00:00:00.000Z",
+      );
+    const linked = beverageService.linkBrewfatherCandidate({ sourceBatchId: "density-batch" });
+    const overridden = beverageService.autosavePresentationOverrides(
+      linked.beverage.id,
+      linked.beverage.updatedAt,
+      { manualDensityOverride: { value: 1.014 } },
+    );
+    assert.equal(overridden.density.source, "manual_override");
+    assert.equal(overridden.density.densityGPerMl, 1.014);
+    assert.equal(
+      beverageService.getBeverage(linked.beverage.id).effectivePresentation.manualDensityOverride,
+      1.014,
+    );
+    assert.equal(events.at(-1)?.beverageId, linked.beverage.id);
+  } finally {
+    database.close();
+  }
+});
+
 void test("density extension settings notifications affect only fallback-dependent beverages", () => {
   const events: Array<{ beverageId: string }> = [];
   const { database, beverageService } = createTestContext({
