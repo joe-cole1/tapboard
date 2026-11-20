@@ -1,12 +1,11 @@
 name: Foundation quality
 
-# `main` requires these jobs (repository ruleset) and lands PRs through a merge queue. The
-# queue runs them again on `merge_group`, against the exact squashed tree that will become the
-# next commit on `main`, so two PRs that each passed alone are also tested together. Pushes to
-# `main` need no run of their own.
+# `main` requires these jobs (repository ruleset) and requires a PR to be up to date with `main`
+# before it merges. A pull_request run tests the PR merged into its base, so the run that lets a
+# PR land tested the exact tree its squash commit puts on `main`. Pushes to `main` need no run
+# of their own. (A merge queue is not available for this personal-account repository.)
 on:
   pull_request:
-  merge_group:
   workflow_dispatch:
 
 permissions:
