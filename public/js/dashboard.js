@@ -65,6 +65,8 @@ function retagCard(card, tagName) {
   const replacement = document.createElement(tagName);
   for (const attribute of card.attributes)
     replacement.setAttribute(attribute.name, attribute.value);
+  // A running pour preview's cleanup holds the old element, so its class would never be removed.
+  replacement.classList.remove("is-pour-preview");
   while (card.firstChild) replacement.append(card.firstChild);
   card.replaceWith(replacement);
   return replacement;
