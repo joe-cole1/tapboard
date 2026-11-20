@@ -1,9 +1,12 @@
 name: Foundation quality
 
-# `main` requires these jobs on every pull request (repository ruleset), and PRs squash-merge
-# once they pass, so a second run on the merged commit would repeat the same checks.
+# `main` requires these jobs (repository ruleset) and lands PRs through a merge queue. The
+# queue runs them again on `merge_group`, against the exact squashed tree that will become the
+# next commit on `main`, so two PRs that each passed alone are also tested together. Pushes to
+# `main` need no run of their own.
 on:
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
