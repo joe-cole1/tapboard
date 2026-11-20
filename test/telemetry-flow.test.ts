@@ -52,10 +52,26 @@ function harness(roles: { readonly scale: boolean; readonly meter: boolean }) {
   const clock = () => new Date(now);
   const database = openDatabase(":memory:");
   const completed: (string | undefined)[] = [];
+  const committed: { readonly tapIds: readonly string[]; readonly inTransaction: boolean }[] = [];
+  const faults = { pourCompleted: false };
   const detector = new DetectorService(database, {
     idFactory: ids,
     now: clock,
-    onPourCompleted: (_db, pour) => completed.push(pour.effectKey),
+    onPourCompleted: (_db, pour) => {
+      if (faults.pourCompleted) throw new Error("Injected pour-completed hook failure");
+      completed.push(pour.effectKey);
+    },
+    onPoursCommitted: (tapIds) => {
+      // BEGIN fails inside an open transaction.
+      let inTransaction = false;
+      try {
+        database.execute("BEGIN");
+        database.execute("ROLLBACK");
+      } catch {
+        inTransaction = true;
+      }
+      committed.push({ tapIds, inTransaction });
+    },
   });
   const machineKeyService = createMachineKeyService(database, { idFactory: ids, now: clock });
   const tapService = createTapService(database, {
@@ -120,6 +136,8 @@ function harness(roles: { readonly scale: boolean; readonly meter: boolean }) {
     scale,
     meter,
     completed,
+    committed,
+    faults,
     flow: (at: number, counterMl: number, id = `flow-${at}`, lagMs = 0) =>
       send(meter, at, id, { metric: "dispensed_volume", value: counterMl, unit: "ml" }, lagMs),
     level: (at: number, volumeMl: number, id = `level-${at}`) =>
@@ -356,6 +374,67 @@ void test("changing only the level source keeps the flow baseline", () => {
     h.due(3_200);
     assert.deepEqual(h.pours(), [150]);
     assert.equal(h.detector.diagnostics(h.tap.id).measurement?.publicVolumeMl, 19_000 - 150);
+  } finally {
+    h.close();
+  }
+});
+
+void test("maintenance reports a closed flow pour's Tap after its transaction commits", () => {
+  const h = harness({ scale: false, meter: true });
+  try {
+    h.flow(1_000, 0);
+    h.flow(1_100, 300);
+    assert.deepEqual(h.due(1_150), []);
+    assert.deepEqual(h.committed, []);
+    assert.deepEqual(h.due(1_300), [h.tap.id]);
+    assert.deepEqual(h.pours(), [300]);
+    assert.deepEqual(h.committed, [{ tapIds: [h.tap.id], inTransaction: false }]);
+    // Nothing more is due, and a pour closed by a reading is ingest's to report.
+    assert.deepEqual(h.due(5_000), []);
+    h.flow(6_000, 400);
+    h.flow(6_200, 500);
+    assert.deepEqual(h.pours(), [300, 100]);
+    assert.equal(h.committed.length, 1);
+  } finally {
+    h.close();
+  }
+});
+
+void test("maintenance reports a closed scale pour's Tap", () => {
+  const h = harness({ scale: true, meter: false });
+  try {
+    h.level(1_000, 15_000);
+    h.level(1_050, 15_000);
+    h.level(1_100, 14_980);
+    h.level(1_150, 14_970);
+    assert.deepEqual(h.due(1_300), [h.tap.id]);
+    assert.equal(h.pours().length, 1);
+    assert.deepEqual(h.committed, [{ tapIds: [h.tap.id], inTransaction: false }]);
+  } finally {
+    h.close();
+  }
+});
+
+void test("maintenance reports nothing for a discarded pour or a rolled-back run", () => {
+  const h = harness({ scale: false, meter: true });
+  try {
+    // Below the 10 ml minimum: discarded, not recorded.
+    h.flow(1_000, 0);
+    h.flow(1_100, 5);
+    assert.deepEqual(h.due(1_300), []);
+    assert.deepEqual(h.pours(), []);
+
+    h.flow(2_000, 305);
+    h.faults.pourCompleted = true;
+    assert.throws(() => h.due(2_200), /Injected pour-completed hook failure/);
+    assert.deepEqual(h.pours(), []);
+    assert.deepEqual(h.committed, []);
+
+    // The rolled-back pour is still open, so the next run records and reports it once.
+    h.faults.pourCompleted = false;
+    assert.deepEqual(h.due(2_200), [h.tap.id]);
+    assert.deepEqual(h.pours(), [300]);
+    assert.deepEqual(h.committed, [{ tapIds: [h.tap.id], inTransaction: false }]);
   } finally {
     h.close();
   }

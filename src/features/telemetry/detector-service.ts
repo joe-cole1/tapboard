@@ -105,6 +105,13 @@ export interface DetectorServiceOptions {
   readonly now?: () => Date;
   /** Transaction-local notification for each newly persisted completed pour. */
   readonly onPourCompleted?: (database: DatabaseExecutor, pour: CompletedPourEventContext) => void;
+  /**
+   * Runs after a `processDue` run that recorded pours commits, with the Taps those pours belong
+   * to. A pour that closes on maintenance has no ingest to refresh the display or health, so
+   * this is where the composition root does it. `processDue` opens its own top-level
+   * transaction, so never call it inside another one.
+   */
+  readonly onPoursCommitted?: (tapIds: readonly string[], at: Date) => void;
 }
 
 export interface DetectorMaintenanceOptions {
@@ -278,6 +285,9 @@ export class DetectorService
   readonly #ids: () => string;
   readonly #now: () => Date;
   readonly #onPourCompleted?: DetectorServiceOptions["onPourCompleted"];
+  readonly #onPoursCommitted?: DetectorServiceOptions["onPoursCommitted"];
+  /** The Taps whose pours the running `processDue` has recorded; undefined outside it. */
+  #pouredTapIds: Set<string> | undefined;
   #maintenanceTimer: NodeJS.Timeout | undefined;
 
   constructor(database: DatabaseExecutor, options: DetectorServiceOptions = {}) {
@@ -285,6 +295,7 @@ export class DetectorService
     this.#ids = options.idFactory ?? randomUUID;
     this.#now = options.now ?? (() => new Date());
     this.#onPourCompleted = options.onPourCompleted;
+    this.#onPoursCommitted = options.onPoursCommitted;
   }
 
   onAssignmentOpened(database: DatabaseExecutor, context: AssignmentOpenedContext): void {
@@ -456,67 +467,71 @@ export class DetectorService
       this.#advanceEpoch(database, epoch, measuredAt);
   }
 
-  processDue(now: Date = this.#currentTime()): number {
+  /**
+   * Closes due flow pours and advances due detector states. Returns the Taps whose pours this
+   * run recorded, after reporting them to `onPoursCommitted` once the transaction commits.
+   */
+  processDue(now: Date = this.#currentTime()): readonly string[] {
     const nowMs = now.getTime();
     if (Number.isNaN(nowMs)) throw new TypeError("Invalid detector clock");
-    return this.#database.withTransaction(() => {
-      const handledEpochs = new Set<string>();
-      for (const { epoch, flow } of listOpenFlowPourEpochs(this.#database)) {
-        // Pour deadlines are in the meter's measured time. Shift the server clock by how far
-        // the meter's latest reading lagged its receipt, so a meter whose clock runs behind
-        // the server does not have every pour closed after its first reading.
-        const latest = readSourceTapReading(
-          this.#database,
-          flow.sourceId,
-          epoch.tapId,
-          "dispensed_volume",
-        );
-        const lagMs =
-          latest === undefined ? 0 : Date.parse(latest.received_at) - latest.measured_at_epoch_ms;
-        const transition = advanceFlow(flow, epoch.config, nowMs - lagMs);
-        if (transition.effects.length === 0) continue;
-        this.#applyFlow(this.#database, epoch, flow, transition, iso(nowMs), null);
-        handledEpochs.add(epoch.id);
-      }
-      for (let transitions = 0; transitions < 500; transitions += 1) {
-        const next = listDueDetectorStates(this.#database, nowMs)
-          .map((item) => ({
-            item,
-            dueAt: nextDetectorDueAt(
-              item.state,
-              this.#history(this.#database, item.epoch.id),
-              item.epoch.config,
-              nowMs,
-            ),
-          }))
-          .filter((item): item is typeof item & { readonly dueAt: number } => item.dueAt !== null)
-          .sort(
-            (a, b) =>
-              a.dueAt - b.dueAt ||
-              (a.item.state.phase === "pouring" ? 0 : 1) -
-                (b.item.state.phase === "pouring" ? 0 : 1) ||
-              (a.item.epoch.tapId < b.item.epoch.tapId
-                ? -1
-                : a.item.epoch.tapId > b.item.epoch.tapId
-                  ? 1
-                  : 0),
-          )[0];
-        if (next === undefined) break;
-        const { item, dueAt } = next;
-        if (item.state.phase === "candidate" && item.epoch.arbitrationGroupId !== null) {
-          for (const epochId of this.#arbitrateGroup(
-            this.#database,
-            item.epoch.arbitrationGroupId,
-            dueAt,
-          ))
-            handledEpochs.add(epochId);
-        } else {
-          this.#advanceEpoch(this.#database, item.epoch, dueAt);
-          handledEpochs.add(item.epoch.id);
-        }
-      }
-      return handledEpochs.size;
-    });
+    const pouredTapIds = new Set<string>();
+    this.#pouredTapIds = pouredTapIds;
+    try {
+      this.#database.withTransaction(() => this.#processDueInTransaction(nowMs));
+    } finally {
+      this.#pouredTapIds = undefined;
+    }
+    const tapIds = [...pouredTapIds].sort();
+    if (tapIds.length > 0) this.#onPoursCommitted?.(tapIds, now);
+    return tapIds;
+  }
+
+  #processDueInTransaction(nowMs: number): void {
+    for (const { epoch, flow } of listOpenFlowPourEpochs(this.#database)) {
+      // Pour deadlines are in the meter's measured time. Shift the server clock by how far
+      // the meter's latest reading lagged its receipt, so a meter whose clock runs behind
+      // the server does not have every pour closed after its first reading.
+      const latest = readSourceTapReading(
+        this.#database,
+        flow.sourceId,
+        epoch.tapId,
+        "dispensed_volume",
+      );
+      const lagMs =
+        latest === undefined ? 0 : Date.parse(latest.received_at) - latest.measured_at_epoch_ms;
+      const transition = advanceFlow(flow, epoch.config, nowMs - lagMs);
+      if (transition.effects.length === 0) continue;
+      this.#applyFlow(this.#database, epoch, flow, transition, iso(nowMs), null);
+    }
+    for (let transitions = 0; transitions < 500; transitions += 1) {
+      const next = listDueDetectorStates(this.#database, nowMs)
+        .map((item) => ({
+          item,
+          dueAt: nextDetectorDueAt(
+            item.state,
+            this.#history(this.#database, item.epoch.id),
+            item.epoch.config,
+            nowMs,
+          ),
+        }))
+        .filter((item): item is typeof item & { readonly dueAt: number } => item.dueAt !== null)
+        .sort(
+          (a, b) =>
+            a.dueAt - b.dueAt ||
+            (a.item.state.phase === "pouring" ? 0 : 1) -
+              (b.item.state.phase === "pouring" ? 0 : 1) ||
+            (a.item.epoch.tapId < b.item.epoch.tapId
+              ? -1
+              : a.item.epoch.tapId > b.item.epoch.tapId
+                ? 1
+                : 0),
+        )[0];
+      if (next === undefined) break;
+      const { item, dueAt } = next;
+      if (item.state.phase === "candidate" && item.epoch.arbitrationGroupId !== null)
+        this.#arbitrateGroup(this.#database, item.epoch.arbitrationGroupId, dueAt);
+      else this.#advanceEpoch(this.#database, item.epoch, dueAt);
+    }
   }
 
   reconcileActiveAssignments(now: Date = this.#currentTime()): number {
@@ -1160,6 +1175,7 @@ export class DetectorService
       createdAt: iso(effect.completedAtMs),
     });
     if (!result.created) return;
+    this.#pouredTapIds?.add(epoch.tapId);
     appendActivity(
       database,
       {
