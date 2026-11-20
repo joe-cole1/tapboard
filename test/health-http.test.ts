@@ -344,7 +344,7 @@ void test("health evidence contract reaches Admin DTOs and corrupted storage sta
   const url = `http://127.0.0.1:${address.port}/api/admin/taps/${tap.id}/health`;
   const headers = { cookie: `tapboard_admin_session=${login.session}` };
   const evidence = Object.fromEntries(HEALTH_EVIDENCE_KEYS.map((key, index) => [key, index]));
-  assert.equal(HEALTH_EVIDENCE_KEYS.length, 29);
+  assert.equal(HEALTH_EVIDENCE_KEYS.length, 35);
   assert.deepEqual(validateHealthEvidence(evidence), evidence);
   database
     .prepare("UPDATE health_check_state SET evidence_json=? WHERE tap_id=? AND check_id='low_keg'")

@@ -59,7 +59,8 @@ void test("v29 databases upgrade to v30 with every row unchanged and default rol
     v29.close();
   }
 
-  const upgraded = openDatabase(path);
+  const v30Migrations = MIGRATIONS.slice(0, TELEMETRY_ROLLUPS_SCHEMA_VERSION);
+  const upgraded = openDatabase(path, { migrations: v30Migrations });
   try {
     assert.equal(
       upgraded.pragma<number>("user_version", { simple: true }),
@@ -85,7 +86,7 @@ void test("v29 databases upgrade to v30 with every row unchanged and default rol
   }
 
   // The upgraded file validates as canonical when reopened.
-  openDatabase(path).close();
+  openDatabase(path, { migrations: v30Migrations }).close();
 });
 
 void test("rollup rows reject buckets that are unaligned or inconsistent", () => {

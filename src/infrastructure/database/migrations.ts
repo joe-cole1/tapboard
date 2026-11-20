@@ -60,7 +60,9 @@ export const TELEMETRY_FLOW_SCHEMA_VERSION = 29;
 export const TELEMETRY_FLOW_MIGRATION_NAME = "telemetry-flow";
 export const TELEMETRY_ROLLUPS_SCHEMA_VERSION = 30;
 export const TELEMETRY_ROLLUPS_MIGRATION_NAME = "telemetry-rollups";
-export const CURRENT_SCHEMA_VERSION = TELEMETRY_ROLLUPS_SCHEMA_VERSION;
+export const HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION = 31;
+export const HEALTH_THRESHOLD_CHECKS_MIGRATION_NAME = "health-threshold-checks";
+export const CURRENT_SCHEMA_VERSION = HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4496,6 +4498,155 @@ export const TELEMETRY_ROLLUPS_MIGRATION: MigrationDefinition = {
   },
 };
 
+const HEALTH_CHECK_ID_LIST_CHECK =
+  "check_id IN ('low_keg', 'scale_availability', 'suspected_leak', 'serving_temperature', 'line_cleaning_due')";
+const HEALTH_CHECK_ID_NAME_CHECK =
+  "length(CAST(check_id AS BLOB)) BETWEEN 1 AND 64 AND check_id NOT GLOB '*[^a-z0-9_]*'";
+const HEALTH_CHECK_ID_TABLES = [
+  "health_check_state",
+  "health_incidents",
+  "health_incident_transitions",
+] as const;
+const HEALTH_CHECK_ID_TABLE_OBJECTS = [
+  "idx_health_incidents_open_tap_check",
+  "idx_health_incidents_tap_opened",
+  "idx_health_incidents_resolved_at",
+  "idx_health_incident_transitions_incident_occurred",
+  "trg_health_incident_transitions_no_update",
+] as const;
+const thresholdValueCheck = (column: string, nullable: boolean) =>
+  nullable
+    ? `${column} IS NULL OR (${HEALTH_FINITE_REAL_CHECK(column)})`
+    : HEALTH_FINITE_REAL_CHECK(column);
+const thresholdColumnsSql = (nullable: boolean) => {
+  const notNull = nullable ? "" : " NOT NULL";
+  const check = (column: string, body: string) =>
+    nullable ? `${column} IS NULL OR (${body})` : body;
+  return `
+    enabled INTEGER${notNull} CHECK (${check("enabled", HEALTH_BOOLEAN_CHECK("enabled"))}),
+    normal_min REAL${notNull} CHECK (${thresholdValueCheck("normal_min", nullable)}),
+    normal_max REAL${notNull} CHECK (${thresholdValueCheck("normal_max", nullable)}),
+    critical_min REAL${notNull} CHECK (${thresholdValueCheck("critical_min", nullable)}),
+    critical_max REAL${notNull} CHECK (${thresholdValueCheck("critical_max", nullable)}),
+    duration_ms INTEGER${notNull} CHECK (${check("duration_ms", `${HEALTH_INTEGER_POSITIVE_CHECK("duration_ms")} AND duration_ms <= ${HEALTH_MAX_DURATION_MS}`)})`;
+};
+
+/**
+ * v31 lets any condition metric drive a health threshold check (#172). `check_id` in the health
+ * state, incident and transition tables now checks the ID's format instead of a fixed list, so a
+ * new check needs no migration; the three tables are rebuilt with every row copied unchanged.
+ * Threshold check config lives in one row per check: `health_threshold_global_config` (a check
+ * without a row uses its code defaults) and nullable per-Tap rows in
+ * `health_threshold_tap_overrides`, which go with their Tap's override row. Serving temperature
+ * keeps its typed columns.
+ */
+function relaxedHealthCheckIdTablesSql(): string {
+  const original = schemaStatements(HEALTH_MAINTENANCE_SCHEMA_SQL, HEALTH_CHECK_ID_TABLES);
+  // health_check_state and health_incidents each carry the fixed list once. Fail loudly if the
+  // text ever stops matching instead of shipping tables that still reject new check IDs.
+  if (original.split(HEALTH_CHECK_ID_LIST_CHECK).length !== 3) {
+    throw new Error("Health check_id list was not found in the v11 health table DDL");
+  }
+  return original.replaceAll(HEALTH_CHECK_ID_LIST_CHECK, HEALTH_CHECK_ID_NAME_CHECK);
+}
+
+export const HEALTH_THRESHOLD_CHECKS_SCHEMA_SQL = `
+  ${relaxedHealthCheckIdTablesSql()}
+  ${schemaStatements(HEALTH_MAINTENANCE_SCHEMA_SQL, HEALTH_CHECK_ID_TABLE_OBJECTS)}
+  CREATE TABLE health_threshold_global_config (
+    check_id TEXT NOT NULL PRIMARY KEY CHECK (${HEALTH_CHECK_ID_NAME_CHECK}),${thresholdColumnsSql(false)},
+    CHECK (critical_min < normal_min AND normal_min < normal_max AND normal_max < critical_max)
+  );
+  CREATE TABLE health_threshold_tap_overrides (
+    tap_id TEXT NOT NULL REFERENCES health_tap_overrides(tap_id) ON DELETE CASCADE,
+    check_id TEXT NOT NULL CHECK (${HEALTH_CHECK_ID_NAME_CHECK}),${thresholdColumnsSql(true)},
+    PRIMARY KEY (tap_id, check_id),
+    CHECK (enabled IS NOT NULL OR normal_min IS NOT NULL OR normal_max IS NOT NULL OR critical_min IS NOT NULL OR critical_max IS NOT NULL OR duration_ms IS NOT NULL),
+    CHECK (critical_min IS NULL OR normal_min IS NULL OR critical_min < normal_min),
+    CHECK (normal_min IS NULL OR normal_max IS NULL OR normal_min < normal_max),
+    CHECK (normal_max IS NULL OR critical_max IS NULL OR normal_max < critical_max)
+  );
+`;
+
+const HEALTH_THRESHOLD_CHECKS_SCHEMA_OBJECTS = [
+  ...TELEMETRY_ROLLUPS_SCHEMA_OBJECTS,
+  ["table", "health_threshold_global_config"],
+  ["table", "health_threshold_tap_overrides"],
+] as const;
+
+const thresholdColumnRows = (nullable: boolean) =>
+  [
+    ["enabled", "INTEGER"],
+    ["normal_min", "REAL"],
+    ["normal_max", "REAL"],
+    ["critical_min", "REAL"],
+    ["critical_max", "REAL"],
+    ["duration_ms", "INTEGER"],
+  ].map(([name, type]) => ({
+    name: name!,
+    type: type!,
+    notnull: nullable ? 0 : 1,
+    dflt_value: null,
+    pk: 0,
+  }));
+
+function validateHealthThresholdChecksSchema(database: DatabaseExecutor): void {
+  validateTelemetrySchemaDefinition(
+    database,
+    HEALTH_THRESHOLD_CHECKS_SCHEMA_OBJECTS,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_FLOW_SCHEMA_SQL}\n${TELEMETRY_ROLLUPS_SCHEMA_SQL}\n${HEALTH_THRESHOLD_CHECKS_SCHEMA_SQL}`,
+    HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
+    (schemaDatabase) => {
+      validateTelemetryReadingsColumns(schemaDatabase);
+      expectColumns(schemaDatabase, "telemetry_rollups_hourly", ROLLUP_COLUMNS);
+      expectColumns(schemaDatabase, "telemetry_rollups_daily", ROLLUP_COLUMNS);
+      expectColumns(schemaDatabase, "health_threshold_global_config", [
+        { name: "check_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        ...thresholdColumnRows(false),
+      ]);
+      expectColumns(schemaDatabase, "health_threshold_tap_overrides", [
+        { name: "tap_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 },
+        { name: "check_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 2 },
+        ...thresholdColumnRows(true),
+      ]);
+    },
+  );
+}
+
+export const HEALTH_THRESHOLD_CHECKS_MIGRATION: MigrationDefinition = {
+  version: HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
+  name: HEALTH_THRESHOLD_CHECKS_MIGRATION_NAME,
+  apply(database) {
+    const [stateSql, incidentsSql, transitionsSql, ...rest] = splitSqlStatements(
+      HEALTH_THRESHOLD_CHECKS_SCHEMA_SQL,
+    );
+    // Foreign keys stay on inside a migration, so the transitions (the only child of
+    // health_incidents) are copied and dropped before their parent; renaming the new parent
+    // repoints the new transitions' foreign key.
+    database.execute(`
+      ${stateSql!.replace("CREATE TABLE health_check_state", "CREATE TABLE health_check_state_v31")};
+      INSERT INTO health_check_state_v31 SELECT * FROM health_check_state;
+      DROP TABLE health_check_state;
+      ALTER TABLE health_check_state_v31 RENAME TO health_check_state;
+      ${incidentsSql!.replace("CREATE TABLE health_incidents", "CREATE TABLE health_incidents_v31")};
+      ${transitionsSql!
+        .replace(
+          "CREATE TABLE health_incident_transitions",
+          "CREATE TABLE health_incident_transitions_v31",
+        )
+        .replace("REFERENCES health_incidents(id)", "REFERENCES health_incidents_v31(id)")};
+      INSERT INTO health_incidents_v31 SELECT * FROM health_incidents;
+      INSERT INTO health_incident_transitions_v31 SELECT * FROM health_incident_transitions;
+      DROP TABLE health_incident_transitions;
+      DROP TABLE health_incidents;
+      ALTER TABLE health_incidents_v31 RENAME TO health_incidents;
+      ALTER TABLE health_incident_transitions_v31 RENAME TO health_incident_transitions;
+      ${rest.map((statement) => `${statement};`).join("\n")}
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4528,6 +4679,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   TELEMETRY_ROLE_AUTHORITY_MIGRATION,
   TELEMETRY_FLOW_MIGRATION,
   TELEMETRY_ROLLUPS_MIGRATION,
+  HEALTH_THRESHOLD_CHECKS_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4571,7 +4723,8 @@ function applyMigration(
         migration.version === TELEMETRY_READINGS_SCHEMA_VERSION ||
         migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION ||
         migration.version === TELEMETRY_FLOW_SCHEMA_VERSION ||
-        migration.version === TELEMETRY_ROLLUPS_SCHEMA_VERSION)
+        migration.version === TELEMETRY_ROLLUPS_SCHEMA_VERSION ||
+        migration.version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4710,6 +4863,8 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateTelemetryFlowSchema(database);
   } else if (version === TELEMETRY_ROLLUPS_SCHEMA_VERSION) {
     validateTelemetryRollupsSchema(database);
+  } else if (version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION) {
+    validateHealthThresholdChecksSchema(database);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

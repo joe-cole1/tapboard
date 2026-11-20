@@ -160,4 +160,40 @@ export const HEALTH_SECTION_PRESENTATION: Record<
       },
     },
   },
+  serving_pressure: {
+    title: "Serving pressure",
+    description:
+      "Check whether the latest gauge pressure from the condition source stays within the configured bands.",
+    fields: {
+      enabled: {
+        label: "Check enabled",
+        help: "Evaluate serving pressure for this Tap.",
+      },
+      normalMin: {
+        label: "Normal minimum (kPa)",
+        help: "Lower edge of the normal serving-pressure range. 1 psi is about 6.895 kPa.",
+        unit: "kPa",
+      },
+      normalMax: {
+        label: "Normal maximum (kPa)",
+        help: "Upper edge of the normal serving-pressure range.",
+        unit: "kPa",
+      },
+      criticalMin: {
+        label: "Critical minimum (kPa)",
+        help: "Pressure below which the reading is critical.",
+        unit: "kPa",
+      },
+      criticalMax: {
+        label: "Critical maximum (kPa)",
+        help: "Pressure above which the reading is critical.",
+        unit: "kPa",
+      },
+      durationMs: {
+        label: "Out-of-range duration (ms)",
+        help: "How long pressure must remain outside the normal range before reporting.",
+        unit: "ms",
+      },
+    },
+  },
 };

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { canonicalizeJson } from "../../shared/canonical-json.ts";
+import { HEALTH_CHECK_IDS } from "../health/types.ts";
 import {
   getEventDefinition,
   isEventType,
@@ -21,13 +22,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MACHINE_TOKEN = /^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$/;
 const IDENTIFIER_KEYS = ["tap_id", "fill_id", "keg_id", "beverage_id"] as const;
 const FILL_END_REASONS = ["kicked", "manual", "deleted", "other"] as const;
-const HEALTH_CHECKS = [
-  "low_keg",
-  "scale_availability",
-  "suspected_leak",
-  "serving_temperature",
-  "line_cleaning_due",
-] as const;
 const HEALTH_STATES = ["healthy", "degraded", "active"] as const;
 const HEALTH_SEVERITIES = ["none", "info", "warning", "critical"] as const;
 const INTEGRATION_STATES = ["healthy", "degraded", "disabled"] as const;
@@ -207,7 +201,10 @@ function normalizeData(eventType: EventType, value: unknown): EventData {
       const checkId = ownValue(object, "check_id", "data.check_id");
       const state = ownValue(object, "state", "data.state");
       const severity = ownValue(object, "severity", "data.severity");
-      if (typeof checkId !== "string" || !(HEALTH_CHECKS as readonly string[]).includes(checkId)) {
+      if (
+        typeof checkId !== "string" ||
+        !(HEALTH_CHECK_IDS as readonly string[]).includes(checkId)
+      ) {
         throw invalid("data.check_id", "is not supported");
       }
       if (typeof state !== "string" || !(HEALTH_STATES as readonly string[]).includes(state)) {

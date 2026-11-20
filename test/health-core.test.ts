@@ -76,7 +76,16 @@ void test("health identifiers, states, severities, and exact defaults are stable
     "suspected_leak",
     "serving_temperature",
     "line_cleaning_due",
+    "serving_pressure",
   ]);
+  assert.deepEqual(DEFAULT_HEALTH_CONFIG.serving_pressure, {
+    enabled: false,
+    normalMin: 68.94757293168,
+    normalMax: 124.105631277024,
+    criticalMin: 34.47378646584,
+    criticalMax: 206.84271879504,
+    durationMs: 900_000,
+  });
   assert.deepEqual(DEFAULT_HEALTH_CONFIG.low_keg, {
     enabled: true,
     thresholdPercent: 20,

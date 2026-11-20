@@ -201,7 +201,7 @@ void test("Tap lifecycle hooks seed and retire health state transactionally", ()
   });
 
   const disabledTap = tapService.createTap({ tapNumber: 1, enabled: false });
-  assert.equal(listHealthCheckStates(database, disabledTap.id).length, 5);
+  assert.equal(listHealthCheckStates(database, disabledTap.id).length, 6);
   assert.ok(
     listHealthCheckStates(database, disabledTap.id).every(
       (state) => state.state === "not_configured",

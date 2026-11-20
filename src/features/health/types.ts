@@ -6,12 +6,24 @@ import type { HEALTH_EVIDENCE_KEYS } from "./evidence-contract.ts";
  * These values are deliberately not derived from display names.  They are
  * persisted by the health tables and are used by events and targeted updates.
  */
+/**
+ * Threshold checks on condition metrics other than temperature: each watches one condition
+ * metric against a normal and a critical range (`THRESHOLD_HEALTH_CHECKS` in `config.ts` maps
+ * each to its metric and defaults). `serving_temperature` is the original threshold check and
+ * keeps its own ID, typed columns, reason codes and evidence keys. A new condition metric needs
+ * an entry here and in `THRESHOLD_HEALTH_CHECKS`, and no migration.
+ */
+export const THRESHOLD_HEALTH_CHECK_IDS = ["serving_pressure"] as const;
+
+export type ThresholdHealthCheckId = (typeof THRESHOLD_HEALTH_CHECK_IDS)[number];
+
 export const HEALTH_CHECK_IDS = [
   "low_keg",
   "scale_availability",
   "suspected_leak",
   "serving_temperature",
   "line_cleaning_due",
+  ...THRESHOLD_HEALTH_CHECK_IDS,
 ] as const;
 
 export type HealthCheckId = (typeof HEALTH_CHECK_IDS)[number];
@@ -64,26 +76,32 @@ export interface LineCleaningDueHealthConfig {
   readonly criticalGraceDays: number;
 }
 
-export interface HealthConfig {
+/** A threshold check's ranges, in its metric's canonical unit. */
+export interface ThresholdHealthConfig {
+  readonly enabled: boolean;
+  readonly normalMin: number;
+  readonly normalMax: number;
+  readonly criticalMin: number;
+  readonly criticalMax: number;
+  readonly durationMs: number;
+}
+
+export type HealthConfig = {
   readonly low_keg: LowKegHealthConfig;
   readonly scale_availability: ScaleAvailabilityHealthConfig;
   readonly suspected_leak: SuspectedLeakHealthConfig;
   readonly serving_temperature: ServingTemperatureHealthConfig;
   readonly line_cleaning_due: LineCleaningDueHealthConfig;
-}
+} & { readonly [K in ThresholdHealthCheckId]: ThresholdHealthConfig };
 
 /** A null value explicitly clears a per-Tap field back to its inherited value. */
 export type NullableOverride<T> = {
   readonly [K in keyof T]?: T[K] | null;
 };
 
-export interface HealthConfigOverride {
-  readonly low_keg?: NullableOverride<LowKegHealthConfig> | null;
-  readonly scale_availability?: NullableOverride<ScaleAvailabilityHealthConfig> | null;
-  readonly suspected_leak?: NullableOverride<SuspectedLeakHealthConfig> | null;
-  readonly serving_temperature?: NullableOverride<ServingTemperatureHealthConfig> | null;
-  readonly line_cleaning_due?: NullableOverride<LineCleaningDueHealthConfig> | null;
-}
+export type HealthConfigOverride = {
+  readonly [K in HealthCheckId]?: NullableOverride<HealthConfig[K]> | null;
+};
 
 export type HealthConfigSource = "default" | "override";
 
@@ -107,6 +125,14 @@ export interface EffectiveHealthConfig {
   readonly sources: HealthConfigInheritance;
   readonly inherited: HealthConfigInherited;
   readonly override: HealthConfigOverride | null;
+}
+
+/** The latest reading of one condition metric, in its canonical unit. */
+export interface HealthConditionMeasurement {
+  readonly measurementId: string;
+  readonly measuredAtMs: number;
+  readonly receivedAtMs: number;
+  readonly value: number;
 }
 
 export interface HealthAuthoritativeMeasurement {
@@ -143,6 +169,9 @@ export interface HealthEvaluationTimers {
   readonly scaleUnavailableSinceMs: number | null;
   readonly temperatureOutsideSinceMs: number | null;
   readonly temperatureLastMeasuredAtMs: number | null;
+  /** The evaluated threshold check's own timers; each check keeps its own state row. */
+  readonly thresholdOutsideSinceMs: number | null;
+  readonly thresholdLastMeasuredAtMs: number | null;
   readonly leakSuppressedUntilMs: number | null;
 }
 
@@ -183,6 +212,11 @@ export interface HealthEvaluationInput {
    * without a keg-level reading. Null intentionally suppresses alias fallback.
    */
   readonly latestTemperatureMeasurement?: HealthAuthoritativeMeasurement | null;
+  /**
+   * The latest reading of each threshold-checked condition metric from the condition source,
+   * keyed by metric. A missing metric has no current reading.
+   */
+  readonly latestConditionMeasurements?: Readonly<Record<string, HealthConditionMeasurement>>;
   readonly latestAuthoritativeMeasurement?: HealthAuthoritativeMeasurement | null;
   /** Compatibility alias used by repository projections. */
   readonly measurement?: HealthAuthoritativeMeasurement | null;
@@ -238,6 +272,12 @@ export type HealthReason =
   | "temperature_out_of_range"
   | "temperature_critical"
   | "temperature_continuity_reset"
+  | "threshold_normal"
+  | "threshold_invalid"
+  | "threshold_stale"
+  | "threshold_out_of_range"
+  | "threshold_critical"
+  | "threshold_continuity_reset"
   | "leak_baseline"
   | "leak_window_settling"
   | "leak_threshold"

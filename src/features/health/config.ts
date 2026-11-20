@@ -12,6 +12,8 @@ import {
   type ScaleAvailabilityHealthConfig,
   type ServingTemperatureHealthConfig,
   type SuspectedLeakHealthConfig,
+  type ThresholdHealthCheckId,
+  type ThresholdHealthConfig,
 } from "./types.ts";
 
 export const LOW_KEG_CONFIG_FIELDS = [
@@ -53,13 +55,53 @@ export const LINE_CLEANING_DUE_CONFIG_FIELDS = [
   "criticalGraceDays",
 ] as const satisfies readonly (keyof LineCleaningDueHealthConfig)[];
 
-export const HEALTH_CONFIG_FIELDS = {
+export const THRESHOLD_CONFIG_FIELDS = [
+  "enabled",
+  "normalMin",
+  "normalMax",
+  "criticalMin",
+  "criticalMax",
+  "durationMs",
+] as const satisfies readonly (keyof ThresholdHealthConfig)[];
+
+/**
+ * Each threshold check's condition metric (a `condition` metric in `TELEMETRY_METRICS`) and
+ * default ranges in that metric's canonical unit. Every default check is disabled.
+ */
+export const THRESHOLD_HEALTH_CHECKS: Readonly<
+  Record<
+    ThresholdHealthCheckId,
+    { readonly metric: string; readonly defaults: ThresholdHealthConfig }
+  >
+> = {
+  // Gauge serving pressure in kPa: normal about 10–18 psi, critical below 5 or above 30 psi.
+  serving_pressure: {
+    metric: "pressure",
+    defaults: {
+      enabled: false,
+      normalMin: 68.94757293168,
+      normalMax: 124.105631277024,
+      criticalMin: 34.47378646584,
+      criticalMax: 206.84271879504,
+      durationMs: 15 * 60_000,
+    },
+  },
+};
+
+export const HEALTH_CONFIG_FIELDS: {
+  readonly [K in HealthCheckId]: readonly (keyof HealthConfig[K])[];
+} = {
   low_keg: LOW_KEG_CONFIG_FIELDS,
   scale_availability: SCALE_AVAILABILITY_CONFIG_FIELDS,
   suspected_leak: SUSPECTED_LEAK_CONFIG_FIELDS,
   serving_temperature: SERVING_TEMPERATURE_CONFIG_FIELDS,
   line_cleaning_due: LINE_CLEANING_DUE_CONFIG_FIELDS,
-} as const;
+  serving_pressure: THRESHOLD_CONFIG_FIELDS,
+};
+
+export function isThresholdHealthCheckId(id: string): id is ThresholdHealthCheckId {
+  return Object.hasOwn(THRESHOLD_HEALTH_CHECKS, id);
+}
 
 /** Canonical v2 health defaults.  Volumes are millilitres and temperatures Celsius. */
 export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
@@ -97,6 +139,7 @@ export const DEFAULT_HEALTH_CONFIG: HealthConfig = {
     intervalDays: 14,
     criticalGraceDays: 7,
   },
+  serving_pressure: THRESHOLD_HEALTH_CHECKS.serving_pressure.defaults,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -148,28 +191,24 @@ export function mergeHealthConfig(
       ? (baseOrOverride as HealthConfigOverride | null | undefined)
       : maybeOverride;
   const source = override ?? null;
-  return {
-    low_keg: mergeSection(base.low_keg, source?.low_keg),
-    scale_availability: mergeSection(base.scale_availability, source?.scale_availability),
-    suspected_leak: mergeSection(base.suspected_leak, source?.suspected_leak),
-    serving_temperature: mergeSection(base.serving_temperature, source?.serving_temperature),
-    line_cleaning_due: mergeSection(base.line_cleaning_due, source?.line_cleaning_due),
-  };
+  const result = {} as Record<HealthCheckId, ConfigSection>;
+  for (const id of HEALTH_CHECK_IDS) result[id] = mergeSection(base[id], source?.[id]);
+  return result as HealthConfig;
 }
 
-function sectionInheritance<T extends ConfigSection>(
-  fields: readonly (keyof T)[],
+function sectionInheritance(
+  fields: readonly PropertyKey[],
   override: OverrideSection,
-): Record<keyof T, HealthConfigSource> {
-  const result = {} as Record<keyof T, HealthConfigSource>;
+): Record<string, HealthConfigSource> {
+  const result: Record<string, HealthConfigSource> = {};
   const values = override as unknown as Record<string, unknown> | null | undefined;
-  for (const field of fields) {
+  for (const field of fields as readonly string[]) {
     result[field] =
       values !== null &&
       values !== undefined &&
       Object.hasOwn(values, field) &&
-      values[field as string] !== null &&
-      values[field as string] !== undefined
+      values[field] !== null &&
+      values[field] !== undefined
         ? "override"
         : "default";
   }
@@ -180,25 +219,11 @@ function inheritanceFor(
   override: HealthConfigOverride | null | undefined,
 ): HealthConfigInheritance {
   const source = override ?? null;
-  return {
-    low_keg: sectionInheritance<LowKegHealthConfig>(LOW_KEG_CONFIG_FIELDS, source?.low_keg),
-    scale_availability: sectionInheritance<ScaleAvailabilityHealthConfig>(
-      SCALE_AVAILABILITY_CONFIG_FIELDS,
-      source?.scale_availability,
-    ),
-    suspected_leak: sectionInheritance<SuspectedLeakHealthConfig>(
-      SUSPECTED_LEAK_CONFIG_FIELDS,
-      source?.suspected_leak,
-    ),
-    serving_temperature: sectionInheritance<ServingTemperatureHealthConfig>(
-      SERVING_TEMPERATURE_CONFIG_FIELDS,
-      source?.serving_temperature,
-    ),
-    line_cleaning_due: sectionInheritance<LineCleaningDueHealthConfig>(
-      LINE_CLEANING_DUE_CONFIG_FIELDS,
-      source?.line_cleaning_due,
-    ),
-  };
+  const result: Record<string, Record<string, HealthConfigSource>> = {};
+  for (const id of HEALTH_CHECK_IDS) {
+    result[id] = sectionInheritance(HEALTH_CONFIG_FIELDS[id], source?.[id]);
+  }
+  return result as unknown as HealthConfigInheritance;
 }
 
 function inheritedFor(inheritance: HealthConfigInheritance): HealthConfigInherited {
@@ -206,8 +231,8 @@ function inheritedFor(inheritance: HealthConfigInheritance): HealthConfigInherit
   for (const id of HEALTH_CHECK_IDS) {
     const section = {} as Record<string, boolean>;
     const sources = inheritance[id] as unknown as Record<string, HealthConfigSource>;
-    for (const field of HEALTH_CONFIG_FIELDS[id]) {
-      section[field as string] = sources[field as string] === "default";
+    for (const field of HEALTH_CONFIG_FIELDS[id] as readonly string[]) {
+      section[field] = sources[field] === "default";
     }
     result[id] = section;
   }
@@ -247,32 +272,11 @@ export function resolveHealthConfig(
 }
 
 export function healthConfigsEqual(left: HealthConfig, right: HealthConfig): boolean {
-  return (
-    left.low_keg.enabled === right.low_keg.enabled &&
-    left.low_keg.thresholdPercent === right.low_keg.thresholdPercent &&
-    left.low_keg.criticalPercent === right.low_keg.criticalPercent &&
-    left.low_keg.fixedThresholdMl === right.low_keg.fixedThresholdMl &&
-    left.low_keg.settlingMs === right.low_keg.settlingMs &&
-    left.scale_availability.enabled === right.scale_availability.enabled &&
-    left.scale_availability.degradedAfterMs === right.scale_availability.degradedAfterMs &&
-    left.scale_availability.activeAfterMs === right.scale_availability.activeAfterMs &&
-    left.suspected_leak.enabled === right.suspected_leak.enabled &&
-    left.suspected_leak.lossThresholdMl === right.suspected_leak.lossThresholdMl &&
-    left.suspected_leak.windowMs === right.suspected_leak.windowMs &&
-    left.suspected_leak.pourGraceMs === right.suspected_leak.pourGraceMs &&
-    left.suspected_leak.settlingMs === right.suspected_leak.settlingMs &&
-    left.suspected_leak.resetMovementMl === right.suspected_leak.resetMovementMl &&
-    left.suspected_leak.maxSamples === right.suspected_leak.maxSamples &&
-    left.serving_temperature.enabled === right.serving_temperature.enabled &&
-    left.serving_temperature.normalMinC === right.serving_temperature.normalMinC &&
-    left.serving_temperature.normalMaxC === right.serving_temperature.normalMaxC &&
-    left.serving_temperature.criticalMinC === right.serving_temperature.criticalMinC &&
-    left.serving_temperature.criticalMaxC === right.serving_temperature.criticalMaxC &&
-    left.serving_temperature.durationMs === right.serving_temperature.durationMs &&
-    left.line_cleaning_due.enabled === right.line_cleaning_due.enabled &&
-    left.line_cleaning_due.intervalDays === right.line_cleaning_due.intervalDays &&
-    left.line_cleaning_due.criticalGraceDays === right.line_cleaning_due.criticalGraceDays
-  );
+  return HEALTH_CHECK_IDS.every((id) => {
+    const a = left[id] as unknown as Record<string, unknown>;
+    const b = right[id] as unknown as Record<string, unknown>;
+    return (HEALTH_CONFIG_FIELDS[id] as readonly string[]).every((field) => a[field] === b[field]);
+  });
 }
 
 /** True when a patch has no effective change (all null/undefined is a no-op). */

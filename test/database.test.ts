@@ -220,6 +220,8 @@ void test("a clean file database bootstraps the canonical v22 migration ledger",
         { type: "table", name: "health_incidents" },
         { type: "table", name: "health_leak_samples" },
         { type: "table", name: "health_tap_overrides" },
+        { type: "table", name: "health_threshold_global_config" },
+        { type: "table", name: "health_threshold_tap_overrides" },
         { type: "table", name: "keg_maintenance_records" },
         { type: "table", name: "keg_tare_history" },
         { type: "table", name: "kegs" },
@@ -372,7 +374,7 @@ void test("an in-memory database bootstraps the same canonical schema", () => {
           "SELECT type, name FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'",
         )
         .all().length,
-      175,
+      177,
     );
     assert.equal(
       database
@@ -1023,6 +1025,7 @@ void test("an exact v1 database upgrades to v22 with all ledger entries", (conte
         { version: 28, name: "telemetry-role-authority" },
         { version: 29, name: "telemetry-flow" },
         { version: 30, name: "telemetry-rollups" },
+        { version: 31, name: "health-threshold-checks" },
       ],
     );
   } finally {
@@ -1553,7 +1556,7 @@ void test("a clean version 0 database upgrades through the canonical v22 schema"
 
   withFixture(path, (database) => {
     assert.equal(readUserVersion(database), CURRENT_SCHEMA_VERSION);
-    assert.equal(readSchemaObjects(database).length, 175);
+    assert.equal(readSchemaObjects(database).length, 177);
   });
 });
 
