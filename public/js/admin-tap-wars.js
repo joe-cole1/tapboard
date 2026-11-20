@@ -106,11 +106,12 @@ if (root) {
       const next = await response.json();
       const nextSignature = `${next.current?.id ?? ""}:${next.current?.status ?? ""}:${next.published?.id ?? ""}`;
       // The guest preview renders server-side only when guests see a war; reload if that changed.
+      // With no current war there is nothing to patch, and an unchanged page stays as it is.
       const guestBanner = root.querySelector("[data-tap-wars-guest-preview] [data-tap-wars]");
       if (
         nextSignature !== currentSignature() ||
         Boolean(guestBanner) !== Boolean(next.publicVisible) ||
-        !patchCurrent(next.current, next.publicVisible)
+        (next.current != null && !patchCurrent(next.current, next.publicVisible))
       ) {
         window.location.reload();
         return;
