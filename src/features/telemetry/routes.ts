@@ -32,10 +32,13 @@ import {
 } from "./telemetry-validation.ts";
 import type { BatchIngestResult, SingleIngestResult, TelemetrySource } from "./types.ts";
 
-/** The query string as an object of single values; a repeated key is a validation error. */
+/**
+ * The query string as an object of single values; a repeated key is a validation error. The
+ * object has no prototype, so `__proto__` is stored as an ordinary (unknown) key.
+ */
 function singleValueQuery(request: IncomingMessage): Record<string, string> {
   const params = new URL(request.url ?? "/", "http://tapboard.local").searchParams;
-  const query: Record<string, string> = {};
+  const query = Object.create(null) as Record<string, string>;
   for (const [key, value] of params) {
     if (Object.hasOwn(query, key)) throw validationError("query", "contains a repeated parameter");
     query[key] = value;

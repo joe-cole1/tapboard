@@ -757,7 +757,7 @@ export class TelemetryService {
       }
 
       const nowIso = this.clock().toISOString();
-      updateTelemetrySettings(this.database, {
+      const ingest = {
         max_batch_size: merged.maxBatchSize,
         max_future_skew_seconds: merged.maxFutureSkewSeconds,
         reconnect_horizon_seconds: merged.reconnectHorizonSeconds,
@@ -765,17 +765,25 @@ export class TelemetryService {
         receipt_retention_seconds: merged.receiptRetentionSeconds,
         rate_limit_samples_per_minute: merged.rateLimitSamplesPerMinute,
         rate_limit_burst_samples: merged.rateLimitBurstSamples,
-        updated_at: nowIso,
-      });
-      updateTelemetryRollupSettings(this.database, {
-        hourly_retention_days: merged.hourlyRollupRetentionDays,
-        daily_retention_days: merged.dailyRollupRetentionDays,
-        updated_at: nowIso,
-      });
-
-      // Activity details hold at most eight keys, so rollup retention gets its own entry, and
-      // only when it changed.
+      };
+      const ingestChanged = Object.entries(ingest).some(
+        ([column, value]) => current[column as keyof typeof ingest] !== value,
+      );
       const { hourlyRollupRetentionDays, dailyRollupRetentionDays, ...ingestSettings } = merged;
+      const rollupsChanged =
+        hourlyRollupRetentionDays !== currentRollups.hourly_retention_days ||
+        dailyRollupRetentionDays !== currentRollups.daily_retention_days;
+      if (ingestChanged) updateTelemetrySettings(this.database, { ...ingest, updated_at: nowIso });
+      if (rollupsChanged) {
+        updateTelemetryRollupSettings(this.database, {
+          hourly_retention_days: hourlyRollupRetentionDays,
+          daily_retention_days: dailyRollupRetentionDays,
+          updated_at: nowIso,
+        });
+      }
+
+      // Activity details hold at most eight keys, so ingest settings and rollup retention each
+      // get their own entry, and only when they changed.
       const activity = (details: Readonly<Record<string, number>>) =>
         appendActivity(
           this.database,
@@ -791,17 +799,18 @@ export class TelemetryService {
           },
           { now: this.clock },
         );
-      activity(ingestSettings);
-      if (
-        hourlyRollupRetentionDays !== currentRollups.hourly_retention_days ||
-        dailyRollupRetentionDays !== currentRollups.daily_retention_days
-      ) {
-        activity({ hourlyRollupRetentionDays, dailyRollupRetentionDays });
-      }
+      if (ingestChanged) activity(ingestSettings);
+      if (rollupsChanged) activity({ hourlyRollupRetentionDays, dailyRollupRetentionDays });
 
       return {
         ...merged,
-        updatedAt: nowIso,
+        // Same rule as getSettings(): the later of the two tables' change times.
+        updatedAt:
+          ingestChanged || rollupsChanged
+            ? nowIso
+            : current.updated_at > currentRollups.updated_at
+              ? current.updated_at
+              : currentRollups.updated_at,
       };
     });
   }
@@ -1450,7 +1459,8 @@ export class TelemetryService {
       metric: query.metric,
       fromEpochMs: query.fromEpochMs,
       toEpochMs: query.toEpochMs,
-      limit: TELEMETRY_ROLLUP_MAX_BUCKETS,
+      // A window of the full width that starts inside a bucket overlaps one bucket more.
+      limit: TELEMETRY_ROLLUP_MAX_BUCKETS + 1,
     });
     return {
       tapId,

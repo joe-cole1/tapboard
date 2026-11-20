@@ -491,6 +491,9 @@ export function listTelemetryRollups(
     readonly limit: number;
   },
 ): readonly TelemetryRollupRow[] {
+  // Every bucket that overlaps the window, including the one that contains `from`.
+  const bucketMs = TELEMETRY_ROLLUP_BUCKET_MS[resolution];
+  const firstBucketStart = Math.floor(query.fromEpochMs / bucketMs) * bucketMs;
   return database
     .prepare<[string, string, number, number, number], TelemetryRollupRow>(
       `SELECT bucket_start_epoch_ms, min_value, max_value, sum_value, sample_count, last_value,
@@ -500,7 +503,7 @@ export function listTelemetryRollups(
        ORDER BY bucket_start_epoch_ms ASC
        LIMIT ?`,
     )
-    .all(query.tapId, query.metric, query.fromEpochMs, query.toEpochMs, query.limit);
+    .all(query.tapId, query.metric, firstBucketStart, query.toEpochMs, query.limit);
 }
 
 // --- Ingest Receipts ---
