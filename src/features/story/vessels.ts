@@ -864,7 +864,8 @@ export function displayColorForSrm(value: unknown): string | null {
       : typeof value === "string" && value.trim() !== ""
         ? Number(value.trim())
         : NaN;
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 50) return null;
+  // Beverages accept SRM 0–100; the palette ends at 50, which every darker beer shares.
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
   const srm = Math.min(50, Math.max(0, Math.round(parsed)));
   let closest = SRM_COLOR_PALETTE[0];
   if (closest === undefined) return null;
