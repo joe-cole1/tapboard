@@ -26,6 +26,7 @@ export default tseslint.config(
           "HTMLTextAreaElement",
           "Option",
           "StorageEvent",
+          "TextDecoder",
           "URL",
           "URLSearchParams",
           "document",

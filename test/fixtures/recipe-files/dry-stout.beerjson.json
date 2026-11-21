@@ -1,0 +1,112 @@
+{
+  "beerjson": {
+    "version": 1.0,
+    "recipes": [
+      {
+        "name": "Fixture Dry Stout",
+        "type": "all grain",
+        "author": "Private Brewer Name",
+        "notes": "Private brewing notes that must not be imported.",
+        "taste": { "notes": "Private tasting notes.", "rating": 40 },
+        "efficiency": { "brewhouse": { "unit": "%", "value": 70 } },
+        "batch_size": { "unit": "gal", "value": 5.5 },
+        "boil": { "boil_time": { "unit": "hr", "value": 1 } },
+        "original_gravity": { "unit": "sg", "value": 1.042 },
+        "final_gravity": { "unit": "plato", "value": 2.5 },
+        "alcohol_by_volume": { "unit": "%", "value": 4.2 },
+        "ibu_estimate": { "method": "Tinseth", "value": { "unit": "IBUs", "value": 40 } },
+        "color_estimate": { "unit": "EBC", "value": 80 },
+        "carbonation": 2.1,
+        "style": {
+          "name": "Irish Stout",
+          "category": "Irish Beer",
+          "style_guide": "BJCP 2015",
+          "type": "beer"
+        },
+        "ingredients": {
+          "fermentable_additions": [
+            {
+              "name": "Maris Otter",
+              "type": "grain",
+              "producer": "Fixture Maltings",
+              "origin": "UK",
+              "yield": { "potential": { "unit": "sg", "value": 1.037 } },
+              "color": { "unit": "Lovi", "value": 3 },
+              "amount": { "unit": "lb", "value": 7 }
+            },
+            {
+              "name": "Flaked Barley",
+              "type": "grain",
+              "yield": { "potential": { "unit": "sg", "value": 1.032 } },
+              "color": { "unit": "SRM", "value": 1.7 },
+              "amount": { "unit": "kg", "value": 0.9 }
+            },
+            {
+              "name": "Roasted Barley",
+              "type": "grain",
+              "yield": { "potential": { "unit": "sg", "value": 1.025 } },
+              "color": { "unit": "EBC", "value": 1300 },
+              "amount": { "unit": "g", "value": 450 }
+            }
+          ],
+          "hop_additions": [
+            {
+              "name": "East Kent Goldings",
+              "form": "pellet",
+              "alpha_acid": { "unit": "%", "value": 5.5 },
+              "amount": { "unit": "oz", "value": 2 },
+              "timing": { "use": "add_to_boil", "time": { "unit": "min", "value": 60 } }
+            },
+            {
+              "name": "Fuggle",
+              "form": "leaf",
+              "alpha_acid": { "unit": "%", "value": 4.5 },
+              "amount": { "unit": "g", "value": 20 },
+              "timing": { "use": "add_to_fermentation", "duration": { "unit": "day", "value": 3 } }
+            }
+          ],
+          "culture_additions": [
+            {
+              "name": "Irish Ale",
+              "type": "ale",
+              "form": "liquid",
+              "producer": "Fixture Labs",
+              "product_id": "FX-1084",
+              "amount": { "unit": "pkg", "value": 1 }
+            }
+          ],
+          "miscellaneous_additions": [
+            {
+              "name": "Irish Moss",
+              "type": "fining",
+              "amount": { "unit": "tsp", "value": 1 },
+              "timing": { "use": "add_to_boil", "time": { "unit": "min", "value": 10 } }
+            }
+          ]
+        },
+        "mash": {
+          "name": "Single Infusion",
+          "grain_temperature": { "unit": "F", "value": 68 },
+          "mash_steps": [
+            {
+              "name": "Saccharification",
+              "type": "infusion",
+              "step_temperature": { "unit": "F", "value": 150.8 },
+              "step_time": { "unit": "min", "value": 60 }
+            }
+          ]
+        },
+        "fermentation": {
+          "name": "Ale",
+          "fermentation_steps": [
+            {
+              "name": "Primary",
+              "start_temperature": { "unit": "C", "value": 19 },
+              "step_time": { "unit": "week", "value": 2 }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -182,6 +182,16 @@ curl -fsS http://127.0.0.1:3005/healthz
 
 Restore a Simulation copy the same way, to `/app/data/tapboard-v2.sqlite3.simulation.sqlite3`. A backup from an earlier schema upgrades when Tapboard starts; an older image refuses a backup with a newer schema. A restore also brings back the PIN and Admin sessions from backup time: if the PIN changed or sessions were revoked since, run `operator:reset-pin` afterwards, which sets the PIN and revokes every session. Never use `down --volumes` as part of a restore. Browser restore, key escrow, and v1 data migration are outside Tapboard.
 
+## Import a recipe file
+
+On a Custom beverage with no editable custom recipe, **Admin → Beverages → (beverage) → Import recipe file** accepts one recipe as file text. With JavaScript, **Recipe file** picks a file from disk; without it, paste the file's contents into the text box. Supported formats:
+
+- Brewfather batch or recipe export (JSON). A multi-batch export is refused; export one batch.
+- BeerJSON (versions 1 to 3).
+- BeerXML 1.0. In BeerSmith use **File → Export → BeerXML**; its native `.bsmx` files are not supported.
+
+Files are limited to 1 MiB and one recipe. JSON must be strict, and XML must be well-formed with no DOCTYPE or custom entities. Tapboard keeps only the cleaned recipe (at most 256 KiB): ingredients, targets, mash and fermentation steps, and style. Notes, tasting notes and brewer names are dropped. The import is permanent and read-only; importing the identical file again changes nothing, and a different recipe needs a new Custom beverage. BeerXML and BeerJSON values are recipe targets, never batch measurements. The import works the same in Simulation, where it changes only the sample workspace.
+
 ## Built-in Simulation
 
 Simulation is a saved sample taproom for trying Tapboard without hardware. Open **Admin → System → Enable simulation**; Tapboard creates the sample workspace and opens **Simulator**. The dashboard, Beverages, Kegs, Fills, Taps, display controls, and history then show the sample workspace under a **SIMULATION** banner. The switch is installation-wide, so other open displays follow it.

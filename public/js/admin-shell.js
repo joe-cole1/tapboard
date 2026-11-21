@@ -247,6 +247,38 @@ if (shell) {
     return copied;
   };
 
+  // Recipe import: a file picker that fills the textarea. Without JavaScript the
+  // operator pastes the file text; the server path is the same url-encoded form.
+  document.querySelectorAll("[data-recipe-import]").forEach((form) => {
+    const picker = form.querySelector("[data-recipe-file-picker]");
+    const input = form.querySelector("[data-recipe-file]");
+    const area = form.querySelector("textarea[name=recipeFile]");
+    const status = form.querySelector("[data-recipe-file-status]");
+    if (!(input instanceof HTMLInputElement) || !(area instanceof HTMLTextAreaElement)) return;
+    picker?.removeAttribute("hidden");
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > 1_048_576) {
+        if (status) status.textContent = "That file is larger than 1 MiB.";
+        input.value = "";
+        return;
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      // BeerXML files may declare a legacy encoding such as ISO-8859-1.
+      const head = new TextDecoder("latin1").decode(bytes.subarray(0, 200));
+      const declared = /^\s*<\?xml[^>]*encoding=["']([A-Za-z0-9_-]+)["']/u.exec(head)?.[1];
+      let text;
+      try {
+        text = new TextDecoder(declared || "utf-8").decode(bytes);
+      } catch {
+        text = new TextDecoder("utf-8").decode(bytes);
+      }
+      area.value = text;
+      if (status) status.textContent = `${file.name} is ready to import.`;
+    });
+  });
+
   document.querySelectorAll("[data-copy-target]").forEach((button) => {
     button.addEventListener("click", async () => {
       const targetId = button.dataset.copyTarget;

@@ -548,6 +548,7 @@ class FoundationApplication implements Application {
           publishFillUpdatesForBeverage(args[0]);
           publishTapWars();
         },
+        importRecipeFile: (_result, args) => publishFillUpdatesForBeverage(args[0]),
         updateSensoryOverrides: (result, args) => {
           const changed =
             typeof result === "object" &&

@@ -105,6 +105,23 @@
     </details>
   </section>
 
+  <% if (it.beverage.recipeImport === "imported" || it.beverage.recipeImport === "source") { %>
+    <section class="admin-card" aria-labelledby="recipe-import-heading"><div class="section-heading"><div><% if (it.beverage.recipeImport === "imported") { %><h2 id="recipe-import-heading">Imported recipe</h2><p class="muted">Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there.</p><% } else { %><h2 id="recipe-import-heading">Source recipe</h2><p class="muted">Read-only recipe kept from the beverage's earlier Brewfather link.</p><% } %></div></div><% for (const recipe of (it.beverage.guidance?.sourceRecipes || [])) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Imported recipe" %></h3><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
+  <% } else if (it.beverage.recipeImport === "available") { %>
+    <section class="admin-card" aria-labelledby="recipe-import-heading">
+      <div class="section-heading"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">A Brewfather batch or recipe JSON export, a BeerJSON file or a BeerXML file (in BeerSmith: File → Export → BeerXML), up to about 1 MiB of text and one recipe per file. Tapboard keeps a cleaned copy for the recipe sheet and flavor guidance. The import is permanent.</p></div></div>
+      <form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/recipe-import" method="post" data-recipe-import>
+        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+        <label hidden data-recipe-file-picker>Recipe file <input type="file" accept=".json,.xml,application/json,application/xml,text/xml" data-recipe-file /></label>
+        <label>Recipe file contents <textarea name="recipeFile" rows="10" spellcheck="false" required></textarea></label>
+        <p class="muted" data-recipe-file-status aria-live="polite"></p>
+        <button class="secondary" type="submit">Import recipe</button>
+      </form>
+    </section>
+  <% } else if (it.beverage.recipeImport === "unavailable") { %>
+    <section class="admin-card" aria-labelledby="recipe-import-heading"><div class="section-heading"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">This beverage has an editable custom recipe, so a recipe file can't be imported. Remove the custom recipe below to import a file instead.</p></div></div></section>
+  <% } %>
+
   <% if (it.beverage.ownershipType === "custom") { %>
     <section class="admin-card" aria-labelledby="recipe-heading"><div class="section-heading"><div><h2 id="recipe-heading">Custom recipe</h2><p class="muted">Keep process notes and ingredients close to the beverage record.</p></div></div><details class="admin-disclosure"><summary><span><strong>Edit recipe data</strong><small>Advanced structured recipe content.</small></span></summary><form class="admin-form" action="/admin/beverages/<%= it.beverage.id %>/recipe" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" /><label>Recipe JSON <textarea name="recipeJson" rows="16" spellcheck="false"><%= it.beverage.customRecipeJson %></textarea></label><p class="muted">Leave blank (or enter <code>null</code>) to remove the custom recipe.</p><button class="secondary" type="submit">Save custom recipe</button></form></details></section>
   <% } else if (it.beverage.guidance && it.beverage.guidance.sourceRecipes.length > 0) { %>

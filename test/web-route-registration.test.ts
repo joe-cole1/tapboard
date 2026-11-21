@@ -103,6 +103,7 @@ const EXPECTED_REGISTRATIONS: readonly RegistrationEvent[] = [
   ["POST", "/admin/beverages/:id/delete"],
   ["POST", "/admin/beverages/:id/sensory"],
   ["POST", "/admin/beverages/:id/recipe"],
+  ["POST", "/admin/beverages/:id/recipe-import"],
   ["POST", "/admin/beverages/:id/unlink"],
   ["POST", "/admin/beverages/brewfather/link"],
   ["POST", "/admin/kegs/create"],
