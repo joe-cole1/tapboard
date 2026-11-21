@@ -890,3 +890,39 @@ for (const unreadable of ["pinned", "current"] as const) {
     }
   });
 }
+
+void test("private-network opt-in needs both the claimed and the current webhook version", async () => {
+  const { database, service, sent, worker } = sendTimeGuardSetup();
+  const optedIn = "33333333-3333-4333-8333-333333333360";
+  const optedOut = "33333333-3333-4333-8333-333333333361";
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "LAN n8n",
+      transport: "webhook",
+      webhookUrl: "http://n8n.lan:5678/webhook/tapboard",
+      allowPrivateNetwork: true,
+    });
+    service.enable(DESTINATION);
+    service.admit(database, event(optedIn));
+    for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
+    assert.equal(
+      sent.find((input) => input.envelope.event_id === optedIn)?.allowPrivateNetwork,
+      true,
+    );
+
+    reviveDelivery(database, optedIn);
+    service.edit(DESTINATION, { allowPrivateNetwork: false });
+    service.admit(database, event(optedOut));
+    sent.length = 0;
+    for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
+    for (const eventId of [optedIn, optedOut]) {
+      const input = sent.find((candidate) => candidate.envelope.event_id === eventId);
+      assert.ok(input, eventId);
+      assert.equal(input.allowPrivateNetwork, false, eventId);
+    }
+  } finally {
+    worker.stop();
+    database.close();
+  }
+});

@@ -154,6 +154,7 @@ function createDefaultOutboundRuntime(options: OutboundRuntimeFactoryOptions): O
         endpoint: input.endpoint ?? "",
         ...(input.headers === undefined ? {} : { headers: input.headers }),
         payloadFormat: input.payloadFormat ?? "standard",
+        allowPrivateNetwork: input.allowPrivateNetwork === true,
         publicContextResolver: options.publicContextResolver,
       };
       return webhook.sendEvent(destination, input.envelope);

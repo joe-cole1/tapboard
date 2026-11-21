@@ -441,6 +441,8 @@ export class OutboundWorker {
     if (!config.endpointConfigured || !config.endpointAvailable || this.#secrets === undefined)
       throw new Error("missing endpoint");
     const endpoint = this.#secrets.revealPrivileged("outbound", version.id, WEBHOOK_ENDPOINT_SLOT);
+    // Opting out applies at once: an older version's opt-in counts only while the current one agrees.
+    const current = destination.currentVersion?.config;
     return {
       destination,
       version,
@@ -450,6 +452,10 @@ export class OutboundWorker {
       headers,
       endpoint,
       payloadFormat: config.payloadFormat,
+      allowPrivateNetwork:
+        config.allowPrivateNetwork &&
+        current?.transport === "webhook" &&
+        current.allowPrivateNetwork,
     };
   }
 

@@ -827,3 +827,63 @@ void test("producer admission methods preserve fill-end semantics and low-keg ev
     database.close();
   }
 });
+
+void test("private-network opt-in is stored per webhook version, defaults off, and is refused for Home Assistant", () => {
+  const { database, service } = harness();
+  const allowPrivate = (value: ReturnType<OutboundService["edit"]>): boolean | undefined =>
+    value.currentVersion?.config.transport === "webhook"
+      ? value.currentVersion.config.allowPrivateNetwork
+      : undefined;
+  const storedConfig = (): Record<string, unknown> =>
+    JSON.parse(
+      database
+        .prepare<[], { readonly config_json: string }>(
+          "SELECT config_json FROM outbound_destination_configs ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        )
+        .get()!.config_json,
+    ) as Record<string, unknown>;
+  try {
+    const created = service.create({
+      id: DESTINATION,
+      label: "LAN n8n",
+      transport: "webhook",
+      webhookUrl: "http://n8n.lan:5678/webhook/tapboard",
+    });
+    assert.equal(allowPrivate(created), false);
+    assert.equal("allowPrivateNetwork" in storedConfig(), false);
+
+    const opted = service.edit(DESTINATION, { allowPrivateNetwork: true });
+    assert.equal(opted.currentVersion?.versionNumber, 2);
+    assert.equal(allowPrivate(opted), true);
+    assert.equal(storedConfig().allowPrivateNetwork, true);
+    assert.equal(opted.enabled, true, "the option does not move the origin");
+
+    const relabelled = service.edit(DESTINATION, { label: "LAN n8n (renamed)" });
+    assert.equal(allowPrivate(relabelled), true);
+    const kept = service.edit(DESTINATION, { webhookUrl: "http://n8n.lan:5678/webhook/other" });
+    assert.equal(allowPrivate(kept), true, "an endpoint edit keeps the option");
+
+    const off = service.edit(DESTINATION, { allowPrivateNetwork: false });
+    assert.equal(allowPrivate(off), false);
+
+    assert.throws(
+      () =>
+        service.create({
+          id: DESTINATION_TWO,
+          label: "HA",
+          transport: "home_assistant",
+          baseUrl: "http://192.168.1.35:8123",
+          allowPrivateNetwork: true,
+        }),
+      /allowPrivateNetwork/u,
+    );
+    assert.equal(allowPrivate(service.edit(DESTINATION, { allowPrivateNetwork: true })), true);
+    const toHomeAssistant = service.edit(DESTINATION, {
+      transport: "home_assistant",
+      baseUrl: "http://192.168.1.35:8123",
+    });
+    assert.equal(toHomeAssistant.transport, "home_assistant");
+  } finally {
+    database.close();
+  }
+});
