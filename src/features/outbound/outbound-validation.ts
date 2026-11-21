@@ -257,6 +257,19 @@ export function parseOutboundUrl(
   };
 }
 
+/**
+ * Stored destination secrets belong to the transport and URL origin they were
+ * entered for. `undefined` means the origin cannot be determined.
+ */
+export function credentialOrigin(transport: string, url: string | undefined): string | undefined {
+  if (url === undefined) return undefined;
+  try {
+    return `${transport} ${new URL(url).origin}`;
+  } catch {
+    return undefined;
+  }
+}
+
 function safeConfigJson(config: {
   readonly transport: "ha" | "webhook";
   readonly baseUrl?: string;
