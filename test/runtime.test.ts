@@ -121,7 +121,7 @@ void test("dynamic display stylesheet enforces its exact versioned contract", as
   const address = await application.start();
   const base = `http://127.0.0.1:${address.port}`;
   const valid = await fetch(
-    `${base}/assets/css/display.css?v=2&theme=modern_dark&accent=%23fbc02d&font=system`,
+    `${base}/assets/css/display.css?v=3&theme=modern_dark&accent=%23fbc02d&font=system`,
   );
   assert.equal(valid.status, 200);
   assert.equal(valid.headers.get("content-type"), "text/css; charset=utf-8");
@@ -133,14 +133,14 @@ void test("dynamic display stylesheet enforces its exact versioned contract", as
   assert.ok(etag);
 
   const cached = await fetch(
-    `${base}/assets/css/display.css?v=2&theme=modern_dark&accent=%23fbc02d&font=system`,
+    `${base}/assets/css/display.css?v=3&theme=modern_dark&accent=%23fbc02d&font=system`,
     { headers: { "if-none-match": etag } },
   );
   assert.equal(cached.status, 304);
   assert.equal(cached.headers.get("etag"), etag);
 
   const selectedFont = await fetch(
-    `${base}/assets/css/display.css?v=2&theme=modern_dark&accent=amber&font=bungee`,
+    `${base}/assets/css/display.css?v=3&theme=modern_dark&accent=amber&font=bungee`,
   );
   assert.equal(selectedFont.status, 200);
   const selectedFontCss = await selectedFont.text();
@@ -153,10 +153,10 @@ void test("dynamic display stylesheet enforces its exact versioned contract", as
   for (const query of [
     "theme=modern_dark&accent=amber&font=system",
     "v=1&theme=modern_dark&accent=amber&font=system",
-    "v=2&v=2&theme=modern_dark&accent=amber&font=system",
-    "v=2&theme=modern_dark&accent=%23ABCDEF&font=system",
-    "v=2&theme=modern_dark&accent=%23abcdef%22%3Bbody%7Bcolor%3Ared&font=system",
-    "v=2&theme=modern_dark&accent=amber&font=system&extra=1",
+    "v=3&v=3&theme=modern_dark&accent=amber&font=system",
+    "v=3&theme=modern_dark&accent=%23ABCDEF&font=system",
+    "v=3&theme=modern_dark&accent=%23abcdef%22%3Bbody%7Bcolor%3Ared&font=system",
+    "v=3&theme=modern_dark&accent=amber&font=system&extra=1",
   ]) {
     const response = await fetch(`${base}/assets/css/display.css?${query}`);
     assert.equal(response.status, 400, query);

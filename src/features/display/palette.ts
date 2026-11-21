@@ -12,7 +12,7 @@ import {
 export type DisplayStylesheetFont = DisplayFont | "all";
 // Bump whenever the generated CSS changes shape, so browsers never pair a cached
 // stylesheet with newer static CSS.
-export const DISPLAY_STYLESHEET_VERSION = "2" as const;
+export const DISPLAY_STYLESHEET_VERSION = "3" as const;
 
 type FontWeight = number | `${number} ${number}`;
 
@@ -50,6 +50,8 @@ export interface DisplayPalette {
   readonly density: number;
   /** Used for headings while the operator font is left on "system". */
   readonly headingFont?: BundledFont;
+  /** The two Tap Wars meter colours; the accent and `secondary` unless the theme sets them. */
+  readonly tapWarsSides?: readonly [string, string];
 }
 
 const STANDARD_RADIUS = [".5rem", ".75rem", "1rem", "1.5rem"] as const;
@@ -98,7 +100,8 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     surface: "#19053b",
     raised: "#26075a",
     text: "#00f0ff",
-    muted: "#c52cff",
+    // Lighter than the original #c52cff so it also reads on the raised and accent-tinted grounds.
+    muted: "#d25aff",
     border: "#00f0ff",
     secondary: "#00f0ff",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.35)",
@@ -204,6 +207,8 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     success: "#8f8f8f",
     radius: [".125rem", ".25rem", ".25rem", ".375rem"],
     density: 0.9,
+    // The vote split reads as pure white against pure black, whatever the accent.
+    tapWarsSides: ["#ffffff", "#000000"],
   },
 };
 
@@ -304,7 +309,7 @@ export function contrastRatio(first: string, second: string): number {
   return (light + 0.05) / (dark + 0.05);
 }
 
-function mix(hex: string, other: "#000000" | "#ffffff", amount: number): string {
+function mix(hex: string, other: string, amount: number): string {
   const [r, g, b] = hexRgb(hex);
   const [or, og, ob] = hexRgb(other);
   return `#${[r, g, b]
@@ -369,6 +374,16 @@ function shiftedContrastRole(accent: string, surfaces: readonly string[], minimu
     : nearestContrastRole(accent, surfaces, minimum);
 }
 
+/** A hex colour, or an rgba() border painted over the given opaque ground. */
+function opaqueOn(color: string, ground: string): string {
+  if (/^#[0-9a-f]{6}$/u.test(color)) return color;
+  const rgba = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/u.exec(color);
+  if (rgba === null) throw new Error(`Unsupported palette border colour: ${color}`);
+  const [, r, g, b, alpha] = rgba;
+  const solid = `#${[r, g, b].map((value) => Number(value).toString(16).padStart(2, "0")).join("")}`;
+  return mix(ground, solid, Number(alpha));
+}
+
 export interface DisplayPaletteRoles {
   readonly accent: string;
   readonly accentReadable: string;
@@ -376,6 +391,11 @@ export interface DisplayPaletteRoles {
   readonly accentHover: string;
   readonly onAccent: string;
   readonly onAccentHover: string;
+  /** The raised surface tinted toward the accent: the Tap Wars banner and accent badges. */
+  readonly surfaceAccent: string;
+  readonly muted: string;
+  /** The border of text fields and selects: the theme's border, strengthened to 3:1. */
+  readonly controlBorder: string;
 }
 
 export function resolveDisplayPaletteRoles(
@@ -383,10 +403,13 @@ export function resolveDisplayPaletteRoles(
   accent: DisplayAccent,
 ): DisplayPaletteRoles {
   const accentHex = resolveAccent(accent, palette);
-  const surfaces = [palette.background, palette.surface] as const;
-  const accentReadable = nearestContrastRole(accentHex, surfaces, 4.5);
-  const accentStrong = nearestContrastRole(accentHex, surfaces, 3);
-  const accentHover = shiftedContrastRole(accentHex, surfaces, 3);
+  const surfaceAccent = mix(palette.raised, accentHex, 0.09);
+  // Text roles must read on every ground a palette paints, including the accent tint.
+  const grounds = [palette.background, palette.surface, palette.raised, surfaceAccent] as const;
+  const accentReadable = nearestContrastRole(accentHex, grounds, 4.5);
+  const accentStrong = nearestContrastRole(accentHex, grounds, 3);
+  const accentHover = shiftedContrastRole(accentHex, grounds, 3);
+  const controlGrounds = [palette.background, palette.surface, palette.raised] as const;
   return {
     accent: accentHex,
     accentReadable,
@@ -394,6 +417,13 @@ export function resolveDisplayPaletteRoles(
     accentHover,
     onAccent: onFill(accentHex),
     onAccentHover: onFill(accentHover),
+    surfaceAccent,
+    muted: nearestContrastRole(palette.muted, grounds, 4.5),
+    controlBorder: nearestContrastRole(
+      opaqueOn(palette.border, palette.surface),
+      controlGrounds,
+      3,
+    ),
   };
 }
 
@@ -448,7 +478,7 @@ function paletteDeclarations(
   headingFamily: string,
 ): string {
   const [radiusSm, radiusMd, radiusLg, radiusXl] = palette.radius;
-  return `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--text:${palette.text};--muted:${palette.muted};--border:${palette.border};${accentDeclarations(roles)};--secondary:${palette.secondary};--shadow:${palette.shadow};--font-family:${family};--font-heading:${headingFamily};color-scheme:${palette.colorScheme};--danger:${palette.danger};--on-danger:${onFill(palette.danger)};--warning:${palette.warning};--success:${palette.success};--radius-sm:${radiusSm};--radius-md:${radiusMd};--radius-lg:${radiusLg};--radius-xl:${radiusXl};--density:${palette.density}`;
+  return `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--surface-accent:${roles.surfaceAccent};--text:${palette.text};--muted:${roles.muted};--border:${palette.border};--control-border:${roles.controlBorder};${accentDeclarations(roles)};--secondary:${palette.secondary};--tap-wars-side-1:${palette.tapWarsSides?.[0] ?? roles.accent};--tap-wars-side-2:${palette.tapWarsSides?.[1] ?? palette.secondary};--shadow:${palette.shadow};--font-family:${family};--font-heading:${headingFamily};color-scheme:${palette.colorScheme};--danger:${palette.danger};--on-danger:${onFill(palette.danger)};--warning:${palette.warning};--success:${palette.success};--radius-sm:${radiusSm};--radius-md:${radiusMd};--radius-lg:${radiusLg};--radius-xl:${radiusXl};--density:${palette.density}`;
 }
 
 export function generateDisplayStylesheet(
