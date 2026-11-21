@@ -725,3 +725,168 @@ void test("moving a destination to another origin never sends its secrets to the
     database.close();
   }
 });
+
+/** Make a delivery claimable again without the edit-time origin handling. */
+function reviveDelivery(database: DatabaseConnection, eventId: string): void {
+  database
+    .prepare<[string, string]>(
+      "UPDATE outbound_deliveries SET state = 'retry', next_attempt_at = ?, terminal_at = NULL WHERE event_id = ?",
+    )
+    .run(NOW, eventId);
+}
+
+function sentFor(
+  sent: readonly Parameters<OutboundTransportRouter["send"]>[0][],
+  eventId: string,
+): readonly (string | undefined)[] {
+  return sent.filter((input) => input.envelope.event_id === eventId).map((input) => input.endpoint);
+}
+
+function deliveryOutcome(
+  database: DatabaseConnection,
+  eventId: string,
+): { readonly state: string; readonly last_error_code: string | null } {
+  return database
+    .prepare<[string], { readonly state: string; readonly last_error_code: string | null }>(
+      "SELECT state, last_error_code FROM outbound_deliveries WHERE event_id = ?",
+    )
+    .get(eventId)!;
+}
+
+function sendTimeGuardSetup(): {
+  readonly database: DatabaseConnection;
+  readonly service: ReturnType<typeof createOutboundService>;
+  readonly secrets: ReturnType<typeof createSecretsService>;
+  readonly sent: Parameters<OutboundTransportRouter["send"]>[0][];
+  readonly worker: ReturnType<typeof createOutboundWorker>;
+} {
+  const database = openDatabase(":memory:");
+  const secrets = createSecretsService(database, { rootKey: ROOT_KEY });
+  let sequence = 10;
+  const service = createOutboundService(database, {
+    secrets,
+    now: () => new Date(NOW),
+    idFactory: () => `22222222-2222-4222-8222-${(sequence++).toString(16).padStart(12, "0")}`,
+  });
+  const sent: Parameters<OutboundTransportRouter["send"]>[0][] = [];
+  const worker = createOutboundWorker({
+    database,
+    transports: {
+      send: (input) => {
+        sent.push(input);
+        return { outcome: "success" };
+      },
+    },
+    secrets,
+    owner: "test-worker",
+    clock: { now: () => new Date(NOW) },
+  });
+  return { database, service, secrets, sent, worker };
+}
+
+void test("send-time guard: a revived Home Assistant delivery never takes the new token to the old origin", async () => {
+  const { database, service, sent, worker } = sendTimeGuardSetup();
+  const eventId = "33333333-3333-4333-8333-333333333356";
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "Moved HA",
+      transport: "home_assistant",
+      baseUrl: "http://192.168.1.35:8123",
+      secret: "token-a",
+    });
+    service.enable(DESTINATION);
+    service.admit(database, event(eventId));
+    service.edit(DESTINATION, { baseUrl: "http://192.168.1.99:8123" });
+    service.setToken(DESTINATION, "token-b");
+    service.enable(DESTINATION);
+    reviveDelivery(database, eventId);
+
+    for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
+
+    assert.deepEqual(sentFor(sent, eventId), []);
+    assert.deepEqual(deliveryOutcome(database, eventId), {
+      state: "dismissed",
+      last_error_code: "origin_changed",
+    });
+    const destination = service.get(DESTINATION);
+    assert.equal(destination?.enabled, true);
+    assert.equal(destination?.failure, null);
+  } finally {
+    worker.stop();
+    database.close();
+  }
+});
+
+void test("send-time guard: a revived webhook delivery never takes the new secret header to the old origin", async () => {
+  const { database, service, sent, worker } = sendTimeGuardSetup();
+  const eventId = "33333333-3333-4333-8333-333333333357";
+  try {
+    const v1 = service.create({
+      id: DESTINATION,
+      label: "Moved hook",
+      transport: "webhook",
+      webhookUrl: "https://old.example.test/hook",
+      secretHeaders: [{ name: "Authorization" }],
+    });
+    const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
+    service.setHeaderSecret(DESTINATION, slot, "Bearer old");
+    service.enable(DESTINATION);
+    service.admit(database, event(eventId));
+    service.edit(DESTINATION, { webhookUrl: "https://new.example.test/hook" });
+    service.setHeaderSecret(DESTINATION, slot, "Bearer new");
+    service.enable(DESTINATION);
+    reviveDelivery(database, eventId);
+
+    for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
+
+    assert.deepEqual(sentFor(sent, eventId), []);
+    assert.deepEqual(deliveryOutcome(database, eventId), {
+      state: "dismissed",
+      last_error_code: "origin_changed",
+    });
+    const history = service.listDeliveries(DESTINATION).find((row) => row.eventId === eventId);
+    assert.equal(history?.lastErrorCode, "origin_changed");
+    const destination = service.get(DESTINATION);
+    assert.equal(destination?.enabled, true);
+    assert.equal(destination?.failure, null);
+  } finally {
+    worker.stop();
+    database.close();
+  }
+});
+
+for (const unreadable of ["pinned", "current"] as const) {
+  void test(`send-time guard: an older version is never sent when the ${unreadable} origin can't be read`, async () => {
+    const { database, service, secrets, sent, worker } = sendTimeGuardSetup();
+    const eventId = "33333333-3333-4333-8333-333333333358";
+    try {
+      const v1 = service.create({
+        id: DESTINATION,
+        label: "Unreadable hook",
+        transport: "webhook",
+        webhookUrl: "https://hooks.example.test/one",
+        secretHeaders: [{ name: "Authorization" }],
+      });
+      const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
+      service.setHeaderSecret(DESTINATION, slot, "Bearer kept");
+      service.enable(DESTINATION);
+      service.admit(database, event(eventId));
+      const v2 = service.edit(DESTINATION, { webhookUrl: "https://hooks.example.test/two" });
+      assert.equal(v2.enabled, true, "a same-origin edit keeps the destination enabled");
+      const version = unreadable === "pinned" ? v1 : v2;
+      secrets.remove("outbound", version.currentVersion!.id, "endpoint");
+
+      for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
+
+      assert.deepEqual(sentFor(sent, eventId), []);
+      assert.deepEqual(deliveryOutcome(database, eventId), {
+        state: "dismissed",
+        last_error_code: "origin_changed",
+      });
+    } finally {
+      worker.stop();
+      database.close();
+    }
+  });
+}
