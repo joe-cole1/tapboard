@@ -32,8 +32,8 @@ class SvgElement {
 const boundedSelectors = [
   ".beer-liquid-rect",
   ".beer-liquid-shadow",
-  ".beer-liquid-depth",
-  ".beer-bubble-clip-rect",
+  '[data-vessel-part="liquid-depth"]',
+  '[data-vessel-part="bubble-clip-rect"]',
 ];
 
 class VesselSvg extends SvgElement {
@@ -249,7 +249,7 @@ void test("live fill uses the reviewed eight-second easing with synchronized geo
   assert.equal(svg.part(".beer-liquid-rect").dataset.fillPercent, "0");
   clock.step(16000);
   assertFrame(svg, graphic, 0);
-  assert.equal(numberAttribute(svg, ".beer-liquid-depth", "height"), 0);
+  assert.equal(numberAttribute(svg, '[data-vessel-part="liquid-depth"]', "height"), 0);
   assert.equal(clock.frames.size, 0);
 });
 

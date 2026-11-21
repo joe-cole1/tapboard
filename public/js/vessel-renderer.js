@@ -261,10 +261,13 @@ function renderGraphicStructure(svg, tap, graphic, clipId) {
   }
   const clip = svgElement("clipPath", { id: clipId, class: "beer-liquid-clip" });
   clip.append(svgElement("path", { d: graphic.clipPath }));
-  const bubbleClip = svgElement("clipPath", { id: `${clipId}-bubbles`, class: "beer-bubble-clip" });
+  const bubbleClip = svgElement("clipPath", {
+    id: `${clipId}-bubbles`,
+    "data-vessel-part": "bubble-clip",
+  });
   bubbleClip.append(
     svgElement("rect", {
-      class: "beer-bubble-clip-rect",
+      "data-vessel-part": "bubble-clip-rect",
       x: graphic.fillX,
       width: graphic.fillWidth,
       y: graphic.bottomY,
@@ -285,14 +288,14 @@ function renderGraphicStructure(svg, tap, graphic, clipId) {
     }),
   );
   const clipped = svgElement("g", { class: "beer-liquid-clip", "clip-path": `url(#${clipId})` });
-  for (const [className, fill] of [
-    ["liquid beer-liquid-rect", "#D97706"],
-    ["beer-liquid-shadow", `url(#${clipId}-light)`],
-    ["beer-liquid-depth", `url(#${clipId}-depth)`],
+  for (const [hook, fill] of [
+    [{ class: "liquid beer-liquid-rect" }, "#D97706"],
+    [{ class: "beer-liquid-shadow" }, `url(#${clipId}-light)`],
+    [{ "data-vessel-part": "liquid-depth" }, `url(#${clipId}-depth)`],
   ]) {
     clipped.append(
       svgElement("rect", {
-        class: className,
+        ...hook,
         x: graphic.fillX,
         width: graphic.fillWidth,
         y: graphic.bottomY,
@@ -336,9 +339,7 @@ function renderGraphicStructure(svg, tap, graphic, clipId) {
   const foamShape = svgElement("g", {
     transform: `translate(${graphic.fillX} 0) scale(${graphic.fillWidth / 74} 1)`,
   });
-  foamShape.append(
-    svgElement("path", { class: "beer-foam-shape", d: FOAM_PATH, fill: `url(#${clipId}-foam)` }),
-  );
+  foamShape.append(svgElement("path", { d: FOAM_PATH, fill: `url(#${clipId}-foam)` }));
   foamShape.append(
     svgElement("path", {
       d: "M 12 -8 C 14 -12 18 -12 21 -9 M 25 -12 C 27 -14 31 -13 33 -10 M 48 -6 C 51 -9 55 -8 57 -5",
@@ -379,7 +380,7 @@ export function applyGraphic(svg, tap) {
     svg.dataset.graphicId !== graphic.id ||
     svg.dataset.artworkVersion !== ARTWORK_VERSION ||
     !svg.querySelector(".glass-front") ||
-    !svg.querySelector(".beer-bubble-clip-rect");
+    !svg.querySelector('[data-vessel-part="bubble-clip-rect"]');
   if (needsStructure) {
     cancelVesselAnimation(svg);
     renderGraphicStructure(svg, tap, graphic, clipId);

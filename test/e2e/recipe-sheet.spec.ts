@@ -114,7 +114,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
       .locator(".recipe-sheet-column")
       .evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().x));
     expect(columns[0]!).toBeLessThan(columns[1]!);
-    await expect(page.locator(".story-flavor")).toBeHidden();
+    await expect(page.locator('section[aria-labelledby="story-sensory"]')).toBeHidden();
     await expect(page.locator(".story-navigation")).toBeHidden();
     await expect(page.locator(".workspace-banner")).toBeHidden();
     await page.emulateMedia({ media: "screen" });

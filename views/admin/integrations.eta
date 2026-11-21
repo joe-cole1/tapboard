@@ -27,7 +27,7 @@
       <dl class="integration-resource-card__summary"><div><dt>Active sources</dt><dd><%= it.telemetry.activeCount %></dd></div><div><dt>Disabled history</dt><dd><%= it.telemetry.disabledCount %></dd></div></dl>
       <a class="button secondary button--small" href="/admin/integrations/telemetry">Open Telemetry</a>
     </article>
-    <article class="admin-card integration-resource-card integration-resource-card--outbound">
+    <article class="admin-card integration-resource-card">
       <div class="integration-resource-card__header">
         <div><p class="eyebrow">Delivery destinations</p><h2>Outbound</h2></div>
         <span class="status-badge status-badge--<%= it.outbound && it.outbound.available ? (it.outbound.enabledCount > 0 ? "healthy" : "muted") : "muted" %>"><%= it.outbound && it.outbound.available ? `${it.outbound.enabledCount} enabled` : "Unavailable" %></span>

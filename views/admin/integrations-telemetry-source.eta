@@ -26,7 +26,7 @@
     <section class="admin-card" aria-labelledby="source-key-actions-heading">
       <details class="admin-disclosure">
         <summary><span><strong id="source-key-actions-heading">Key actions</strong><small>Explicit actions issue a replacement secret or permanently disable this source.</small></span></summary>
-        <div class="action-group">
+        <div>
           <form action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label>New key label <input name="label" maxlength="120" /></label><button type="submit">Rotate key and show replacement once</button></form>
           <form action="/admin/integrations/telemetry-sources/<%= it.source.id %>/disable" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="danger" type="submit">Disable source</button><p class="muted">A source assigned to any Tap must be unassigned before it can be disabled.</p></form>
         </div>

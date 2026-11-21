@@ -27,16 +27,17 @@ The built-in [Simulation](operations.md#built-in-simulation) is the main way to 
 
 ## Checks and tests
 
-| Command                                      | What it does                                                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `npm run check`                              | The full gate: Prettier check, ESLint, `tsc --noEmit`, the architecture rules, and the unit tests. CI runs the same gate. |
-| `npm test`                                   | The `node:test` unit suite only (`test/*.test.ts`).                                                                       |
-| `node --test test/<name>.test.ts`            | One test file.                                                                                                            |
-| `npm run check:architecture`                 | The architecture rules only (`scripts/check-architecture.sh`).                                                            |
-| `npm run format`                             | Rewrites files with Prettier.                                                                                             |
-| `npm run test:e2e`                           | The Playwright browser suite against a fixture server on port 4176 (`TAPBOARD_E2E_PORT` changes it).                      |
-| `npm run test:e2e -- --last-failed`          | Reruns only the browser specs that failed last time.                                                                      |
-| `bash scripts/check-production-container.sh` | Builds the production image and checks it in a disposable Compose project; needs a running Docker daemon.                 |
+| Command                                      | What it does                                                                                                                      |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`                              | The full gate: Prettier check, ESLint, `tsc --noEmit`, the architecture and CSS rules, and the unit tests. CI runs the same gate. |
+| `npm test`                                   | The `node:test` unit suite only (`test/*.test.ts`).                                                                               |
+| `node --test test/<name>.test.ts`            | One test file.                                                                                                                    |
+| `npm run check:architecture`                 | The architecture rules only (`scripts/check-architecture.sh`).                                                                    |
+| `npm run check:css`                          | The stylesheet rules only (`scripts/check-css.ts`).                                                                               |
+| `npm run format`                             | Rewrites files with Prettier.                                                                                                     |
+| `npm run test:e2e`                           | The Playwright browser suite against a fixture server on port 4176 (`TAPBOARD_E2E_PORT` changes it).                              |
+| `npm run test:e2e -- --last-failed`          | Reruns only the browser specs that failed last time.                                                                              |
+| `bash scripts/check-production-container.sh` | Builds the production image and checks it in a disposable Compose project; needs a running Docker daemon.                         |
 
 The browser suite needs Chromium. Install Playwright's build once:
 

@@ -110,6 +110,7 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   border: 2px dashed var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow);
+  position: relative;
 }
 .tap-card:focus-visible {
   outline: 3px solid var(--accent-strong);
@@ -122,20 +123,34 @@ main[data-dashboard] > section[aria-label="Current taps"] {
 }
 .tap-copy {
   container-type: inline-size;
-}
-.tap-copy {
   display: flex;
   flex-direction: column;
 }
 .tap-title-row {
   grid-column: 1 / -1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2-5);
 }
 .tap-badges {
   grid-column: 1;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 0.8rem;
+  padding-top: var(--space-1);
 }
 .tap-visual {
   grid-column: 2;
   grid-row: 2 / 4;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.15rem;
+  text-align: center;
 }
 /* Wider cards are often short: the vessel takes the full card height beside the title. */
 @media (min-width: 40rem) {
@@ -150,12 +165,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
 .tap-card p {
   margin: var(--space-1) 0;
   overflow-wrap: anywhere;
-}
-.tap-title-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2-5);
 }
 .tap-title-row h2 {
   min-width: 0;
@@ -185,14 +194,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   justify-content: space-between;
   gap: var(--space-2-5);
   margin-top: 0;
-}
-.tap-badges {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 0.8rem;
-  padding-top: var(--space-1);
 }
 .meta {
   min-width: 0;
@@ -312,14 +313,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   color: var(--muted);
   font-size: var(--text-small);
 }
-.tap-visual {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 0.15rem;
-  text-align: center;
-}
 .tap-graphic {
   display: block;
   min-height: 0;
@@ -365,6 +358,7 @@ main[data-dashboard] > section[aria-label="Current taps"] {
 }
 .beer-bubble {
   animation: tap-bubble-rise var(--bubble-duration, 6s) ease-in-out infinite;
+  animation-delay: var(--bubble-delay, 0s);
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -463,9 +457,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
 .beer-bubble:nth-child(24) {
   --bubble-delay: -3.1s;
   --bubble-duration: 7.9s;
-}
-.beer-bubble {
-  animation-delay: var(--bubble-delay, 0s);
 }
 .beer-pour-stream {
   opacity: 0;
@@ -596,9 +587,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   color: var(--text);
   border-color: var(--accent-strong);
 }
-.tap-wars-slot[hidden] {
-  display: none;
-}
 .tap-wars-banner {
   display: grid;
   grid-template-columns: auto minmax(min(18rem, 100%), 1fr) auto;
@@ -719,9 +707,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   font-style: normal;
   font-weight: 800;
 }
-.tap-card {
-  position: relative;
-}
 .tap-card[data-tap-wars-participant] {
   border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
   box-shadow:
@@ -735,18 +720,6 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   justify-items: start;
   gap: var(--space-1-5);
   margin-top: var(--space-2);
-}
-.tap-wars-card-badge {
-  display: inline-flex;
-  padding: 0.16rem var(--space-2);
-  color: var(--accent-readable);
-  font-size: var(--text-caption);
-  font-weight: 850;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .tap-wars-card-paused {
   color: var(--muted);

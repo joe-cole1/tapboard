@@ -2,7 +2,7 @@
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
 <main id="main-content">
   <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/beverages">← Beverages</a></nav>
-  <header class="page-header beverage-detail-header">
+  <header class="page-header">
     <div class="beverage-detail-header__title">
       <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="5" fill="<%= it.beverage.resolvedColor %>" /></svg>
       <div><p class="eyebrow"><%= it.beverage.ownershipType === "brewfather" ? "Brewfather linked" : "Custom beverage" %></p><h1><%= it.beverage.name %></h1></div>
@@ -10,7 +10,7 @@
     <p class="muted" data-beverage-updated-at="<%= it.beverage.updatedAt %>">Last updated <time datetime="<%= it.beverage.updatedAt %>"><%= it.beverage.updatedAt %></time></p>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <dl class="summary-grid beverage-summary">
+  <dl class="summary-grid">
     <div><dt>Style</dt><dd><%= it.beverage.style || "—" %></dd></div>
     <div><dt>ABV</dt><dd><%= it.beverage.abv === null ? "—" : `${it.beverage.abv}%` %></dd></div>
     <div><dt>Current use</dt><dd><%= it.beverage.usage.current === 0 ? "Not in use" : it.beverage.usage.current %></dd></div>
@@ -83,7 +83,7 @@
     <% if (it.beverage.guidance) { %><dl class="key-value-list"><% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"]) { const result = it.beverage.guidance.sensory[axis]; %><dt><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %></dt><dd><%= result.value === null ? "Unavailable" : `${Number(result.value.toFixed(1))} / 5` %> · <%= result.source.replace(/_/gu, " ") %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd><% } %></dl><% } else { %><p class="muted">Guidance is unavailable until a compatible source or manual override is present.</p><% } %>
     <% if (it.beverage.guidance?.brewingEnrichmentPending) { %><p class="muted">Recipe enrichment is pending. The last saved guidance remains available while the linked batch is refreshed.</p><% } %>
     <% if (it.beverage.guidance?.flavorDetails) { const details = it.beverage.guidance.flavorDetails; %>
-      <details class="admin-disclosure flavor-diagnostics">
+      <details class="admin-disclosure">
         <summary><span><strong>Why these estimates?</strong><small>Selected inputs, ingredient coverage, and model limitations.</small></span></summary>
         <p>Model <%= details.modelVersion || "Unavailable" %> · Catalog <%= details.catalogVersion || "Unavailable" %>. Versioned heuristics; ingredient support does not establish scientific validation.</p>
         <h3>Selected brewing inputs</h3>

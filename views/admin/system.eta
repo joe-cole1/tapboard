@@ -136,7 +136,7 @@
     </form>
     <% if (it.system.activity.items.length === 0) { %><p>No activity matches this view.</p><% } else { %>
       <div class="table-scroll" role="region" aria-label="Activity Log entries" tabindex="0">
-        <table class="data-table"><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Category</th><th scope="col">Action</th><th scope="col">Actor</th><th scope="col">Resource</th></tr></thead><tbody>
+        <table class="admin-table"><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Category</th><th scope="col">Action</th><th scope="col">Actor</th><th scope="col">Resource</th></tr></thead><tbody>
           <% for (const item of it.system.activity.items) { %><tr><td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td><td><%= item.categoryLabel %></td><td><%= item.actionLabel %></td><td><%= item.actorLabel %></td><td><% if (item.entityHref) { %><a href="<%= item.entityHref %>"><%= item.entityLabel %></a><% } else { %><%= item.entityLabel %><% } %></td></tr><% } %>
         </tbody></table>
       </div>

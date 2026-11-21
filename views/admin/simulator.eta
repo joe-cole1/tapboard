@@ -12,7 +12,7 @@
     <% } %>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <p class="simulator-feedback" data-simulation-feedback role="status" aria-live="polite" hidden></p>
+  <p data-simulation-feedback role="status" aria-live="polite" hidden></p>
   <% if (!simulation.enabled) { %>
     <section class="admin-card simulator-intro" aria-labelledby="simulator-enable-heading">
       <span class="status-badge">Simulation off</span><h2 id="simulator-enable-heading">A sample taproom, ready to explore</h2>

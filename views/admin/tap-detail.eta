@@ -2,13 +2,13 @@
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
 <main id="main-content">
   <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/taps">← Taps</a></nav>
-  <header class="page-header tap-detail-header">
+  <header class="page-header">
     <div>
       <p class="eyebrow">Manage · Tap <%= it.tap.identity.tapNumber %></p>
       <h1>Tap <%= it.tap.identity.tapNumber %><% if (it.tap.identity.name) { %> — <%= it.tap.identity.name %><% } else { %> — (unnamed)<% } %></h1>
       <p class="muted">Read-first operational detail. Public presentation is shown below from the authoritative public projection.</p>
     </div>
-    <span class="status-badge status-badge--<%= it.tap.lifecycle.isRetired ? "retired" : it.tap.lifecycle.enabled ? "active" : "disabled" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
+    <span class="status-badge<%= it.tap.lifecycle.enabled && !it.tap.lifecycle.isRetired ? " status-badge--active" : "" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
@@ -73,7 +73,7 @@
     </div>
     <details class="admin-disclosure admin-disclosure--editable">
       <summary><span><strong>Edit tap name</strong><small>Current name: <%= it.tap.identity.name || "(unnamed)" %>.</small></span></summary>
-      <form class="admin-form tap-safe-name-form" action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name">
+      <form class="admin-form" data-tap-name-form action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
         <label>Tap name <input name="name" maxlength="120" value="<%= it.tap.identity.name || "" %>" /></label>
         <div class="form-actions"><button class="primary button--small" type="submit">Save name</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
@@ -103,7 +103,7 @@
     <% } %>
   </section>
 
-  <section class="admin-card tap-public-preview" aria-labelledby="public-preview-heading">
+  <section class="admin-card" aria-labelledby="public-preview-heading">
     <div class="section-heading"><div><h2 id="public-preview-heading">Public preview</h2></div></div>
     <% if (it.tap.publicPreview) { %>
       <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'theme' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults, previewMetricCatalog: it.tap.previewMetricCatalog }) %></div>
