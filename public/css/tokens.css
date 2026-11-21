@@ -7,9 +7,11 @@
   --background: #0b0f19;
   --surface: #111827;
   --surface-raised: #192231;
+  --surface-accent: #2d3031;
   --text: #ffffff;
   --muted: #9ca3af;
   --border: rgba(255, 255, 255, 0.2);
+  --control-border: #686b75;
   --accent: #fbc02d;
   --accent-readable: #fbc02d;
   --accent-strong: #fbc02d;
@@ -17,6 +19,8 @@
   --on-accent: #000000;
   --on-accent-hover: #000000;
   --secondary: #38bdf8;
+  --tap-wars-side-1: #fbc02d;
+  --tap-wars-side-2: #38bdf8;
   --danger: #ef4444;
   --on-danger: #000000;
   --scrim: rgb(0 0 0 / 60%);

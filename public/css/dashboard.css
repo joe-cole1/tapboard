@@ -239,7 +239,7 @@ main[data-dashboard] > section[aria-label="Current taps"] {
   min-height: 1.25rem;
   padding: 0.16rem var(--space-2);
   color: var(--accent-readable);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--surface-accent);
   border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border));
   border-radius: var(--radius-pill);
   font-size: var(--text-caption);
@@ -601,19 +601,21 @@ main[data-dashboard] > section[aria-label="Current taps"] {
 }
 .tap-wars-banner {
   display: grid;
-  grid-template-columns: auto minmax(18rem, 1fr) auto;
+  grid-template-columns: auto minmax(min(18rem, 100%), 1fr) auto;
   align-items: center;
   gap: clamp(0.75rem, 1.5vw, 1.5rem);
   margin-bottom: var(--space-4);
   padding: var(--space-2) var(--space-4);
   border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--border));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-raised) 91%, var(--accent));
+  background: var(--surface-accent);
   box-shadow: var(--shadow);
 }
 .tap-wars-banner__copy {
   display: grid;
+  min-width: 0;
   gap: 0.1rem;
+  overflow-wrap: anywhere;
 }
 .tap-wars-banner__copy strong {
   color: var(--accent-readable);
@@ -649,12 +651,12 @@ main[data-dashboard] > section[aria-label="Current taps"] {
     x 160ms ease;
 }
 .tap-wars-meter rect:first-child {
-  fill: var(--accent);
+  fill: var(--tap-wars-side-1);
 }
 .tap-wars-meter rect:last-of-type {
-  fill: var(--secondary);
+  fill: var(--tap-wars-side-2);
 }
-/* A gap at the split, so themes with close segment colours (Monochrome) still read. */
+/* A gap at the split, so accents close to a theme's secondary colour still read. */
 .tap-wars-meter line {
   stroke: var(--surface);
   stroke-width: var(--space-1);
@@ -674,6 +676,7 @@ main[data-dashboard] > section[aria-label="Current taps"] {
  */
 .tap-wars-banner__meter {
   position: relative;
+  min-width: 0;
   height: auto;
 }
 .tap-wars-banner__meter svg {

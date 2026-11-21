@@ -1383,11 +1383,6 @@
   flex-shrink: 0;
   margin-top: var(--space-1);
 }
-.simulator-page button:disabled,
-.simulation-switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
 .simulator-page [hidden] {
   display: none;
 }
@@ -2378,12 +2373,23 @@
 }
 /* "What guests see": the real public banner, in the public theme. */
 .tap-wars-guest-preview__frame {
+  container-type: inline-size;
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--background);
 }
 .tap-wars-guest-preview__frame .tap-wars-banner {
   margin: 0;
+}
+/* The frame is narrower than the window, so it stacks by its own width, as the public page does. */
+@container (max-width: 48rem) {
+  .tap-wars-guest-preview__frame .tap-wars-banner {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .tap-wars-guest-preview__frame .tap-wars-banner__meter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 .tap-wars-totals {
   color: var(--muted);
@@ -2434,14 +2440,6 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-1);
-}
-.tap-wars-start__form--blocked select:disabled {
-  cursor: not-allowed;
-  opacity: 0.8;
-}
-.tap-wars-start__form button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 .tap-wars-start__form button {
   width: fit-content;

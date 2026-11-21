@@ -28,7 +28,7 @@ void test("display stylesheet params accept only bounded themes, accents, and pr
   assert.equal(validateStylesheetParams("light_minimal", "amber", "comic-sans"), undefined);
   assert.equal(
     displayStylesheetHref("light_minimal", "#abcdef", "system"),
-    "/assets/css/display.css?v=2&theme=light_minimal&accent=%23abcdef&font=system",
+    "/assets/css/display.css?v=3&theme=light_minimal&accent=%23abcdef&font=system",
   );
 });
 
@@ -215,6 +215,26 @@ void test("the theme accent uses each theme's own colour and Monochrome stays gr
   }
 });
 
+void test("Tap Wars sides are pure white and black on Monochrome, and accent and secondary elsewhere", () => {
+  for (const accent of ["theme", "amber"] as const) {
+    for (const [scope, block] of paletteBlocks(
+      generateDisplayStylesheet("monochrome", accent, "system").css,
+    ).filter(([scope]) => scope.startsWith(":root"))) {
+      assert.equal(block.get("--tap-wars-side-1"), "#ffffff", `${accent} ${scope}`);
+      assert.equal(block.get("--tap-wars-side-2"), "#000000", `${accent} ${scope}`);
+    }
+  }
+  const root = paletteBlocks(generateDisplayStylesheet("hop_garden", "sky", "system").css)[0]![1];
+  assert.equal(root.get("--tap-wars-side-1"), root.get("--accent"));
+  assert.equal(root.get("--tap-wars-side-2"), root.get("--secondary"));
+  // Admin keeps its own palette: the Monochrome override does not leak into it.
+  const admin = paletteBlocks(generateDisplayStylesheet("monochrome", "theme", "system").css).find(
+    ([scope]) => scope.startsWith(".admin-shell"),
+  )![1];
+  assert.equal(admin.get("--tap-wars-side-1"), admin.get("--accent"));
+  assert.equal(admin.get("--tap-wars-side-2"), admin.get("--secondary"));
+});
+
 void test("the auto theme is Modern Dark by default and Light Minimal under a light device setting", () => {
   const root = (css: string): string => css.match(/:root\{([^}]+)\}/u)?.[1] ?? "";
   const auto = generateDisplayStylesheet("auto", "amber", "system").css;
@@ -277,5 +297,96 @@ void test("theme body, muted, and secondary roles are readable on both surfaces"
       }
     }
   }
-  assert.match(generateDisplayStylesheet("cyberpunk", "amber", "system").css, /--muted:#c52cff/u);
+  assert.match(generateDisplayStylesheet("cyberpunk", "amber", "system").css, /--muted:#d25aff/u);
+});
+
+/** Every palette block one stylesheet emits: the public :root block(s) and both Admin schemes. */
+function paletteBlocks(css: string): ReadonlyArray<readonly [string, Map<string, string>]> {
+  const blocks = [...css.matchAll(/(:root|\.admin-shell)\{([^}]+)\}/gu)];
+  assert.ok(blocks.length >= 3, "expected public and both Admin palette blocks");
+  return blocks.map(([, selector, body], index) => [
+    `${selector}#${index}`,
+    new Map(
+      body!.split(";").map((declaration) => {
+        const separator = declaration.indexOf(":");
+        return [declaration.slice(0, separator), declaration.slice(separator + 1)] as const;
+      }),
+    ),
+  ]);
+}
+
+function role(block: Map<string, string>, name: string): string {
+  const value = block.get(name);
+  assert.match(value ?? "", /^#[0-9a-f]{6}$/u, `${name} is a concrete colour`);
+  return value!;
+}
+
+const EVERY_ACCENT = [...DISPLAY_ACCENTS, "#000000", "#ffffff", "#808080", "#2563eb"] as const;
+
+void test("text roles are readable on every ground, including surface-raised and the Tap Wars banner tint", () => {
+  for (const theme of DISPLAY_THEMES) {
+    for (const accent of EVERY_ACCENT) {
+      for (const [scope, block] of paletteBlocks(
+        generateDisplayStylesheet(theme, accent, "system").css,
+      )) {
+        const grounds = ["--background", "--surface", "--surface-raised", "--surface-accent"];
+        for (const text of ["--text", "--muted", "--accent-readable"]) {
+          for (const ground of grounds) {
+            const ratio = contrastRatio(role(block, text), role(block, ground));
+            assert.ok(
+              ratio >= 4.5,
+              `${theme}/${accent} ${scope} ${text} on ${ground}: ${ratio.toFixed(2)}`,
+            );
+          }
+        }
+        // The banner ground is the raised surface tinted toward the accent, not a new colour.
+        const raised = role(block, "--surface-raised");
+        const tint = role(block, "--surface-accent");
+        assert.ok(
+          contrastRatio(tint, raised) < 1.5,
+          `${theme}/${accent} ${scope} tint stays subtle`,
+        );
+      }
+    }
+  }
+});
+
+void test("form controls have a 3:1 boundary and a 4.5:1 placeholder in every palette", () => {
+  const components = readFileSync(new URL("../public/css/components.css", import.meta.url), "utf8");
+  const placeholderRule = components.match(/::placeholder\s*\{([^}]+)\}/u)?.[1] ?? "";
+  const placeholderRole = placeholderRule.match(/color:\s*var\((--[a-z-]+)\)/u)?.[1];
+  assert.ok(placeholderRole, "components.css sets the placeholder colour from a palette role");
+  assert.match(placeholderRule, /opacity:\s*1\b/u, "the placeholder is not faded further");
+  assert.match(components, /border:\s*1px solid var\(--control-border\)/u);
+
+  for (const theme of DISPLAY_THEMES) {
+    for (const accent of EVERY_ACCENT) {
+      for (const [scope, block] of paletteBlocks(
+        generateDisplayStylesheet(theme, accent, "system").css,
+      )) {
+        // Controls sit on, and are filled with, the page, card and raised grounds.
+        for (const ground of ["--background", "--surface", "--surface-raised"]) {
+          const boundary = contrastRatio(role(block, "--control-border"), role(block, ground));
+          assert.ok(
+            boundary >= 3,
+            `${theme}/${accent} ${scope} control border on ${ground}: ${boundary.toFixed(2)}`,
+          );
+          const placeholder = contrastRatio(role(block, placeholderRole), role(block, ground));
+          assert.ok(
+            placeholder >= 4.5,
+            `${theme}/${accent} ${scope} placeholder on ${ground}: ${placeholder.toFixed(2)}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+void test("every theme's own muted colour is readable on its raised surface", () => {
+  for (const [theme, palette] of Object.entries(DISPLAY_PALETTES)) {
+    for (const ground of [palette.background, palette.surface, palette.raised]) {
+      const ratio = contrastRatio(palette.muted, ground);
+      assert.ok(ratio >= 4.5, `${theme} muted ${palette.muted} on ${ground}: ${ratio.toFixed(2)}`);
+    }
+  }
 });

@@ -69,7 +69,7 @@
     const link = document.querySelector("[data-display-stylesheet]");
     if (link instanceof HTMLLinkElement) {
       const params = new URLSearchParams({
-        v: "2",
+        v: "3",
         theme:
           document.documentElement.dataset.theme ??
           document.documentElement.dataset.sharedTheme ??

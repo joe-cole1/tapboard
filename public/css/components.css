@@ -142,10 +142,22 @@ textarea,
 button {
   max-width: 100%;
   padding: var(--space-2-5) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--text);
+}
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+/*
+ * Disabled controls are exempt from contrast minimums but must still look unavailable.
+ * :where keeps this at the weight of one class, so a later rule that hides an input wins.
+ */
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 textarea {
   min-height: 5rem;
