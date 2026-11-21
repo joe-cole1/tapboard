@@ -34,6 +34,7 @@ import {
   WEBHOOK_ENDPOINT_SLOT,
   MAX_HEADER_TOTAL_BYTES,
   configuredHeaderBytes,
+  credentialOrigin,
   normalizeCreateInput,
   normalizeDestinationConfig,
   validateOutboundId,
@@ -122,16 +123,6 @@ function secretAvailable(
       row.configured &&
       row.available,
   );
-}
-
-/** Stored destination secrets belong to the transport and origin they were entered for. */
-function credentialOrigin(transport: string, url: string | undefined): string | undefined {
-  if (url === undefined) return undefined;
-  try {
-    return `${transport} ${new URL(url).origin}`;
-  } catch {
-    return undefined;
-  }
 }
 
 function credentialsRequiredForNewAddress(): ApplicationError {

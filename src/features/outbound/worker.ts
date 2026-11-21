@@ -3,6 +3,7 @@ import type { EventEnvelope } from "../events/types.ts";
 import {
   applyDeliveryResult,
   claimDue,
+  dismissClaim,
   listDestinations,
   markTokenMissing,
   readClaimConfiguration,
@@ -27,7 +28,7 @@ import type {
   OutboundWorkerClock,
   OutboundWorkerOptions,
 } from "./types.ts";
-import { HA_TOKEN_SLOT, WEBHOOK_ENDPOINT_SLOT } from "./outbound-validation.ts";
+import { HA_TOKEN_SLOT, WEBHOOK_ENDPOINT_SLOT, credentialOrigin } from "./outbound-validation.ts";
 import { boundedErrorCode, type TransportAttemptResult } from "./transport-types.ts";
 import type { HomeAssistantConnectionStateEvent } from "./transports/home-assistant.ts";
 
@@ -294,6 +295,12 @@ export class OutboundWorker {
       releaseClaim(this.#database, claim, timestamp);
       return;
     }
+    // Destination-scoped secrets are the current ones, so a claim pinned to an
+    // older version may only send them to the origin they were entered for.
+    if (!this.#pinnedOriginIsCurrent(config.destination, config.version)) {
+      dismissClaim(this.#database, claim, "origin_changed", timestamp);
+      return;
+    }
     let input: OutboundTransportSendInput;
     try {
       input = this.#transportInput(config.destination, config.version, claim.envelope);
@@ -361,6 +368,38 @@ export class OutboundWorker {
       config.version.id !== config.destination.currentVersion?.id
     ) {
       await this.#probeHomeAssistant(claim.destinationId, generation);
+    }
+  }
+
+  /** Claims on the current version skip this; an origin that can't be read fails closed. */
+  #pinnedOriginIsCurrent(
+    destination: OutboundDestination,
+    version: OutboundDestinationVersion,
+  ): boolean {
+    const current = destination.currentVersion;
+    if (current?.id === version.id) return true;
+    if (current === null) return false;
+    const pinned = this.#versionOrigin(version);
+    return pinned !== undefined && pinned === this.#versionOrigin(current);
+  }
+
+  #versionOrigin(version: OutboundDestinationVersion): string | undefined {
+    const config = version.config;
+    if (config.transport === "home_assistant") {
+      return credentialOrigin(config.transport, config.baseUrl);
+    }
+    if (!config.endpointConfigured || !config.endpointAvailable || this.#secrets === undefined) {
+      return undefined;
+    }
+    try {
+      const endpoint = this.#secrets.revealPrivileged(
+        "outbound",
+        version.id,
+        WEBHOOK_ENDPOINT_SLOT,
+      );
+      return credentialOrigin(config.transport, endpoint);
+    } catch {
+      return undefined;
     }
   }
 

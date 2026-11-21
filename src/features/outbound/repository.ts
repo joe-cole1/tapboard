@@ -1137,6 +1137,25 @@ export function releaseClaim(
   );
 }
 
+/** End a claim without sending it. Dismissed deliveries are final: they offer no Retry. */
+export function dismissClaim(
+  database: DatabaseExecutor,
+  claim: DeliveryClaim,
+  errorCode: string,
+  now: string,
+): boolean {
+  return (
+    database
+      .prepare<[string, string, string, string, string, number]>(
+        `UPDATE outbound_deliveries SET state = 'dismissed', lease_owner = NULL, lease_expires_at = NULL,
+       last_error_code = ?, terminal_at = ?, updated_at = ?, revision = revision + 1
+     WHERE id = ? AND state = 'leased' AND lease_owner = ? AND revision = ?`,
+      )
+      .run(safeErrorCode(errorCode), now, now, claim.deliveryId, claim.leaseOwner, claim.revision)
+      .changes === 1
+  );
+}
+
 export function admitOutboxIntent(
   database: DatabaseExecutor,
   intent: OutboxIntent,
