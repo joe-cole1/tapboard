@@ -169,7 +169,7 @@ qc_backup="$(sed -En 's#^(/app/data/backups/tapboard-v2-[0-9]{8}T[0-9]{6}Z\.sqli
   fail "backup directory or file is not private to UID 1000"
 save_tokens_and_logs fresh
 stop_gracefully fresh-stopped
-printf 'Verified source hashes, schema 26, SSR, hardening, stdin PIN, created domain state, and an online backup.\n'
+printf 'Verified source hashes, current-schema readiness, SSR, hardening, stdin PIN, created domain state, and an online backup.\n'
 
 qc_phase="restart-persistence"
 compose start tapboard >"$qc_private/start.log" 2>&1

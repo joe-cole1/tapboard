@@ -93,8 +93,9 @@ requirements.
 
 ## Documentation
 
-- When behavior, setup, configuration, or commands change, update `README.md`, `architecture.md`,
-  `docs/operations.md`, or `openapi/` in the same change. Docs describe the current state;
+- When behavior, setup, configuration, or commands change, update `README.md`,
+  `docs/architecture.md`, `docs/operations.md`, `docs/development.md`, or `openapi/` in the same
+  change. Docs describe the current state;
   history belongs in git and PR descriptions.
 - Every implementation PR description includes a `## MANUAL DEV TEST` section: short,
   issue-specific steps the operator runs against a rebuilt development container. Never add these
