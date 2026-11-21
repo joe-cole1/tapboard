@@ -729,6 +729,7 @@ export interface ParsedOutboundForm {
   readonly baseUrl?: string;
   readonly webhookUrl?: string;
   readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
 }
 
 export function requireOutboundService(
@@ -794,6 +795,7 @@ export function outboundConfigPresentation(
     available: true,
     transportLabel: isHa ? "Home Assistant" : "Webhook",
     payloadFormat: isHa ? null : config.payloadFormat,
+    allowPrivateNetwork: !isHa && config.allowPrivateNetwork,
     endpointConfigured: isHa ? config.authConfigured : config.endpointConfigured,
     endpointAvailable: isHa ? config.authAvailable : config.endpointAvailable,
     credentialStateLabel: available
@@ -972,6 +974,7 @@ export function parseOutboundForm(
     ...result,
     ...(webhookUrl === "" ? {} : { webhookUrl }),
     payloadFormat,
+    allowPrivateNetwork: form.allowPrivateNetwork === "on",
   };
 }
 
@@ -1004,6 +1007,9 @@ export function outboundCreateInput(parsed: ParsedOutboundForm): CreateOutboundD
     ...(parsed.baseUrl === undefined ? {} : { baseUrl: parsed.baseUrl }),
     ...(parsed.webhookUrl === undefined ? {} : { webhookUrl: parsed.webhookUrl }),
     ...(parsed.payloadFormat === undefined ? {} : { payloadFormat: parsed.payloadFormat }),
+    ...(parsed.allowPrivateNetwork === undefined
+      ? {}
+      : { allowPrivateNetwork: parsed.allowPrivateNetwork }),
   };
 }
 
@@ -1033,6 +1039,9 @@ export function outboundEditInput(
     ...(parsed.baseUrl === undefined ? {} : { baseUrl: parsed.baseUrl }),
     ...(parsed.webhookUrl === undefined ? {} : { webhookUrl: parsed.webhookUrl }),
     ...(parsed.payloadFormat === undefined ? {} : { payloadFormat: parsed.payloadFormat }),
+    ...(parsed.allowPrivateNetwork === undefined
+      ? {}
+      : { allowPrivateNetwork: parsed.allowPrivateNetwork }),
   };
 }
 

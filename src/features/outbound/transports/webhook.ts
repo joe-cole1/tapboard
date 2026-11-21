@@ -69,6 +69,8 @@ export interface WebhookDestination {
   readonly endpoint?: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly payloadFormat?: "standard" | "discord";
+  /** Also dial private-network addresses (see `isPrivateNetworkAddress`). */
+  readonly allowPrivateNetwork?: boolean;
   readonly publicContextResolver?: PublicEventContextResolver;
   readonly resolver?: PublicEventContextResolver;
 }
@@ -257,13 +259,45 @@ export function isPublicNetworkAddress(value: string): boolean {
   return isPublicIpv6(normalized);
 }
 
+function isPrivateIpv4(value: string): boolean {
+  const parts = parseIpv4(value);
+  if (parts === undefined) return false;
+  const number = ipv4Number(parts);
+  const allowed: readonly [number, number][] = [
+    [10 << 24, 8], // RFC 1918
+    [(172 << 24) | (16 << 16), 12], // RFC 1918
+    [(192 << 24) | (168 << 16), 16], // RFC 1918
+    [(100 << 24) | (64 << 16), 10], // shared address space (CGNAT, Tailscale)
+  ];
+  return allowed.some(([base, bits]) => ipv4InRange(number, base >>> 0, bits));
+}
+
+/**
+ * True for RFC 1918, `100.64.0.0/10`, and unique-local `fc00::/7` addresses,
+ * which an opted-in webhook may dial. Loopback, link-local (including cloud
+ * metadata), multicast, and unspecified addresses are never private-network
+ * targets.
+ */
+export function isPrivateNetworkAddress(value: string): boolean {
+  if (typeof value !== "string" || value.length === 0) return false;
+  const normalized = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
+  if (parseIpv4(normalized) !== undefined) return isPrivateIpv4(normalized);
+  const parts = parseIpv6(normalized);
+  if (parts === undefined) return false;
+  const number = ipv6Number(parts);
+  if (ipv6InRange(number, 0xffffn << 32n, 96)) {
+    return isPrivateIpv4(ipv4FromNumber(Number(number & 0xffffffffn)).join("."));
+  }
+  return ipv6InRange(number, 0xfc00n << 112n, 7);
+}
+
 function networkFamily(value: string): 4 | 6 | undefined {
   const normalized = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
   if (parseIpv4(normalized) !== undefined) return 4;
   return parseIpv6(normalized) === undefined ? undefined : 6;
 }
 
-function isSafeDnsAddress(value: unknown): value is DnsLookupAddress {
+function isSafeDnsAddress(value: unknown, allowPrivateNetwork: boolean): value is DnsLookupAddress {
   if (typeof value !== "object" || value === null) return false;
   const address = (value as { readonly address?: unknown }).address;
   const family = (value as { readonly family?: unknown }).family;
@@ -271,7 +305,7 @@ function isSafeDnsAddress(value: unknown): value is DnsLookupAddress {
     typeof address === "string" &&
     (family === 4 || family === 6) &&
     networkFamily(address) === family &&
-    isPublicNetworkAddress(address)
+    (isPublicNetworkAddress(address) || (allowPrivateNetwork && isPrivateNetworkAddress(address)))
   );
 }
 
@@ -482,7 +516,7 @@ export class WebhookTransport {
     if (
       this.#stopped ||
       addresses.length === 0 ||
-      addresses.some((item) => !isSafeDnsAddress(item))
+      addresses.some((item) => !isSafeDnsAddress(item, destination.allowPrivateNetwork === true))
     ) {
       if (this.#stopped) return failureResult("permanent_failure", "webhook_stopped");
       return failureResult("permanent_failure", "webhook_dns_unsafe");
