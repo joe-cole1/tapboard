@@ -1,6 +1,6 @@
 # Tapboard v2 architecture decision records
 
-These records explain the decisions behind the v2 rebuild. They are background, not requirements: the code and [`architecture.md`](../../architecture.md) are the source of truth, and a decision can be revisited when the code calls for it.
+These records explain the decisions behind the v2 rebuild. They are background, not requirements: the code is the source of truth, [`docs/architecture.md`](../architecture.md) describes the current design, and a decision can be revisited when the code calls for it.
 
 - [ADR-0001](0001-clean-rebuild-modular-monolith-native-typescript.md) — clean rebuild, modular monolith, native TypeScript, and repository strategy
 - [ADR-0002](0002-core-domain-and-sqlite-ownership.md) — Beverage, Physical Keg, Fill, Tap, and normalized SQLite ownership

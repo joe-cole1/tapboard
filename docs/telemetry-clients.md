@@ -44,7 +44,8 @@ Cookies, query-string keys, and the Admin PIN are not accepted.
 ## 3. Payload
 
 Every sample has a strict RFC3339 `measured_at` with an uppercase `T` and an explicit `Z` or
-`+HH:MM` offset (`2026-11-19T10:00:00Z`, `2026-11-19T11:00:00.250+01:00`), and an optional
+`+HH:MM` or `-HH:MM` offset (`2026-11-19T10:00:00Z`, `2026-11-19T11:00:00.250+01:00`,
+`2026-11-19T05:00:00-05:00`), and an optional
 `client_sample_id` (1–128 characters from `A–Z a–z 0–9 _ . : / -`). Then use **one** of two forms.
 
 **Measurement form**: one keg-level reading, with optional temperature:
@@ -318,7 +319,7 @@ while True:
 
 A reading that has no registered metric (humidity, CO₂) can't be sent yet. Registering a
 condition or recorded metric is a code change to `src/features/telemetry/metrics.ts`, with no
-migration; see [architecture.md](../architecture.md).
+migration; see [the architecture guide](architecture.md#telemetry).
 
 ## 8. Troubleshooting
 

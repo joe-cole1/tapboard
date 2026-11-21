@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Living architecture rules; architecture.md ("Architecture enforcement")
+# Living architecture rules; docs/architecture.md ("Architecture enforcement")
 # describes each one. The checker reports the violated rule and path.
 
 if [[ -n "${TAPBOARD_ARCHITECTURE_ROOT:-}" ]]; then

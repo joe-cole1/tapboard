@@ -11,7 +11,7 @@
     <h2 id="telemetry-usage-heading">Connect a telemetry device</h2>
     <ol>
       <li>Create a source and copy the machine key shown once.</li>
-      <li>Assign the source to a Tap as its level source, condition source, or both before sending measurements.</li>
+      <li>Assign the source to a Tap as its level, condition, or flow source (one source can hold several roles) before sending measurements.</li>
       <li>Send measurements with the full key in the Bearer header.</li>
     </ol>
     <p>Endpoint: <code>POST /api/v1/telemetry/taps/{tapNumber}</code></p>
