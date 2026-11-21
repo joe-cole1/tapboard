@@ -83,6 +83,7 @@ export interface NormalizedDestinationConfig {
   readonly endpointSlot?: string;
   readonly authSlot?: string;
   readonly payloadFormat: "standard" | "discord";
+  readonly allowPrivateNetwork: boolean;
   readonly staticHeaders: readonly OutboundHeader[];
   readonly secretHeaders: readonly NormalizedSecretHeader[];
   /** Safe JSON only; never include endpoint, token, or header secret values. */
@@ -279,6 +280,7 @@ function safeConfigJson(config: {
   readonly staticHeaders: readonly OutboundHeader[];
   readonly secretHeaders: readonly NormalizedSecretHeader[];
   readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
 }): string {
   const safe: Record<string, unknown> = {
     transport: config.transport,
@@ -290,6 +292,8 @@ function safeConfigJson(config: {
   if (config.endpointSlot !== undefined) safe.endpointSlot = config.endpointSlot;
   if (config.authSlot !== undefined) safe.authSlot = config.authSlot;
   if (config.payloadFormat !== undefined) safe.payloadFormat = config.payloadFormat;
+  // Written only when on, so configurations saved before the option existed are unchanged.
+  if (config.allowPrivateNetwork === true) safe.allowPrivateNetwork = true;
   return JSON.stringify(safe);
 }
 
@@ -297,11 +301,23 @@ export function normalizeDestinationConfig(
   input:
     | Pick<
         CreateOutboundDestinationInput,
-        "transport" | "baseUrl" | "webhookUrl" | "staticHeaders" | "secretHeaders" | "payloadFormat"
+        | "transport"
+        | "baseUrl"
+        | "webhookUrl"
+        | "staticHeaders"
+        | "secretHeaders"
+        | "payloadFormat"
+        | "allowPrivateNetwork"
       >
     | Pick<
         EditOutboundDestinationInput,
-        "transport" | "baseUrl" | "webhookUrl" | "staticHeaders" | "secretHeaders" | "payloadFormat"
+        | "transport"
+        | "baseUrl"
+        | "webhookUrl"
+        | "staticHeaders"
+        | "secretHeaders"
+        | "payloadFormat"
+        | "allowPrivateNetwork"
       >,
   fallback?: {
     readonly transport: OutboundTransport;
@@ -310,6 +326,7 @@ export function normalizeDestinationConfig(
     readonly staticHeaders?: readonly OutboundHeader[];
     readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
     readonly payloadFormat?: "standard" | "discord";
+    readonly allowPrivateNetwork?: boolean;
   },
 ): NormalizedDestinationConfig {
   const transport = validateOutboundTransport(input.transport ?? fallback?.transport);
@@ -324,8 +341,12 @@ export function normalizeDestinationConfig(
     fail("headers", "must contain at most 8 total static and secret headers");
   }
   const payloadFormat = validatePayloadFormat(input.payloadFormat ?? fallback?.payloadFormat);
+  const allowPrivateNetwork = input.allowPrivateNetwork ?? fallback?.allowPrivateNetwork ?? false;
+  if (typeof allowPrivateNetwork !== "boolean") fail("allowPrivateNetwork", "must be boolean");
 
   if (transport === "home_assistant") {
+    // Home Assistant already accepts the LAN address it is configured with.
+    if (allowPrivateNetwork) fail("allowPrivateNetwork", "applies only to webhooks");
     const parsed = parseOutboundUrl(baseUrl, "baseUrl");
     const parsedBase = new URL(parsed.url);
     if (parsedBase.search !== "") fail("baseUrl", "must not contain a query");
@@ -347,6 +368,7 @@ export function normalizeDestinationConfig(
       endpointSummary: parsed.summary,
       authSlot: HA_TOKEN_SLOT,
       payloadFormat,
+      allowPrivateNetwork,
       staticHeaders,
       secretHeaders,
       configJson,
@@ -362,6 +384,7 @@ export function normalizeDestinationConfig(
     staticHeaders,
     secretHeaders,
     payloadFormat,
+    allowPrivateNetwork,
   });
   return {
     transport,
@@ -371,6 +394,7 @@ export function normalizeDestinationConfig(
     staticHeaders,
     secretHeaders,
     payloadFormat,
+    allowPrivateNetwork,
     configJson,
     safeSummary: JSON.stringify(parsed.summary),
   };

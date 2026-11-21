@@ -237,6 +237,7 @@ function parseConfig(
   return {
     transport: "webhook",
     payloadFormat,
+    allowPrivateNetwork: parsed.allowPrivateNetwork === true,
     urlSummary: summary,
     endpointConfigured,
     endpointAvailable,

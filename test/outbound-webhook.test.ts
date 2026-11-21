@@ -6,6 +6,7 @@ import test from "node:test";
 import type { RequestOptions } from "node:http";
 import {
   WebhookTransport,
+  isPrivateNetworkAddress,
   isPublicNetworkAddress,
   normalizeWebhookUrl,
   type DnsLookupAddress,
@@ -560,4 +561,121 @@ void test("connect timeout waits for the socket connect boundary", async () => {
     errorCode: "webhook_connect_timeout",
   });
   assert.equal(request.request.destroyed, true);
+});
+
+const PRIVATE_TARGETS: readonly DnsLookupAddress[] = [
+  { address: "10.1.2.3", family: 4 },
+  { address: "172.16.0.10", family: 4 },
+  { address: "172.31.255.254", family: 4 },
+  { address: "192.168.1.20", family: 4 },
+  { address: "100.64.0.1", family: 4 },
+  { address: "100.101.102.103", family: 4 },
+  { address: "fc00::1", family: 6 },
+  { address: "fd7a:115c:a1e0::1", family: 6 },
+  { address: "::ffff:192.168.1.20", family: 6 },
+];
+
+const ALWAYS_BLOCKED: readonly DnsLookupAddress[] = [
+  { address: "127.0.0.1", family: 4 },
+  { address: "127.10.0.1", family: 4 },
+  { address: "::1", family: 6 },
+  { address: "::ffff:127.0.0.1", family: 6 },
+  { address: "169.254.169.254", family: 4 },
+  { address: "169.254.1.1", family: 4 },
+  { address: "::ffff:169.254.169.254", family: 6 },
+  { address: "fe80::1", family: 6 },
+  { address: "224.0.0.1", family: 4 },
+  { address: "239.255.255.250", family: 4 },
+  { address: "ff02::1", family: 6 },
+  { address: "0.0.0.0", family: 4 },
+  { address: "::", family: 6 },
+  { address: "255.255.255.255", family: 4 },
+];
+
+void test("private-network classifier covers RFC 1918, CGNAT, and unique-local only", () => {
+  for (const { address } of PRIVATE_TARGETS) {
+    assert.equal(isPrivateNetworkAddress(address), true, address);
+  }
+  for (const address of [
+    ...ALWAYS_BLOCKED.map((item) => item.address),
+    "93.184.216.34",
+    "172.32.0.1",
+    "100.128.0.1",
+    "192.169.0.1",
+    "2001:4860:4860::8888",
+    "fec0::1",
+  ]) {
+    assert.equal(isPrivateNetworkAddress(address), false, address);
+  }
+});
+
+async function attempt(
+  address: DnsLookupAddress,
+  allowPrivateNetwork: boolean | undefined,
+): Promise<{ readonly dialed: boolean; readonly result: unknown }> {
+  const h = harness([address]);
+  const pending = h.transport.sendEvent(
+    {
+      url: "http://receiver.example/hook",
+      ...(allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork }),
+    },
+    EVENT,
+  );
+  await flushMicrotasks();
+  const request = h.requests[0];
+  if (request !== undefined) {
+    const socket = new FakeSocket();
+    request.request.emit("socket", socket);
+    socket.emit("connect");
+    request.response.emit("end");
+  }
+  return { dialed: request !== undefined, result: await pending };
+}
+
+void test("opted-in webhooks dial private and CGNAT targets; others reject them", async () => {
+  for (const address of PRIVATE_TARGETS) {
+    const allowed = await attempt(address, true);
+    assert.equal(allowed.dialed, true, address.address);
+    assert.deepEqual(allowed.result, { outcome: "success", status: 204 }, address.address);
+    for (const optedOut of [false, undefined]) {
+      assert.deepEqual(
+        await attempt(address, optedOut),
+        {
+          dialed: false,
+          result: { outcome: "permanent_failure", errorCode: "webhook_dns_unsafe" },
+        },
+        `${address.address} (${String(optedOut)})`,
+      );
+    }
+  }
+});
+
+void test("loopback, link-local, metadata, multicast, and unspecified targets are blocked in both modes", async () => {
+  for (const address of ALWAYS_BLOCKED) {
+    for (const allowPrivateNetwork of [true, false]) {
+      assert.deepEqual(
+        await attempt(address, allowPrivateNetwork),
+        {
+          dialed: false,
+          result: { outcome: "permanent_failure", errorCode: "webhook_dns_unsafe" },
+        },
+        `${address.address} (${String(allowPrivateNetwork)})`,
+      );
+    }
+  }
+});
+
+void test("an opted-in webhook still rejects a DNS answer that mixes a private and a blocked address", async () => {
+  const h = harness([
+    { address: "192.168.1.20", family: 4 },
+    { address: "127.0.0.1", family: 4 },
+  ]);
+  assert.deepEqual(
+    await h.transport.sendEvent(
+      { url: "http://receiver.example/hook", allowPrivateNetwork: true },
+      EVENT,
+    ),
+    { outcome: "permanent_failure", errorCode: "webhook_dns_unsafe" },
+  );
+  assert.equal(h.requests.length, 0);
 });

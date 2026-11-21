@@ -487,6 +487,20 @@ void test("outbound Admin HTTP surface protects mutations and redacts endpoints/
   assert.equal(webhookInput?.["transport"], "webhook");
   assert.equal(webhookInput?.["payloadFormat"], "discord");
   assert.equal(webhookInput?.["enabled"], false);
+  assert.equal(webhookInput?.["allowPrivateNetwork"], false);
+
+  const privateCreate = await request(base, "/admin/integrations/outbound/create", {
+    method: "POST",
+    body: form({
+      transport: "webhook",
+      label: "Tailscale n8n",
+      webhookUrl: "http://n8n.tailnet.example/webhook/tapboard",
+      allowPrivateNetwork: "on",
+    }),
+    origin: ORIGIN,
+  });
+  assert.equal(privateCreate.status, 303);
+  assert.equal(calls.creates.at(-1)?.["allowPrivateNetwork"], true);
 
   const malformed = await request(base, "/admin/integrations/outbound/create", {
     method: "POST",

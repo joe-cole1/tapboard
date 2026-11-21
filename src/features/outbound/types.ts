@@ -43,6 +43,8 @@ export interface HomeAssistantConfig {
 export interface WebhookConfig {
   readonly transport: "webhook";
   readonly payloadFormat: "standard" | "discord";
+  /** Opt-in: also deliver to RFC 1918, 100.64.0.0/10, and fc00::/7 addresses. */
+  readonly allowPrivateNetwork: boolean;
   readonly urlSummary: OutboundUrlSummary;
   readonly endpointConfigured: boolean;
   readonly endpointAvailable: boolean;
@@ -119,6 +121,7 @@ export interface CreateOutboundDestinationInput {
   readonly baseUrl?: string;
   readonly webhookUrl?: string;
   readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
   readonly staticHeaders?: readonly OutboundHeader[];
   readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
   readonly secret?: string;
@@ -132,6 +135,7 @@ export interface EditOutboundDestinationInput {
   readonly baseUrl?: string;
   readonly webhookUrl?: string;
   readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
   readonly staticHeaders?: readonly OutboundHeader[];
   readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
 }
@@ -162,6 +166,7 @@ export interface OutboundDestinationPatch {
   readonly baseUrl?: string;
   readonly webhookUrl?: string;
   readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
   readonly staticHeaders?: readonly OutboundHeader[];
   readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
 }
@@ -308,6 +313,8 @@ export interface OutboundTransportSendInput {
   readonly bindingGeneration?: string;
   readonly endpoint?: string;
   readonly payloadFormat?: "standard" | "discord";
+  /** Webhook only: both the claimed and the current version allow private-network targets. */
+  readonly allowPrivateNetwork?: boolean;
 }
 
 export interface OutboundTransportOutcome {

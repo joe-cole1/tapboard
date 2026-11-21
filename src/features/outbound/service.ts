@@ -405,6 +405,7 @@ export class OutboundService implements OutboundAdmissionPort {
         input.baseUrl !== undefined ||
         input.webhookUrl !== undefined ||
         input.payloadFormat !== undefined ||
+        input.allowPrivateNetwork !== undefined ||
         input.staticHeaders !== undefined ||
         input.secretHeaders !== undefined;
       const subscriptionsChanged = input.subscriptions !== undefined;
@@ -440,6 +441,11 @@ export class OutboundService implements OutboundAdmissionPort {
           ? { payloadFormat: input.payloadFormat }
           : currentConfig.transport === "webhook"
             ? { payloadFormat: currentConfig.payloadFormat }
+            : {}),
+        ...(input.allowPrivateNetwork !== undefined
+          ? { allowPrivateNetwork: input.allowPrivateNetwork }
+          : transport === "webhook" && currentConfig.transport === "webhook"
+            ? { allowPrivateNetwork: currentConfig.allowPrivateNetwork }
             : {}),
         staticHeaders: input.staticHeaders ?? currentConfig.staticHeaders,
         secretHeaders:
@@ -567,6 +573,11 @@ export class OutboundService implements OutboundAdmissionPort {
         ? { payloadFormat: editInput.payloadFormat }
         : currentConfig.transport === "webhook"
           ? { payloadFormat: currentConfig.payloadFormat }
+          : {}),
+      ...(editInput.allowPrivateNetwork !== undefined
+        ? { allowPrivateNetwork: editInput.allowPrivateNetwork }
+        : transport === "webhook" && currentConfig.transport === "webhook"
+          ? { allowPrivateNetwork: currentConfig.allowPrivateNetwork }
           : {}),
       staticHeaders: editInput.staticHeaders ?? currentConfig.staticHeaders,
       secretHeaders:
