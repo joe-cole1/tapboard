@@ -1,7 +1,8 @@
 /** Provider-independent, bounded recipe/batch inputs. Source values are authoritative;
  * Story's versioned heuristics are derived and never written into this contract. */
 export const BREWING_INPUT_SCHEMA_VERSION = 2 as const;
-export type BrewingInputFormat = "brewfather-api-v2" | "brewfather-export-v3" | "custom" | "legacy";
+export type BrewingInputFormat =
+  "brewfather-api-v2" | "brewfather-export-v3" | "beerjson" | "beerxml-1" | "custom" | "legacy";
 export type BrewingProvenance =
   | "operator_override"
   | "batch_reported"

@@ -30,6 +30,11 @@ import {
   adaptLegacyBrewingInputs,
 } from "../beverages/brewing-inputs.ts";
 import { BEVERAGE_SENSORY_AXES } from "../beverages/types.ts";
+import {
+  OFFLINE_RECIPE_ACCOUNT_ID,
+  RECIPE_FILE_FORMAT_NAMES,
+  type RecipeFileFormat,
+} from "../beverages/recipe-files/import.ts";
 import type { BrewingInputs } from "../beverages/brewing-types.ts";
 import type {
   PublicBeverageGuidance,
@@ -132,7 +137,14 @@ function isBeerLike(value: unknown): boolean {
   return typeof value === "string" && value.trim().toLowerCase() === "beer";
 }
 
-function sourceLabel(state: SafeSnapshotState): string {
+function sourceLabel(snapshot: BeverageSourceRecipeSnapshot): string {
+  const state = safeSnapshotState(snapshot.state) ?? "superseded";
+  if (state === "detached" && snapshot.accountId === OFFLINE_RECIPE_ACCOUNT_ID) {
+    const format = readBrewingInputs(parseBoundedSourceRecipe(snapshot.recipeJson))?.format;
+    return format !== undefined && Object.hasOwn(RECIPE_FILE_FORMAT_NAMES, format)
+      ? `Imported ${RECIPE_FILE_FORMAT_NAMES[format as RecipeFileFormat]} recipe`
+      : "Imported recipe";
+  }
   if (state === "linked_current") return "Brewfather source recipe";
   if (state === "detached") return "Detached Brewfather source recipe";
   return "Superseded Brewfather source recipe";
@@ -153,7 +165,7 @@ function safeSnapshotProvenance(snapshot: BeverageSourceRecipeSnapshot): {
   const state = safeSnapshotState(snapshot.state);
   if (state === null) return null;
   return {
-    label: sourceLabel(state),
+    label: sourceLabel(snapshot),
     state,
     version: Number.isInteger(snapshot.version) && snapshot.version >= 0 ? snapshot.version : 0,
     capturedAt: safeTimestamp(snapshot.createdAt),
@@ -573,7 +585,7 @@ export class PublicStoryService {
           ? "Custom recipe"
           : activeSnapshot === undefined
             ? null
-            : sourceLabel(safeSnapshotState(activeSnapshot.state) ?? "superseded"),
+            : sourceLabel(activeSnapshot),
     };
     return { publicGuidance, calculation, manualOverrides, detail };
   }

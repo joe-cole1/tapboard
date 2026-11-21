@@ -251,7 +251,7 @@ void test("category and colour classify unknown grains generically; conflicting 
   assert.equal(dark.level, "family");
   assert.equal(dark.roastClass, "black");
   assert.deepEqual(dark.descriptors, []);
-  assert.ok(dark.diagnostics.some((value) => value.includes("Brewfather category and colour")));
+  assert.ok(dark.diagnostics.some((value) => value.includes("the recipe's category and colour")));
   // Custom Brewfather grains can store °L in `color`; the product name's number wins.
   const crystal = resolveIngredient(
     "fermentables",

@@ -12,9 +12,14 @@ export function readBrewingInputs(snapshot: unknown): BrewingInputs | null {
     input = object(value);
   if (
     input.schemaVersion !== 2 ||
-    !["brewfather-api-v2", "brewfather-export-v3", "custom", "legacy"].includes(
-      input.format as string,
-    ) ||
+    ![
+      "brewfather-api-v2",
+      "brewfather-export-v3",
+      "beerjson",
+      "beerxml-1",
+      "custom",
+      "legacy",
+    ].includes(input.format as string) ||
     typeof input.beverageType !== "string" ||
     input.beverageType.length > 64
   )

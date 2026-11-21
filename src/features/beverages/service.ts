@@ -4,6 +4,11 @@ import { describeBrewfatherFailure } from "./brewfather/diagnostics.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { readBrewingInputs } from "./brewing-inputs.ts";
 import {
+  OFFLINE_RECIPE_ACCOUNT_ID,
+  parseRecipeFile,
+  type RecipeFileFormat,
+} from "./recipe-files/import.ts";
+import {
   assertSynchronousCompletion,
   type DatabaseExecutor,
 } from "../../infrastructure/database/connection.ts";
@@ -1308,7 +1313,22 @@ export class BeverageService {
     });
   }
 
-  /** Internal offline-history import; detached recipe evidence remains immutable. */
+  /** Admin recipe file import: parse and sanitize outside the transaction, then attach once. */
+  importRecipeFile(
+    beverageId: string,
+    fileText: string,
+    actorOptions: BeverageActorOptions = {},
+  ): { readonly format: RecipeFileFormat; readonly snapshot: BeverageSourceRecipeSnapshot } {
+    const parsed = parseRecipeFile(fileText);
+    const snapshot = this.attachOfflineRecipeSnapshot(
+      beverageId,
+      { sourceKey: parsed.sourceKey, recipeJson: parsed.recipeJson },
+      actorOptions,
+    );
+    return { format: parsed.format, snapshot };
+  }
+
+  /** Offline recipe import (Admin files and Simulation history); detached evidence stays immutable. */
   attachOfflineRecipeSnapshot(
     beverageId: string,
     input: { readonly sourceKey: string; readonly recipeJson: string },
@@ -1360,7 +1380,8 @@ export class BeverageService {
         new ApplicationError({
           category: "conflict",
           code: "beverage.offline_snapshot_conflict",
-          clientMessage: "Offline recipe snapshot cannot be attached to this beverage.",
+          clientMessage:
+            "A recipe can be imported only into a Custom beverage with no editable recipe and no earlier import.",
         });
       if (
         beverage.ownershipType !== "custom" ||
@@ -1378,20 +1399,33 @@ export class BeverageService {
           return current;
         throw conflict();
       }
-      return saveRecipeSnapshot(
+      const now = (actorOptions.now ?? this.#now)().toISOString();
+      const saved = saveRecipeSnapshot(
         this.#database,
         {
           beverageId,
-          accountId: "offline-history",
+          accountId: OFFLINE_RECIPE_ACCOUNT_ID,
           sourceBatchId: input.sourceKey,
           sourceRecipeId: null,
           state: "detached",
           recipeJson: input.recipeJson,
           recipeFingerprint,
-          createdAt: (actorOptions.now ?? this.#now)().toISOString(),
+          createdAt: now,
         },
         this.#idFactory,
       );
+      appendActivity(this.#database, {
+        category: "domain",
+        action: "entity_changed",
+        actorType: actorOptions.actorType ?? "admin",
+        ...(actorOptions.actorId === undefined ? {} : { actorId: actorOptions.actorId }),
+        ...(actorOptions.sessionId === undefined ? {} : { sessionId: actorOptions.sessionId }),
+        entityType: "beverage",
+        entityId: beverageId,
+        details: { change: "recipe_imported" },
+        occurredAt: now,
+      });
+      return saved;
     });
   }
 

@@ -20,6 +20,10 @@ import {
   recipeFromForm,
 } from "./beverage-presentation.ts";
 import { presentationOverridesFromForm } from "./presentation-overrides.ts";
+import {
+  MAX_RECIPE_FILE_BYTES,
+  RECIPE_FILE_FORMAT_NAMES,
+} from "../../beverages/recipe-files/import.ts";
 import { actor, requestUrl } from "./context.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
 import type {
@@ -310,6 +314,22 @@ export function registerBeverageMutations(
     },
     "Custom recipe saved.",
     { maxFields: 3, maxBytes: 3_000_000 },
+  );
+  // URL-encoding can triple the file text, so the body allows 3 × 1 MiB plus the CSRF field.
+  registerAdminAction(
+    dependencies,
+    "/admin/beverages/:id/recipe-import",
+    (params) => `/admin/beverages/${params.id ?? ""}`,
+    (form, context, params) => {
+      const { format } = dependencies.beverageService.importRecipeFile(
+        params.id!,
+        form.recipeFile ?? "",
+        actor(context),
+      );
+      return { notice: `Recipe imported (${RECIPE_FILE_FORMAT_NAMES[format]}).` };
+    },
+    "Recipe imported.",
+    { maxFields: 2, maxBytes: 3 * MAX_RECIPE_FILE_BYTES + 1_024 },
   );
   registerAdminAction(
     dependencies,

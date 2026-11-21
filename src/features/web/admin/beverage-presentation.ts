@@ -1,4 +1,5 @@
 import { VESSEL_IDS } from "../../story/index.ts";
+import { OFFLINE_RECIPE_ACCOUNT_ID } from "../../beverages/recipe-files/import.ts";
 import { beverageDisplayColor, getVesselDescriptor } from "../../story/vessels.ts";
 import {
   BEVERAGE_SENSORY_AXES,
@@ -480,6 +481,18 @@ export function adminBeverageDetailDto(
           ),
     customRecipe,
     customRecipeJson: customRecipe === null ? "" : JSON.stringify(customRecipe, null, 2),
+    // Mirrors attachOfflineRecipeSnapshot: one permanent import into a Custom beverage
+    // that has no editable recipe. "source" is a detached snapshot kept after an unlink.
+    recipeImport:
+      detail.beverage.ownershipType !== "custom"
+        ? null
+        : detail.recipeSnapshot !== undefined
+          ? detail.recipeSnapshot.accountId === OFFLINE_RECIPE_ACCOUNT_ID
+            ? "imported"
+            : "source"
+          : detail.customRecipe != null
+            ? "unavailable"
+            : "available",
     guidance: safeAdminGuidance(guidance),
     deletionImpacts: deletionImpacts.map((impact) => ({
       code: boundedAdminString(impact.code, 80) ?? "related records",

@@ -119,7 +119,7 @@ function classified(
             : "none",
     noticeableGPerL: null,
     diagnostics: [
-      `Classified from Brewfather category and colour${lovibond === null ? "" : ` (${Math.round(lovibond)} °L)`}; product character unresolved.`,
+      `Classified from the recipe's category and colour${lovibond === null ? "" : ` (${Math.round(lovibond)} °L)`}; product character unresolved.`,
     ],
   };
 }
