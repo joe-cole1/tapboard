@@ -1,4 +1,6 @@
 import { sendJson } from "../../../infrastructure/http/error-mapper.ts";
+import { ApplicationError } from "../../../shared/errors.ts";
+import type { TapActorOptions } from "../../taps/types.ts";
 import { tapWarPercentages } from "../../tap-wars/service.ts";
 import type { EligibilityReason, TapWar } from "../../tap-wars/types.ts";
 import { registerAdminGet, registerAdminAction } from "./http.ts";
@@ -9,6 +11,7 @@ import type {
   RegisterAdminTapWarsApiDependencies,
   RegisterTapWarsMutationsDependencies,
   AdminTapWarsPageDataDependencies,
+  TapWarMysteryDependencies,
 } from "../contracts.ts";
 
 export function registerTapWarsPages(dependencies: RegisterTapWarsPagesDependencies): void {
@@ -78,6 +81,20 @@ export function registerTapWarsMutations(dependencies: RegisterTapWarsMutationsD
   );
   registerAdminAction(
     dependencies,
+    "/admin/tap-wars/:id/mystery",
+    "/admin/tap-wars",
+    (form, context, params) => {
+      const enabled = form.enabled === "true";
+      setTapWarMystery(dependencies, params.id!, enabled, actor(context));
+      return {
+        notice: enabled
+          ? "Mystery Tap is on for both Tap War Taps."
+          : "Mystery Tap is off for both Tap War Taps.",
+      };
+    },
+  );
+  registerAdminAction(
+    dependencies,
     "/admin/tap-wars/:id/dismiss",
     "/admin/tap-wars",
     (_form, context, params) => {
@@ -85,6 +102,91 @@ export function registerTapWarsMutations(dependencies: RegisterTapWarsMutationsD
     },
     "Tap War result dismissed.",
   );
+}
+
+export interface TapWarMysterySide {
+  readonly side: 1 | 2;
+  readonly tapNumber: number;
+  readonly enabled: boolean;
+  /** False once the war's original Fill has left the Tap: Mystery then belongs to another Fill. */
+  readonly changeable: boolean;
+}
+
+function mysterySides(
+  dependencies: TapWarMysteryDependencies,
+  war: TapWar,
+): readonly TapWarMysterySide[] {
+  return war.competitors.map((competitor) => {
+    const changeable =
+      dependencies.tapService.getTap(competitor.tapId).activeAssignment?.id ===
+      competitor.assignmentId;
+    return {
+      side: competitor.side,
+      tapNumber: competitor.tapNumber,
+      enabled: changeable && dependencies.tapService.getAssignmentMystery(competitor.tapId).enabled,
+      changeable,
+    };
+  });
+}
+
+/** What the Admin switch shows: on only when both sides are Mystery Taps. */
+function mysterySwitchView(sides: readonly TapWarMysterySide[]): Readonly<Record<string, unknown>> {
+  const blocked = sides.find((side) => !side.changeable);
+  const enabledSides = sides.filter((side) => side.enabled);
+  return {
+    enabled: enabledSides.length === sides.length,
+    blockedTapNumber: blocked?.tapNumber ?? null,
+    onlyTapNumber: enabledSides.length === 1 ? enabledSides[0]!.tapNumber : null,
+  };
+}
+
+/** Mystery Tap state for each side of the unfinished Tap War, or null when there is none. */
+export function tapWarMysteryState(
+  dependencies: TapWarMysteryDependencies,
+): readonly TapWarMysterySide[] | null {
+  const war = dependencies.tapWarsService.getCurrentUnfinished();
+  return war === undefined ? null : mysterySides(dependencies, war);
+}
+
+/**
+ * Turns Mystery Tap on or off for both Taps of the unfinished Tap War and returns how many
+ * changed. Turning it on leaves a side that is already a Mystery Tap, and its reveal choices,
+ * as they are. Both sides are checked before anything is written, and the whole call is
+ * synchronous, so no other request can reassign a Tap in between.
+ */
+export function setTapWarMystery(
+  dependencies: TapWarMysteryDependencies,
+  warId: string,
+  enabled: boolean,
+  options: TapActorOptions = {},
+): number {
+  const war = dependencies.tapWarsService.getCurrentUnfinished();
+  if (war === undefined || war.id !== warId)
+    throw new ApplicationError({
+      category: "conflict",
+      code: "tap_war.not_current",
+      clientMessage: "This Tap War is no longer current. Reload and try again.",
+    });
+  const blocked = mysterySides(dependencies, war).find((side) => !side.changeable);
+  if (blocked !== undefined)
+    throw new ApplicationError({
+      category: "conflict",
+      code: "tap_war.assignment_changed",
+      clientMessage: `Tap ${blocked.tapNumber} has a different Fill now. Change its Mystery setting on the Tap page.`,
+      details: { tapWarId: war.id, side: blocked.side },
+    });
+  let changed = 0;
+  for (const competitor of war.competitors) {
+    const current = dependencies.tapService.getAssignmentMystery(competitor.tapId);
+    if (current.enabled === enabled) continue;
+    const result = dependencies.tapService.updateAssignmentMystery(
+      competitor.tapId,
+      { ...current, enabled },
+      options,
+    );
+    if (result.changed) changed += 1;
+  }
+  return changed;
 }
 
 export function tapWarUnavailabilityLabel(reason: EligibilityReason | null): string | null {
@@ -159,6 +261,8 @@ export function adminTapWarsPageData(
       tapNumber: participant.tapNumber,
       preview: dependencies.publicTapWarsService.previewEligible(participant.assignmentId),
     })),
+    mystery:
+      rawCurrent === undefined ? null : mysterySwitchView(mysterySides(dependencies, rawCurrent)),
     canResume:
       rawCurrent?.status === "paused" &&
       rawCurrent.competitors.every((side) => side.eligibility.eligible),

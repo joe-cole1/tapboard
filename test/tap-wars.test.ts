@@ -5,6 +5,7 @@ import { openDatabase } from "../src/infrastructure/database/connection.ts";
 import { TapWarService, tapWarPercentages } from "../src/features/tap-wars/service.ts";
 import { requireSides } from "../src/features/tap-wars/validators.ts";
 import { createTapService } from "../src/features/taps/service.ts";
+import { setTapWarMystery, tapWarMysteryState } from "../src/features/web/admin/tap-wars.ts";
 import { ApplicationError } from "../src/shared/errors.ts";
 
 const at = "2026-08-17T12:00:00.000Z";
@@ -500,6 +501,99 @@ void test("stop freezes each positive winner and tie outcome at the exact orderi
       [1, 1],
     );
     assert.throws(() => service.vote(done.id, 1), conflict("tap_war.not_current"));
+  } finally {
+    database.close();
+  }
+});
+
+void test("the Admin Tap Wars Mystery switch sets both original competitors, and refuses before writing once a Fill changed", () => {
+  const { database, service, add } = setup();
+  try {
+    const one = add(1),
+      two = add(2);
+    const war = service.start([one.assignment, two.assignment]);
+    let mysteryChangedCalls = 0;
+    const tapService = createTapService(database, {
+      now: () => new Date(at),
+      extensionPort: {
+        onAssignmentOpened: () => undefined,
+        onAssignmentClosed: (db, context) => {
+          service.pauseForAssignmentClose(db, context.assignmentId, context.occurredAt);
+        },
+        onAssignmentMysteryChanged: (db, context) => {
+          mysteryChangedCalls += 1;
+          service.refreshPublicTitleFallback(db, context.tapId, context.assignmentId);
+        },
+      },
+    });
+    const dependencies = { tapService, tapWarsService: service };
+    const sides = () =>
+      tapWarMysteryState(dependencies)?.map(({ tapNumber, enabled, changeable }) => ({
+        tapNumber,
+        enabled,
+        changeable,
+      }));
+    const allHidden = {
+      enabled: true,
+      revealBeverageType: false,
+      revealStyle: false,
+      revealAbv: false,
+      revealIbu: false,
+      revealOg: false,
+      revealFg: false,
+      revealSrm: false,
+      revealDescription: false,
+      revealRecipe: false,
+      revealSensory: false,
+      revealHistory: false,
+    };
+
+    // Side 1 is already a Mystery Tap that reveals its style.
+    tapService.updateAssignmentMystery(one.tap, { ...allHidden, revealStyle: true });
+    mysteryChangedCalls = 0;
+    assert.deepEqual(sides(), [
+      { tapNumber: 1, enabled: true, changeable: true },
+      { tapNumber: 2, enabled: false, changeable: true },
+    ]);
+
+    // Turning it on changes only the side that was off, and keeps side 1's reveal choice.
+    assert.equal(setTapWarMystery(dependencies, war.id, true), 1);
+    assert.equal(mysteryChangedCalls, 1);
+    assert.equal(tapService.getAssignmentMystery(one.tap).revealStyle, true);
+    assert.equal(tapService.getAssignmentMystery(two.tap).enabled, true);
+    assert.equal(setTapWarMystery(dependencies, war.id, true), 0);
+
+    assert.equal(setTapWarMystery(dependencies, war.id, false), 2);
+    assert.deepEqual(
+      [one.tap, two.tap].map((tap) => tapService.getAssignmentMystery(tap).enabled),
+      [false, false],
+    );
+
+    assert.throws(
+      () => setTapWarMystery(dependencies, uuid(999), true),
+      conflict("tap_war.not_current"),
+    );
+
+    // Once a competitor's original Fill leaves its Tap, the switch changes neither Tap:
+    // Mystery belongs to the new Fill, which is not part of this war.
+    tapService.unassign(two.tap);
+    assert.equal(service.getById(war.id)!.status, "paused");
+    assert.deepEqual(sides(), [
+      { tapNumber: 1, enabled: false, changeable: true },
+      { tapNumber: 2, enabled: false, changeable: false },
+    ]);
+    assert.throws(
+      () => setTapWarMystery(dependencies, war.id, true),
+      conflict("tap_war.assignment_changed"),
+    );
+    assert.equal(tapService.getAssignmentMystery(one.tap).enabled, false);
+
+    service.stop(war.id);
+    assert.equal(tapWarMysteryState(dependencies), null);
+    assert.throws(
+      () => setTapWarMystery(dependencies, war.id, true),
+      conflict("tap_war.not_current"),
+    );
   } finally {
     database.close();
   }
