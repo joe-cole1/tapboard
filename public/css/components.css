@@ -52,10 +52,7 @@
   border-color: var(--accent-readable);
 }
 .eyebrow,
-.tap-number,
-.meta,
-.status,
-.volume {
+.meta {
   color: var(--muted);
 }
 .connectivity {
@@ -107,10 +104,14 @@
   display: block;
 }
 .notice,
+.warning,
 .error {
   padding: var(--space-3) var(--space-4);
   background: var(--surface-raised);
   border-left: 4px solid var(--success);
+}
+.warning {
+  border-left-color: var(--warning);
 }
 .error {
   border-left-color: var(--danger);
@@ -217,9 +218,6 @@ summary {
   margin: var(--space-1-5) 0 0;
   font-size: var(--text-title);
   font-weight: 750;
-}
-.actions form {
-  margin: 0 0 var(--space-1-5);
 }
 .skip-link:not(:focus) {
   clip-path: inset(50%);

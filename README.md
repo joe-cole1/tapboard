@@ -58,6 +58,16 @@ Each command reads secrets only from stdin and prints only safe metadata. In a c
 
 [Operations](docs/operations.md) covers each in detail, including copying backups off the host and restoring.
 
+## Development checks
+
+| Command             | Purpose                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm run check`     | The full gate CI runs: format, lint, types, architecture and CSS rules, and the unit tests       |
+| `npm run check:css` | The stylesheet rules only: no inline CSS, no undefined or unused classes, no duplicate selectors |
+| `npm run test:e2e`  | The Playwright browser suite against a throwaway fixture server                                  |
+
+[Development](docs/development.md) lists every command.
+
 ## Features
 
 - **Telemetry devices.** Scales, temperature and pressure probes, flow meters, and bridges post readings to `/api/v1/telemetry` with a per-source key. Each Tap has optional level (scale), condition (temperature, pressure), and flow (flow meter) sources; with a flow source, pours come from the meter and a scale gives remaining volume. [Telemetry clients](docs/telemetry-clients.md) has `curl`, ESP32, and Home Assistant examples; the contract is [`openapi/telemetry-v1.json`](openapi/telemetry-v1.json).

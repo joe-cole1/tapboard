@@ -12,7 +12,7 @@ async function login(page: Page, options: { readonly manualSubmit?: boolean } = 
 
 async function openTapNameForm(page: Page, waitForAutosave = true): Promise<Locator> {
   await page.getByText("Edit tap name", { exact: true }).click();
-  const form = page.locator("form.tap-safe-name-form");
+  const form = page.locator("form[data-tap-name-form]");
   if (waitForAutosave) {
     await expect(form).toHaveAttribute("data-autosave-initialized", "true");
   }

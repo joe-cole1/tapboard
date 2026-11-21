@@ -5,9 +5,9 @@
     <p><%= recipe.kind === "custom" ? "Custom recipe" : recipe.provenance?.label || "Source recipe" %></p>
     <% if (recipe.status === "partial") { %><p>Some recipe details are incomplete or unavailable.</p><% } else if (recipe.status === "unavailable") { %><p>Recipe details are unavailable.</p><% } %>
     <% if (it.style) { %><p><%= it.style %></p><% } %>
-    <% if (it.color !== null && it.color !== undefined) { %><p class="recipe-sheet-color"><%= it.recipeNumber(it.color) %> SRM</p><% } %>
+    <% if (it.color !== null && it.color !== undefined) { %><p><%= it.recipeNumber(it.color) %> SRM</p><% } %>
   </header>
-  <% if (recipe.notes) { %><p class="recipe-sheet-notes"><%= recipe.notes %></p><% } %>
+  <% if (recipe.notes) { %><p><%= recipe.notes %></p><% } %>
   <% if (sheet) { %>
     <div class="recipe-sheet-columns">
       <div class="recipe-sheet-column">

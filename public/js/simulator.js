@@ -30,7 +30,7 @@ if (page?.dataset.simulationEnabled === "true") {
     if (!feedback) return;
     feedback.hidden = false;
     feedback.textContent = message;
-    feedback.className = error ? "simulator-feedback error" : "simulator-feedback notice";
+    feedback.className = error ? "error" : "notice";
     feedback.setAttribute("role", error ? "alert" : "status");
   };
 

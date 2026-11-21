@@ -182,7 +182,7 @@ Production dependencies are `better-sqlite3` (synchronous SQLite) and `eta` (ser
 
 ## Architecture enforcement
 
-`npm run check` runs format, lint, type, architecture, and unit checks. `scripts/check-architecture.sh` (`npm run check:architecture`) enforces five rules and reports the rule and path:
+`npm run check` runs format, lint, type, architecture, CSS, and unit checks. `scripts/check-architecture.sh` (`npm run check:architecture`) enforces five rules and reports the rule and path:
 
 - `[sql-ownership]`: raw SQL appears only in `src/infrastructure/database/connection.ts`, `src/infrastructure/database/migrations.ts`, and feature `repository.ts` or `repositories/*.ts` files.
 - `[sqlite-boundary]`: only `src/infrastructure/database/connection.ts` imports `better-sqlite3` or constructs a database.
@@ -190,7 +190,17 @@ Production dependencies are `better-sqlite3` (synchronous SQLite) and `eta` (ser
 - `[secret-crypto]`: only `src/features/secrets/crypto.ts` calls `createCipheriv` or `createDecipheriv`.
 - `[activity-outbox]`: `src/features/activity/` does not import events or the outbox, so Activity never feeds the outbox ([ADR-0005](adr/0005-integrations-events-and-bounded-outbox.md)).
 
-`test/architecture.test.ts` covers each rule. The production Dockerfile and Compose example are verified by behavior through `scripts/check-production-container.sh`.
+`scripts/check-css.ts` (`npm run check:css`) compares every class in `public/css/` with the markup in `views/`, `public/js/` and `src/`, and reports the rule and path:
+
+- `[inline-style]`: no template under `views/` has a `style` attribute or a `<style>` element, so the CSP stays `style-src 'self'`.
+- `[undefined-class]`: every class a template or script puts in markup is defined by a stylesheet. Classes defined only by the generated `/assets/css/display.css` (`.admin-shell`, `.display-preview`) count as defined because the check builds that stylesheet from `src/features/display/palette.ts`.
+- `[unused-selector]`: every class a stylesheet selects is used by a template or script.
+- `[duplicate-selector]`: a stylesheet declares each selector (the whole selector list) once per at-rule context.
+- `[dynamic-class]`: a class built from data (`status-badge--<%= fill.state %>`) belongs to a modifier family in `DYNAMIC_MODIFIER_PREFIXES`; any defined modifier of a listed family counts as used. Script and test hooks are `data-*` attributes, not classes.
+
+The check reads markup statically, so two things stay unchecked: a class attribute that is entirely an expression (`class="<%= item.className %>"`, whose values come from `className` properties and types in code), and whether each modifier of a listed family is still produced.
+
+`test/architecture.test.ts` covers each architecture rule and `test/css-check.test.ts` each CSS rule. The production Dockerfile and Compose example are verified by behavior through `scripts/check-production-container.sh`.
 
 ## Design history
 

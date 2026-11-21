@@ -274,7 +274,7 @@ test("authenticated article-card updates preserve pour-preview controls and do n
   const adminRow = admin.locator(`tr[data-tap-id="${tapId}"]`);
   await adminRow.getByRole("link", { name: "Open", exact: true }).click();
   await admin.getByText("Edit tap name", { exact: true }).click();
-  const nameForm = admin.locator('form.tap-safe-name-form[data-autosave="blur"]');
+  const nameForm = admin.locator('form[data-tap-name-form][data-autosave="blur"]');
   await expect(nameForm).toHaveAttribute("data-autosave-initialized", "true");
   await admin.getByLabel("Tap name").fill("Dynamic article preview tap");
   const publicTapRefresh = page.waitForRequest(

@@ -140,8 +140,8 @@ async function surfaces(page: Page) {
         liquid,
         companions: [
           rect(".beer-liquid-shadow"),
-          rect(".beer-liquid-depth"),
-          rect(".beer-bubble-clip-rect"),
+          rect('[data-vessel-part="liquid-depth"]'),
+          rect('[data-vessel-part="bubble-clip-rect"]'),
         ],
         streamEnd: stream.y + stream.height,
         foamY: foam.hasAttribute("hidden")
@@ -260,7 +260,7 @@ test("all 17 server and live vessels share artwork, local paint, and bowl-only c
             bubbles.parentElement?.getAttribute("clip-path") === `url(#${clip.parentElement!.id})`,
           bubblesHaveSurfaceClip:
             bubbles.getAttribute("clip-path") ===
-            `url(#${svg.querySelector("clipPath.beer-bubble-clip")!.id})`,
+            `url(#${svg.querySelector('clipPath[data-vessel-part="bubble-clip"]')!.id})`,
           pathsInsideViewBox: [
             ...svg.querySelectorAll<SVGGraphicsElement>(
               ".glass, .glass-detail, .glass-stem, .glass-base, .glass-highlight, .rim",
