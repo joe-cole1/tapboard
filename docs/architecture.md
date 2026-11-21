@@ -152,7 +152,7 @@ Vessels come from a finite 17-ID Fill Glass catalog with static SVG contours, bo
 
 `src/features/tap-wars/` owns eligibility, start, anonymous voting, pause, resume, stop, result dismissal, history, and the public projection. A competitor is an immutable snapshot of its assignment, Tap, Fill, and Beverage. A partial unique index allows at most one active or paused War. Assignment closure, Tap disablement, and destructive lifecycle changes may pause a War but never block Tap operations or resume it automatically. Completion freezes both counters, derives the winner or a tie, and publishes the result atomically; completed results are immutable.
 
-Votes are public, anonymous, unlimited integer counters with no voter table, cookie, or IP identity. Vote and stop share the `BEGIN IMMEDIATE` boundary, so a vote lands before the frozen result or is rejected. Public titles always resolve through the current Story/Mystery projection.
+Votes are public, anonymous, unlimited integer counters with no voter table, cookie, or IP identity. Vote and stop share the `BEGIN IMMEDIATE` boundary, so a vote lands before the frozen result or is rejected. Public titles always resolve through the current Story/Mystery projection. The Admin Tap Wars page has a switch that turns Mystery Tap on or off for both competitors of the unfinished War through the Taps' own Mystery setting. It changes nothing once either Tap holds a different Fill from the one competing, because Mystery then belongs to that other Fill.
 
 ## Outbound delivery
 

@@ -141,6 +141,7 @@ const EXPECTED_REGISTRATIONS: readonly RegistrationEvent[] = [
   ["POST", "/admin/tap-wars/start"],
   ["POST", "/admin/tap-wars/:id/resume"],
   ["POST", "/admin/tap-wars/:id/stop"],
+  ["POST", "/admin/tap-wars/:id/mystery"],
   ["POST", "/admin/tap-wars/:id/dismiss"],
 ];
 

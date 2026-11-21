@@ -136,6 +136,7 @@ export type RegisterTapWarsPagesDependencies = Pick<
   | "publicTapWarsService"
   | "renderer"
   | "router"
+  | "tapService"
   | "tapWarsService"
 >;
 export type RegisterDisplayPagesDependencies = Pick<
@@ -160,7 +161,7 @@ export type RegisterAdminEventRoutesDependencies = Pick<
 >;
 export type RegisterAdminTapWarsApiDependencies = Pick<
   WebRouteDependencies,
-  "authService" | "publicTapWarsService" | "router" | "tapWarsService"
+  "authService" | "publicTapWarsService" | "router" | "tapService" | "tapWarsService"
 >;
 export type RegisterSystemMutationsDependencies = Pick<
   WebRouteDependencies,
@@ -207,8 +208,9 @@ export type RegisterIntegrationMutationsDependencies = Pick<
 >;
 export type RegisterTapWarsMutationsDependencies = Pick<
   WebRouteDependencies,
-  "authService" | "canonicalOrigin" | "logger" | "router" | "tapWarsService"
+  "authService" | "canonicalOrigin" | "logger" | "router" | "tapService" | "tapWarsService"
 >;
+export type TapWarMysteryDependencies = Pick<WebRouteDependencies, "tapService" | "tapWarsService">;
 export type RenderTapDetailDependencies = Pick<
   WebRouteDependencies,
   | "dashboardService"
@@ -247,7 +249,7 @@ export type RegisterAdminNotFoundDependencies = Pick<
 export type SendTapWarsVoteErrorDependencies = Pick<WebRouteDependencies, "publicTapWarsService">;
 export type AdminTapWarsPageDataDependencies = Pick<
   WebRouteDependencies,
-  "publicTapWarsService" | "tapWarsService"
+  "publicTapWarsService" | "tapService" | "tapWarsService"
 >;
 export type MachineKeyPageDataDependencies = Pick<
   WebRouteDependencies,
