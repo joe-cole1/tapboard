@@ -8,9 +8,9 @@
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (!it.available) { %>
-    <section class="admin-card empty-state"><h2>Outbound delivery is unavailable</h2><p>The application composition has not enabled the outbound service.</p></section>
+    <section class="empty-state"><h2>Outbound delivery is unavailable</h2><p>The application composition has not enabled the outbound service.</p></section>
   <% } else { %>
-    <section class="admin-card" aria-labelledby="outbound-create-heading">
+    <section aria-labelledby="outbound-create-heading">
       <h2 id="outbound-create-heading"><%= it.transport === "webhook" ? "Create webhook destination" : "Create Home Assistant destination" %></h2>
       <%~ include("/admin/integrations-outbound-form", { page: it.page, action: "/admin/integrations/outbound/create", transport: it.transport, eventFields: it.eventFields || [{ eventType: "fill.assigned", name: "subscription_fill_assigned", label: "Fill assigned" }, { eventType: "fill.ended", name: "subscription_fill_ended", label: "Fill ended" }, { eventType: "pour.completed", name: "subscription_pour_completed", label: "Pour completed" }, { eventType: "keg.low", name: "subscription_keg_low", label: "Keg low" }, { eventType: "health.transitioned", name: "subscription_health_transitioned", label: "Health transitioned" }, { eventType: "integration.status_changed", name: "subscription_integration_status_changed", label: "Integration status changed" }], maxHeaderRows: it.maxHeaderRows || 8 }) %>
     </section>

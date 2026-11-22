@@ -755,10 +755,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
       overviewHtml.indexOf('id="attention-heading"'),
   );
   assert.match(overviewHtml, /Low keg level/);
-  assert.match(
-    overviewHtml,
-    /<span class="summary-card__label">Health warnings<\/span><strong class="summary-card__value">1<\/strong>/,
-  );
+  assert.match(overviewHtml, />Health warnings<\/span><strong [^>]*>1<\/strong>/);
   assert.equal((overviewHtml.match(/Low keg level/g) ?? []).length, 1);
   const attentionHtml = overviewHtml.slice(
     overviewHtml.indexOf('id="attention-heading"'),

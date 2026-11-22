@@ -7,10 +7,10 @@
     <p>Connect the services that supply beverage data and Tap measurements.</p>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="integration-resource-grid" aria-labelledby="integration-resources-heading">
+  <section class="auto-grid auto-grid--lg" aria-labelledby="integration-resources-heading">
     <h2 id="integration-resources-heading" class="sr-only">Integration resources</h2>
-    <article class="admin-card integration-resource-card">
-      <div class="integration-resource-card__header">
+    <article class="card integration-resource-card">
+      <div class="header-row">
         <div><p class="eyebrow">Beverage source</p><h2>Brewfather</h2></div>
         <span class="status-badge status-badge--<%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "healthy" : "muted" %>"><%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "Connected" : "Not configured" %></span>
       </div>
@@ -18,8 +18,8 @@
       <dl class="integration-resource-card__summary"><div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div><div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div></dl>
       <a class="button button--secondary button--small" href="/admin/integrations/brewfather">Open Brewfather</a>
     </article>
-    <article class="admin-card integration-resource-card">
-      <div class="integration-resource-card__header">
+    <article class="card integration-resource-card">
+      <div class="header-row">
         <div><p class="eyebrow">Measurement sources</p><h2>Telemetry</h2></div>
         <span class="status-badge status-badge--<%= it.telemetry.activeCount > 0 ? "healthy" : "muted" %>"><%= it.telemetry.activeCount > 0 ? `${it.telemetry.activeCount} active` : "Not configured" %></span>
       </div>
@@ -27,8 +27,8 @@
       <dl class="integration-resource-card__summary"><div><dt>Active sources</dt><dd><%= it.telemetry.activeCount %></dd></div><div><dt>Disabled history</dt><dd><%= it.telemetry.disabledCount %></dd></div></dl>
       <a class="button button--secondary button--small" href="/admin/integrations/telemetry">Open Telemetry</a>
     </article>
-    <article class="admin-card integration-resource-card">
-      <div class="integration-resource-card__header">
+    <article class="card integration-resource-card">
+      <div class="header-row">
         <div><p class="eyebrow">Delivery destinations</p><h2>Outbound</h2></div>
         <span class="status-badge status-badge--<%= it.outbound && it.outbound.available ? (it.outbound.enabledCount > 0 ? "healthy" : "muted") : "muted" %>"><%= it.outbound && it.outbound.available ? `${it.outbound.enabledCount} enabled` : "Unavailable" %></span>
       </div>

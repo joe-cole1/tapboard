@@ -9,13 +9,13 @@
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
   <% const quickLinks = it.quickLinks || []; %>
-  <section aria-labelledby="quick-actions-heading" class="quick-actions">
-    <div class="section-heading"><div><p class="eyebrow">Shortcuts</p><h2 id="quick-actions-heading">Quick actions</h2></div></div>
-    <ul><% for (const item of quickLinks) { %><li><a class="quick-action" href="<%= item.href %>"><%= item.label %><span aria-hidden="true">→</span></a></li><% } %></ul>
+  <section aria-labelledby="quick-actions-heading">
+    <div class="header-row"><div><p class="eyebrow">Shortcuts</p><h2 id="quick-actions-heading">Quick actions</h2></div></div>
+    <ul class="auto-grid auto-grid--sm quick-actions__list"><% for (const item of quickLinks) { %><li><a class="card card--link quick-action" href="<%= item.href %>"><%= item.label %><span aria-hidden="true">→</span></a></li><% } %></ul>
   </section>
 
-  <section class="attention-panel" aria-labelledby="attention-heading">
-    <div class="section-heading"><div><p class="eyebrow">Needs attention</p><h2 id="attention-heading">Health summary</h2></div></div>
+  <section class="card card--warning" aria-labelledby="attention-heading">
+    <div class="header-row"><div><p class="eyebrow">Needs attention</p><h2 id="attention-heading">Health summary</h2></div></div>
     <% const attention = it.health; %>
     <% if (attention.length === 0) { %>
       <p class="empty-state">No Tap health warnings are currently reported.</p>
@@ -29,7 +29,7 @@
   </section>
 
   <section aria-labelledby="tap-summary-heading">
-    <div class="section-heading"><div><p class="eyebrow">Live assignments</p><h2 id="tap-summary-heading">Taps and current assignments</h2></div><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div>
+    <div class="header-row"><div><p class="eyebrow">Live assignments</p><h2 id="tap-summary-heading">Taps and current assignments</h2></div><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div>
     <% if (it.taps.length === 0) { %>
       <p class="empty-state">No Taps are configured yet. <a href="/admin/taps">Add a Tap</a>.</p>
     <% } else { %>
@@ -41,22 +41,22 @@
 
   <% const kegRoom = it.kegRoom || { activeKegs: 0, onTap: 0, onDeck: 0, available: 0, href: "/admin/keg-room" }; %>
   <section aria-labelledby="keg-room-heading">
-    <div class="section-heading"><div><p class="eyebrow">Inventory snapshot</p><h2 id="keg-room-heading">Keg Room</h2></div><a class="button button--secondary button--small" href="/admin/keg-room">Open Keg Room</a></div>
-    <div class="summary-grid summary-link-grid">
-      <a class="summary-card summary-card--link" href="/admin/keg-room/kegs?status=active"><span class="summary-card__label">Active kegs</span><strong class="summary-card__value"><%= kegRoom.activeKegs %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=on_tap"><span class="summary-card__label">On tap</span><strong class="summary-card__value"><%= kegRoom.onTap %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=on_deck"><span class="summary-card__label">On deck</span><strong class="summary-card__value"><%= kegRoom.onDeck %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=available"><span class="summary-card__label">Available fills</span><strong class="summary-card__value"><%= kegRoom.available %></strong></a>
+    <div class="header-row"><div><p class="eyebrow">Inventory snapshot</p><h2 id="keg-room-heading">Keg Room</h2></div><a class="button button--secondary button--small" href="/admin/keg-room">Open Keg Room</a></div>
+    <div class="auto-grid auto-grid--xs">
+      <a class="card card--link" href="/admin/keg-room/kegs?status=active"><span class="card__label">Active kegs</span><strong class="card__value"><%= kegRoom.activeKegs %></strong></a><a class="card card--link" href="/admin/keg-room?state=on_tap"><span class="card__label">On tap</span><strong class="card__value"><%= kegRoom.onTap %></strong></a><a class="card card--link" href="/admin/keg-room?state=on_deck"><span class="card__label">On deck</span><strong class="card__value"><%= kegRoom.onDeck %></strong></a><a class="card card--link" href="/admin/keg-room?state=available"><span class="card__label">Available fills</span><strong class="card__value"><%= kegRoom.available %></strong></a>
     </div>
   </section>
 
   <section aria-labelledby="connectivity-heading">
-    <div class="section-heading"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button button--secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
+    <div class="header-row"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button button--secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
     <p class="status-line"><span class="status-badge status-badge--<%= it.connectivity.state === "disconnected" ? "critical" : it.connectivity.state === "healthy" ? "healthy" : "degraded" %>"><%= it.connectivity.label %></span></p>
-    <dl class="summary-grid"><div><dt>Telemetry sources</dt><dd><%= it.integrations.telemetryConfigured %></dd></div><div><dt>Brewfather</dt><dd><%= it.integrations.brewfatherConfigured ? (it.integrations.brewfatherEnabled ? (it.integrations.brewfatherApiKeyConfigured ? "Enabled" : "API key required") : "Disabled") : "Not configured" %></dd></div><div><dt>Linked beverages</dt><dd><%= it.integrations.brewfatherLinkedBeverages %></dd></div></dl>
+    <div class="auto-grid auto-grid--xs"><a class="card card--link" href="/admin/integrations/telemetry"><span class="card__label">Telemetry sources</span><strong class="card__value"><%= it.integrations.telemetryConfigured %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Brewfather</span><strong class="card__value"><%= it.integrations.brewfatherConfigured ? (it.integrations.brewfatherEnabled ? (it.integrations.brewfatherApiKeyConfigured ? "Enabled" : "API key required") : "Disabled") : "Not configured" %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Linked beverages</span><strong class="card__value"><%= it.integrations.brewfatherLinkedBeverages %></strong></a></div>
   </section>
 
   <section aria-labelledby="counts-heading">
-    <div class="section-heading"><div><p class="eyebrow">Operational summary</p><h2 id="counts-heading">Operational counts</h2></div></div>
+    <div class="header-row"><div><p class="eyebrow">Operational summary</p><h2 id="counts-heading">Operational counts</h2></div></div>
     <% const metricHrefs = { "Enabled taps": "/admin/taps", "Active fills": "/admin/keg-room?state=active", "On deck": "/admin/keg-room?state=on_deck", "Health warnings": "#attention-heading" }; %>
-    <div class="metrics summary-link-grid"><% for (const item of it.metrics) { %><a class="summary-card summary-card--link" href="<%= metricHrefs[item.label] || "/admin/overview" %>"><span class="summary-card__label"><%= item.label %></span><strong class="summary-card__value"><%= item.value %></strong></a><% } %></div>
+    <div class="auto-grid auto-grid--xs"><% for (const item of it.metrics) { %><a class="card card--link" href="<%= metricHrefs[item.label] || "/admin/overview" %>"><span class="card__label"><%= item.label %></span><strong class="card__value"><%= item.value %></strong></a><% } %></div>
   </section>
 
 </main>

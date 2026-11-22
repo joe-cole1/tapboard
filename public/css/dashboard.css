@@ -781,14 +781,7 @@
     backdrop-filter: blur(2px);
   }
   .tap-wars-dialog__header {
-    display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-  .tap-wars-dialog__header h2,
-  .tap-wars-dialog__header p {
-    margin: 0;
   }
   .tap-wars-dialog__status {
     color: var(--muted);

@@ -25,7 +25,7 @@
   <button type="button" class="button button--primary tap-wars-banner__results" data-tap-wars-results aria-haspopup="dialog">View results</button>
 </section>
 <dialog class="tap-wars-dialog" data-tap-wars-dialog aria-labelledby="tap-wars-dialog-title">
-  <div class="tap-wars-dialog__header"><div><p class="eyebrow">Tap Wars</p><h2 id="tap-wars-dialog-title">Results</h2></div><form method="dialog"><button class="button button--primary" aria-label="Close Tap Wars results">Close</button></form></div>
+  <div class="header-row tap-wars-dialog__header"><div><p class="eyebrow">Tap Wars</p><h2 id="tap-wars-dialog-title">Results</h2></div><form method="dialog"><button class="button button--primary" aria-label="Close Tap Wars results">Close</button></form></div>
   <p class="tap-wars-dialog__status" data-tap-wars-dialog-status aria-live="polite"><%= resultLabel %></p>
   <dl class="tap-wars-dialog__results" data-tap-wars-dialog-results>
     <% if (war) { %><% for (const side of [war.side1, war.side2]) { %><div data-tap-wars-dialog-side="<%= side.side %>"><dt>Tap <%= side.tapNumber %> · <%= side.title %></dt><dd><strong><%= side.voteCount %> vote<%= side.voteCount === 1 ? "" : "s" %></strong><span><%= side.percentage === null ? "—" : side.percentage + "%" %></span></dd></div><% } %><% } %>

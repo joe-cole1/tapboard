@@ -7,7 +7,7 @@
     <p class="muted">A searchable library of every beverage available to the tapboard.</p>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="section-heading" aria-labelledby="beverage-library-heading">
+  <section class="header-row" aria-labelledby="beverage-library-heading">
     <div>
       <h2 id="beverage-library-heading">Beverage library</h2>
       <p class="muted"><%= it.pagination.total %> beverage<%= it.pagination.total === 1 ? "" : "s" %></p>
@@ -23,7 +23,7 @@
     </div>
   </form>
   <% if (it.beverages.length === 0) { %>
-    <section class="empty-state admin-card" aria-labelledby="beverage-empty-heading">
+    <section class="empty-state" aria-labelledby="beverage-empty-heading">
       <h2 id="beverage-empty-heading"><%= it.query ? "No matching beverages" : "Your beverage library is empty" %></h2>
       <p><%= it.query ? "Try a different search or clear the filter." : "Create a custom beverage to start building the library." %></p>
       <a class="button button--primary button--small" href="/admin/beverages/new"><%= it.query ? "Add a beverage" : "Create the first beverage" %></a>
@@ -61,12 +61,12 @@
     <% } %>
   <% } %>
   <% if (it.brewfatherCandidates && it.brewfatherCandidates.length > 0) { %>
-    <section class="admin-card" aria-labelledby="brewfather-candidates-heading">
-      <details class="admin-disclosure">
+    <section aria-labelledby="brewfather-candidates-heading">
+      <details class="disclosure">
         <summary><span><strong id="brewfather-candidates-heading">Unlinked Brewfather batches</strong><small>Link a cached batch only when you are ready to manage it here.</small></span></summary>
-        <div class="resource-list">
+        <div class="auto-grid auto-grid--lg">
           <% for (const candidate of it.brewfatherCandidates) { %>
-            <article class="resource-card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>
+            <article class="card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>
           <% } %>
         </div>
       </details>

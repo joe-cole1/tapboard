@@ -290,7 +290,7 @@ void test(TEST_NAME, async (context) => {
   assert.match(tapDetailHtml, /Remaining mode follows Display/);
   assert.match(tapDetailHtml, new RegExp(`action="/admin/taps/${TAP_ID}/display"`));
   const publicPreviewHtml = tapDetailHtml.match(
-    /<section class="admin-card" aria-labelledby="public-preview-heading"[\s\S]*?<\/section>/u,
+    /<section [^>]*aria-labelledby="public-preview-heading"[\s\S]*?<\/section>/u,
   )?.[0];
   assert.ok(publicPreviewHtml);
   assert.match(publicPreviewHtml, /Mystery Tap/);

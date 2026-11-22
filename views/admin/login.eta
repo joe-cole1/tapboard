@@ -4,7 +4,7 @@
   <span class="admin-header__context">Admin sign in</span>
   <a class="admin-exit" href="/">Return to site</a>
 </header>
-<main id="main-content" class="login">
+<main id="main-content" class="card login">
   <header class="page-header">
     <p class="eyebrow">Admin</p>
     <h1>Admin sign in</h1>

@@ -10,18 +10,18 @@
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <form class="admin-form" action="/admin/beverages/create" method="post">
     <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-    <section class="admin-card" aria-labelledby="new-beverage-basics">
+    <section aria-labelledby="new-beverage-basics">
       <h2 id="new-beverage-basics">Basics</h2>
-      <div class="config-grid">
+      <div class="auto-grid auto-grid--sm">
         <label>Name <input name="name" maxlength="160" required autofocus /></label>
         <label>Type <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label>
         <label>Style <input name="style" maxlength="120" /></label>
         <label>ABV (%) <input name="abv" type="number" min="0" max="100" step="0.1" /></label>
       </div>
     </section>
-    <details class="admin-card" open>
+    <details class="disclosure" open>
       <summary><strong>Technical presentation</strong><span class="muted"> ABV, gravity, color, and serving vessel</span></summary>
-      <div class="config-grid">
+      <div class="auto-grid auto-grid--sm">
         <label>IBU <input name="ibu" type="number" min="0" max="2000" step="0.1" /></label>
         <label>Original gravity <input name="og" type="number" min="0.5" max="2" step="0.001" /></label>
         <label>Final gravity <input name="fg" type="number" min="0.5" max="2" step="0.001" /></label>
@@ -32,14 +32,14 @@
       <%~ include("/partials/fill-glass-picker", { label: "Fill Glass", name: "fillGlass", id: "new-fill-glass", selected: "", options: it.fillGlassOptions || [] }) %>
       <label>Description <textarea name="description" maxlength="4000" rows="4"></textarea></label>
     </details>
-    <details class="admin-card">
+    <details class="disclosure">
       <summary><strong>Sensory guidance</strong><span class="muted"> Optional canonical manual overrides from 0 to 10</span></summary>
       <p class="muted">These bounded values drive derived guidance for Story and authenticated operators.</p>
-      <div class="config-grid">
+      <div class="auto-grid auto-grid--sm">
         <% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"]) { %><label><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %><input name="<%= axis %>" type="number" min="0" max="10" step="0.1" /></label><% } %>
       </div>
     </details>
-    <details class="admin-card">
+    <details class="disclosure">
       <summary><strong>Custom recipe</strong><span class="muted"> Optional bounded JSON for ingredients and process steps</span></summary>
       <p class="muted">Use the supported recipe object with <code>notes</code>, <code>ingredients</code>, and <code>steps</code>. Leave blank to add it later.</p>
       <label>Recipe JSON <textarea name="recipeJson" rows="14" spellcheck="false" placeholder="{\n  &quot;notes&quot;: &quot;&quot;,\n  &quot;ingredients&quot;: [],\n  &quot;steps&quot;: []\n}"></textarea></label>

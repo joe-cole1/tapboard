@@ -10,7 +10,12 @@
     display: none;
   }
   .admin-shell section {
-    margin-block: var(--space-6) var(--space-8);
+    margin-block: var(--space-6);
+  }
+  /* Page sections are flat: after the first, a hairline divider and space separate them. */
+  .admin-shell main > section ~ section:not(.card) {
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
   }
   .admin-shell h1 {
     margin-bottom: var(--space-2);
@@ -20,18 +25,10 @@
     outline: 3px solid var(--accent-strong);
     outline-offset: 2px;
   }
-  .page-actions,
-  .card-actions,
-  .admin-header__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
   .page-actions {
     margin-block: var(--space-4);
   }
-  .card-actions form {
+  .cluster > form {
     margin: 0;
   }
   /* Beats .admin-shell main and .admin-shell > main. */
@@ -39,52 +36,9 @@
     max-width: 28rem;
     margin: 8vh auto;
     padding: var(--space-6);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow);
-  }
-  .config-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-    gap: var(--space-3);
-  }
-  /* Fields fill their grid column instead of keeping the browser's intrinsic input width. */
-  .config-grid > label {
-    min-width: 0;
-  }
-  .config-grid > label > :is(input, select, textarea) {
-    width: 100%;
-    min-width: 0;
   }
   .admin-page .stack-form {
     max-width: none;
-  }
-  .admin-page .form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-    gap: var(--space-3);
-  }
-  .admin-page .form-grid > label {
-    min-width: 0;
-  }
-  .admin-page .form-grid input {
-    width: 100%;
-    min-width: 0;
-  }
-  .system-session-list {
-    display: grid;
-    gap: var(--space-4);
-  }
-  .system-session {
-    min-width: 0;
-    padding: var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .system-session .summary-grid dd {
-    overflow-wrap: anywhere;
-    font-size: var(--text-compact);
   }
   .system-revoke-form,
   .system-activity-filter {
@@ -102,44 +56,17 @@
   .system-revoke-form input[type="checkbox"] {
     width: auto;
   }
-  .system-pin-change {
-    margin-top: var(--space-5);
-  }
-  .system-pin-change summary {
-    cursor: pointer;
-  }
-  .admin-card {
-    padding: var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow);
-  }
-  .integration-resource-grid,
-  .integration-source-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-    gap: var(--space-4);
-  }
+  /* Integration cards push their action to the bottom so a row of cards lines up. */
   .integration-resource-card,
   .integration-source-card {
     display: flex;
-    min-width: 0;
     flex-direction: column;
     gap: var(--space-3);
   }
-  .integration-resource-card__header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-  .integration-resource-card__header h2,
-  .integration-resource-card__header h3 {
-    margin: 0;
-  }
-  .integration-resource-card__header .eyebrow {
-    margin: 0 0 var(--space-1);
+  .integration-resource-card > .header-row,
+  .integration-source-card > .header-row {
+    align-items: start;
+    margin-bottom: 0;
   }
   .integration-resource-card__summary,
   .integration-source-card dl {
@@ -191,12 +118,6 @@
       monospace;
     user-select: all;
   }
-  .toggle-grid,
-  .tap-card-override-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-    gap: var(--space-2-5);
-  }
   .toggle-control {
     display: flex;
     align-items: center;
@@ -218,12 +139,6 @@
     margin-top: 0;
     color: var(--muted);
     font-size: 0.9em;
-  }
-  .resource-card fieldset {
-    min-width: 0;
-    margin-block: var(--space-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
   }
   .fill-glass-picker {
     display: block;
@@ -361,9 +276,11 @@
     font-weight: var(--weight-semibold);
     white-space: nowrap;
   }
+  /* A long site name wraps instead of pushing the header actions off a phone screen. */
   .admin-brand {
     min-width: 0;
     overflow-wrap: anywhere;
+    white-space: normal;
     color: var(--text);
     font-size: var(--text-body);
   }
@@ -376,12 +293,13 @@
   .admin-exit {
     white-space: nowrap;
   }
-  .admin-header__actions {
-    grid-column: 3;
-    justify-content: flex-end;
-    min-width: 0;
+  /* Exit Admin and Log out sit at the end of the menu, under the navigation. */
+  .admin-sidebar__account {
+    margin-top: var(--space-5);
+    padding: var(--space-4) var(--space-2-5) 0;
+    border-top: 1px solid var(--border);
   }
-  .admin-header .logout-form {
+  .admin-sidebar__account .logout-form {
     width: fit-content;
     max-width: none;
     margin: 0;
@@ -493,41 +411,11 @@
   .page-header p {
     margin-block: 0;
   }
-  .section-heading {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: var(--space-4);
-    margin-bottom: var(--space-3);
-  }
-  .section-heading h2,
-  .section-heading p {
-    margin-block: 0;
-  }
-  .section-heading h2 {
+  .admin-shell .header-row h2 {
     font-size: var(--text-title);
-  }
-  .admin-disclosure--editable > summary::after {
-    margin-inline-start: auto;
-    color: var(--accent-readable);
-    font-size: var(--text-caption);
-    font-weight: var(--weight-strong);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    content: "Edit";
-  }
-  .admin-disclosure--editable[open] > summary::after {
-    content: "Done";
   }
   .text-link {
     white-space: nowrap;
-  }
-  .attention-panel {
-    padding: var(--space-4);
-    background: color-mix(in srgb, var(--warning) 10%, var(--surface));
-    border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border));
-    border-left: 0.35rem solid var(--warning);
-    border-radius: var(--radius-md);
   }
   .attention-list {
     display: grid;
@@ -614,59 +502,6 @@
   }
   .empty-state {
     color: var(--muted);
-  }
-  .summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: var(--space-3);
-    margin: 0;
-  }
-  .summary-grid > div,
-  .metrics > div,
-  .summary-link-grid > .summary-card--link {
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .summary-card {
-    position: relative;
-    min-width: 0;
-  }
-  .summary-card:hover {
-    border-color: var(--accent-strong);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-  }
-  .summary-card:focus-within {
-    border-color: var(--accent-strong);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
-  }
-  .summary-link-grid > .summary-card--link {
-    display: grid;
-    gap: var(--space-1);
-    padding: var(--space-3) var(--space-4);
-    color: var(--text);
-    text-decoration: none;
-  }
-  .summary-card--link:focus-visible {
-    outline: 3px solid var(--accent-strong);
-    outline-offset: 2px;
-  }
-  .summary-card__label {
-    color: var(--muted);
-    font-size: var(--text-small);
-  }
-  .summary-card__value {
-    font-size: var(--text-title);
-  }
-  .summary-grid dt {
-    color: var(--muted);
-    font-size: var(--text-small);
-  }
-  .summary-grid dd {
-    margin: var(--space-1) 0 0;
-    font-size: var(--text-title);
-    font-weight: var(--weight-strong);
   }
   .status-line {
     display: flex;
@@ -786,13 +621,6 @@
   .kick-disclosure > summary strong {
     color: var(--danger);
   }
-  .kick-disclosure[open] > summary {
-    border-color: var(--danger);
-  }
-  .config-groups {
-    display: grid;
-    gap: var(--space-4);
-  }
   .admin-config-group {
     min-width: 0;
     margin: 0;
@@ -813,10 +641,7 @@
     font-size: var(--text-small);
     line-height: 1.35;
   }
-  .quick-actions ul {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-    gap: var(--space-2-5);
+  .quick-actions__list {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -826,12 +651,7 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    min-height: 3rem;
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    text-decoration: none;
+    padding-block: var(--space-3);
   }
   .pin-indicators {
     display: none;
@@ -1019,7 +839,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(15rem, 1fr);
     gap: var(--space-6);
-    padding: var(--space-6);
   }
   .simulation-settings__intro h2,
   .simulation-settings__intro .eyebrow {
@@ -1099,7 +918,6 @@
   }
   .simulator-intro {
     max-width: 48rem;
-    padding: var(--space-6);
   }
   .simulator-note {
     padding: var(--space-3) var(--space-4);
@@ -1115,20 +933,6 @@
     margin-top: var(--space-1);
     font-size: var(--text-small);
   }
-  .simulator-section-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-1-5) var(--space-4);
-    margin-bottom: var(--space-3);
-  }
-  .simulator-section-heading h2 {
-    margin: 0;
-  }
-  .simulator-section-heading > span {
-    font-size: var(--text-small);
-  }
   .simulator-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1137,15 +941,11 @@
   .simulator-sensor {
     display: flex;
     flex-direction: column;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    padding: var(--space-4);
   }
   .simulator-sensor__header {
-    display: flex;
+    flex-wrap: nowrap;
     align-items: start;
-    justify-content: space-between;
-    gap: var(--space-2);
+    margin-bottom: 0;
   }
   .simulator-sensor__header .eyebrow {
     margin: 0 0 var(--space-1);
@@ -1274,7 +1074,6 @@
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     align-items: center;
     gap: var(--space-6);
-    padding: var(--space-5);
   }
   .simulator-reset h2 {
     margin-top: 0;
@@ -1522,11 +1321,6 @@
   [aria-invalid="true"] {
     border-color: var(--danger);
   }
-  .source-control-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-    gap: var(--space-3);
-  }
   .source-control-grid fieldset {
     min-width: 0;
     margin: 0;
@@ -1549,9 +1343,6 @@
   .pagination > span {
     color: var(--muted);
     font-size: var(--text-compact);
-  }
-  .danger-zone {
-    border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
   }
 
   .tap-public-preview__frame {
@@ -1580,32 +1371,6 @@
     margin-block: var(--space-3);
     padding-left: var(--space-5);
   }
-  .admin-disclosure {
-    margin-top: var(--space-3);
-  }
-  .admin-disclosure > summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding: var(--space-3) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    cursor: pointer;
-  }
-  .admin-disclosure > summary span {
-    display: grid;
-    gap: 0.15rem;
-  }
-  .admin-disclosure > summary small {
-    color: var(--muted);
-    font-weight: var(--weight-medium);
-  }
-  .admin-disclosure[open] > summary {
-    margin-bottom: var(--space-3);
-    border-color: var(--accent-strong);
-  }
   .impact-list {
     display: flex;
     flex-wrap: wrap;
@@ -1628,50 +1393,6 @@
     max-width: 8rem;
     height: auto;
   }
-  /*
- * Label/value list: muted labels in a narrow column, values beside them, one divider per row.
- * Works with <div><dt/><dd/></div> rows and with bare dt/dd pairs; stacks on phones.
- */
-  .key-value-list {
-    display: grid;
-    grid-template-columns: fit-content(14rem) minmax(0, 1fr);
-    column-gap: var(--space-4);
-    margin-block: var(--space-2) var(--space-4);
-  }
-  .key-value-list > div {
-    display: contents;
-  }
-  .key-value-list dt,
-  .key-value-list dd {
-    margin: 0;
-    padding-block: var(--space-2);
-    border-top: 1px solid var(--border);
-    overflow-wrap: anywhere;
-  }
-  .key-value-list dt {
-    color: var(--muted);
-  }
-  .key-value-list > div:first-child > *,
-  .key-value-list > dt:first-child,
-  .key-value-list > dt:first-child + dd {
-    border-top: 0;
-  }
-  @media (max-width: 30rem) {
-    .key-value-list {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .key-value-list dt {
-      padding-bottom: 0;
-    }
-    .key-value-list dd {
-      padding-top: var(--space-1);
-      border-top: 0;
-    }
-    .key-value-list > div:first-child > dt,
-    .key-value-list > dt:first-child {
-      padding-top: 0;
-    }
-  }
   .keg-room-section {
     margin-block: var(--space-6);
   }
@@ -1692,21 +1413,6 @@
   }
 
   /* Display configuration keeps the first decision small and visual. */
-  .display-settings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-    gap: var(--space-4);
-  }
-  .display-settings-grid .admin-card,
-  .display-settings-page .admin-card {
-    display: grid;
-    gap: var(--space-3);
-    align-content: start;
-  }
-  .display-settings-grid .admin-card > *,
-  .display-settings-page .admin-card > * {
-    margin-block: 0;
-  }
   .display-settings-form {
     display: grid;
     gap: var(--space-4);
@@ -1912,11 +1618,6 @@
   .display-accent-swatch--custom {
     background: var(--accent-swatch-custom);
   }
-  .switch-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-    gap: var(--space-3);
-  }
   .switch-field {
     position: relative;
     display: inline-flex;
@@ -1981,7 +1682,7 @@
     gap: var(--space-4);
     min-width: 0;
   }
-  .display-editor .admin-card {
+  .display-editor__settings > section {
     margin-block: 0;
   }
   /* Two columns only once the preview column can hold a full-size Tap card. */
@@ -2026,12 +1727,6 @@
     display: grid;
     gap: var(--space-4);
   }
-  .tap-wars-current--active {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  }
-  .tap-wars-current--paused {
-    border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
-  }
   .tap-wars-current__heading {
     align-items: start;
   }
@@ -2050,14 +1745,6 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
-  }
-  .tap-wars-competitor,
-  .tap-wars-result-grid article {
-    min-width: 0;
-    padding: var(--space-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
   }
   .tap-wars-competitor h3,
   .tap-wars-result-grid h3 {
@@ -2210,14 +1897,8 @@
 
   /* Outbound delivery is intentionally metadata-only in the Admin UI: endpoint
    and credential values are accepted by forms but never rendered back. */
-  .outbound-destination-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
-    gap: var(--space-4);
-  }
   .outbound-destination-card {
     display: grid;
-    min-width: 0;
     gap: var(--space-3);
     align-content: start;
   }
@@ -2229,36 +1910,8 @@
   .outbound-list-heading {
     align-items: flex-start;
   }
-  .outbound-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: var(--space-2);
-    margin: 0;
-  }
-  .outbound-summary > div {
-    min-width: 0;
-    padding: var(--space-2) var(--space-2-5);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-  }
-  .outbound-summary dt {
-    color: var(--muted);
-    font-size: var(--text-caption);
-  }
-  .outbound-summary dd {
-    margin: 0.15rem 0 0;
-    overflow-wrap: anywhere;
-    font-weight: var(--weight-strong);
-  }
   .outbound-form {
     max-width: none;
-  }
-  .outbound-form-grid,
-  .outbound-subscription-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-    gap: var(--space-3);
   }
   .outbound-subscription-groups {
     display: grid;
@@ -2400,8 +2053,6 @@
       display: grid;
       gap: var(--space-3);
     }
-    .outbound-form-grid,
-    .outbound-subscription-grid,
     .outbound-header-grid,
     .outbound-header-grid--secret {
       grid-template-columns: 1fr;

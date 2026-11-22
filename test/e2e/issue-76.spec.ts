@@ -222,8 +222,9 @@ test("mobile Admin navigation is modal while open and Beverage rows have a safe 
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.locator("main")).toHaveJSProperty("inert", true);
   await expect(page.getByRole("button", { name: "Close menu" })).toBeFocused();
+  // Focus wraps to the drawer's last control, Log out, which sits under the navigation.
   await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("link", { name: "System", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Log out", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(sidebar).toHaveJSProperty("inert", true);
   await expect(page.locator("main")).toHaveJSProperty("inert", false);

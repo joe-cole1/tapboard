@@ -4,13 +4,6 @@
     <span class="admin-header__context">Admin</span>
   </div>
   <button class="button admin-menu-toggle" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="false">Menu</button>
-  <div class="admin-header__actions">
-    <a class="button button--secondary button--small admin-exit" href="/">Exit Admin</a>
-    <form class="logout-form" action="/admin/logout" method="post">
-      <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <button class="button button--primary" type="submit">Log out</button>
-    </form>
-  </div>
 </header>
 <aside id="admin-sidebar" class="admin-sidebar" data-admin-sidebar>
   <div class="admin-sidebar__controls">
@@ -41,6 +34,13 @@
       </section>
     <% } } %>
   </nav>
+  <div class="cluster admin-sidebar__account">
+    <a class="button button--secondary button--small admin-exit" href="/">Exit Admin</a>
+    <form class="logout-form" action="/admin/logout" method="post">
+      <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+      <button class="button button--primary button--small" type="submit">Log out</button>
+    </form>
+  </div>
 </aside>
 <button class="admin-drawer-backdrop" type="button" data-admin-drawer-backdrop hidden aria-label="Close Admin menu"></button>
 <nav class="admin-breadcrumbs" aria-label="Breadcrumb">

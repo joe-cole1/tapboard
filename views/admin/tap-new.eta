@@ -8,11 +8,11 @@
     <p class="muted">Create a serving position first; assignment and operational controls are available after it exists.</p>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="admin-card" aria-labelledby="new-tap-heading">
+  <section aria-labelledby="new-tap-heading">
     <h2 id="new-tap-heading">Tap identity and serving setup</h2>
     <form class="admin-form" action="/admin/taps/create" method="post">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <div class="config-grid">
+      <div class="auto-grid auto-grid--sm">
         <label>Tap number <input name="tapNumber" type="number" min="1" max="1000000" required /></label>
         <label>Name <input name="name" maxlength="120" placeholder="Optional" /></label>
         <label>Public display
