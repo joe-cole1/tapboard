@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/assets/css/tokens.css" />
     <link rel="stylesheet" href="/assets/css/components.css" />
     <link rel="stylesheet" href="/assets/css/dashboard.css" />
-    <link id="display-stylesheet" data-display-stylesheet rel="stylesheet" href="/assets/css/display.css?v=3&theme=<%= encodeURIComponent(it.sharedDisplay.theme) %>&accent=<%= encodeURIComponent(it.sharedDisplay.accent) %>&font=<%= encodeURIComponent(it.sharedDisplay.font) %>" />
+    <link id="display-stylesheet" data-display-stylesheet rel="stylesheet" href="/assets/css/display.css?v=4&theme=<%= encodeURIComponent(it.sharedDisplay.theme) %>&accent=<%= encodeURIComponent(it.sharedDisplay.accent) %>&font=<%= encodeURIComponent(it.sharedDisplay.font) %>" />
     <script src="/assets/js/preference-bootstrap.js"></script>
   </head>
   <body<% if (it.workspace) { %> data-workspace-revision="<%= it.workspace.revision %>" data-workspace-enabled="<%= it.workspace.enabled %>"<% } %>>
