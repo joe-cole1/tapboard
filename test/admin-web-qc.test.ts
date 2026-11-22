@@ -767,7 +767,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.doesNotMatch(overviewHtml, />low_keg</u);
   assert.match(
     overviewHtml,
-    /Retired QC Tap[\s\S]*?status-badge status-badge--muted">Retired<[\s\S]*?<td>Hidden<\/td>/u,
+    /Retired QC Tap[\s\S]*?badge badge--muted">Retired<[\s\S]*?<td data-label="Public">Hidden<\/td>/u,
   );
 
   const integrationsResponse = await fetch(`${base}/admin/integrations`, { headers: getHeaders });
@@ -945,9 +945,9 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   }
   assert.match(tapDetailHtml, /Mystery Tap reveal fields/);
   assert.match(tapDetailHtml, /Permanent deletion/);
-  assert.match(tapDetailHtml, /class="admin-table admin-detail-table"/);
+  assert.match(tapDetailHtml, /class="table"/);
   assert.match(tapDetailHtml, /<th scope="col">First used<\/th>/);
-  assert.match(tapDetailHtml, /<td>Never<\/td>/);
+  assert.match(tapDetailHtml, /<td data-label="First used">Never<\/td>/);
   assert.match(tapDetailHtml, /Aug 1, 2026, 12:00 AM UTC/);
   assert.match(tapDetailHtml, /Detection start/);
   assert.match(tapDetailHtml, /Candidate loss \(mL\)/);
@@ -1027,7 +1027,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(kegRoomHtml, /action="\/admin\/fills\/fill-on-deck-qc\/move"/);
   assert.match(kegRoomHtml, /Move up/);
   assert.match(kegRoomHtml, /Move down/);
-  assert.match(kegRoomHtml, /class="admin-table admin-library-table keg-room-table"/);
+  assert.match(kegRoomHtml, /class="table table--wide table--library"/);
   assert.match(kegRoomHtml, /<tbody data-reorder-list>/);
   assert.match(kegRoomHtml, /action="\/admin\/fills\/reorder-on-deck"/);
   assert.match(kegRoomHtml, /name="fillIds"/);
@@ -1155,12 +1155,12 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const kegHtml = await (await fetch(`${base}/admin/kegs`, { headers: getHeaders })).text();
   assert.match(kegHtml, /Fill history/);
   assert.match(kegHtml, /href="\/admin\/keg-room\/fills\/fill-qc">1 fill record<\/a>/);
-  assert.match(kegHtml, /class="admin-table admin-library-table keg-inventory-table"/);
+  assert.match(kegHtml, /class="table table--wide table--library"/);
   assert.match(kegHtml, /href="\/admin\/keg-room\/kegs\/keg-qc"/);
   assert.doesNotMatch(kegHtml, /class="resource-card keg-inventory-card"/);
   const tapHtml = await (await fetch(`${base}/admin/taps`, { headers: getHeaders })).text();
-  assert.match(tapHtml, /class="admin-table admin-library-table tap-list"/);
-  assert.match(tapHtml, /class="beverage-list__preview"[\s\S]*data-graphic-id=/);
+  assert.match(tapHtml, /class="table table--wide table--library"/);
+  assert.match(tapHtml, /class="library-cell__preview"[\s\S]*data-graphic-id=/);
   assert.match(tapHtml, /Tap 3 — QC Tap/);
   assert.match(tapHtml, /Open/);
   assert.doesNotMatch(tapHtml, /class="resource-card tap-list-card"/);

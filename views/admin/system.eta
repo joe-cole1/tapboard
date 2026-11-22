@@ -19,7 +19,7 @@
     </form>
   </section>
   <section aria-labelledby="system-status-heading">
-    <span class="status-badge status-badge--<%= it.system.ready ? 'healthy' : 'degraded' %>"><%= it.system.ready ? 'Ready' : 'Unavailable' %></span><h2 id="system-status-heading">System status</h2>
+    <span class="badge badge--<%= it.system.ready ? 'healthy' : 'degraded' %>"><%= it.system.ready ? 'Ready' : 'Unavailable' %></span><h2 id="system-status-heading">System status</h2>
     <dl class="key-value-list">
       <div><dt>Application version</dt><dd><%= it.system.version %></dd></div>
       <div><dt>Schema version</dt><dd><%= it.system.schemaVersion %></dd></div>
@@ -135,11 +135,9 @@
       <button type="submit" class="button button--secondary">Filter Activity Log</button>
     </form>
     <% if (it.system.activity.items.length === 0) { %><p>No activity matches this view.</p><% } else { %>
-      <div class="table-scroll" role="region" aria-label="Activity Log entries" tabindex="0">
-        <table class="admin-table"><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Category</th><th scope="col">Action</th><th scope="col">Actor</th><th scope="col">Resource</th></tr></thead><tbody>
-          <% for (const item of it.system.activity.items) { %><tr><td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td><td><%= item.categoryLabel %></td><td><%= item.actionLabel %></td><td><%= item.actorLabel %></td><td><% if (item.entityHref) { %><a href="<%= item.entityHref %>"><%= item.entityLabel %></a><% } else { %><%= item.entityLabel %><% } %></td></tr><% } %>
+        <table class="table"><caption class="sr-only">Activity Log entries</caption><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Category</th><th scope="col">Action</th><th scope="col">Actor</th><th scope="col">Resource</th></tr></thead><tbody>
+          <% for (const item of it.system.activity.items) { %><tr><td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td><td data-label="Category"><%= item.categoryLabel %></td><td data-label="Action"><%= item.actionLabel %></td><td data-label="Actor"><%= item.actorLabel %></td><td data-label="Resource"><% if (item.entityHref) { %><a href="<%= item.entityHref %>"><%= item.entityLabel %></a><% } else { %><%= item.entityLabel %><% } %></td></tr><% } %>
         </tbody></table>
-      </div>
     <% } %>
     <p class="muted">Up to 50 entries per page. Activity records show actions and resource types; private details and authentication tokens are excluded.</p>
     <% if (it.system.activity.nextHref) { %><a class="button button--secondary" href="<%= it.system.activity.nextHref %>">Older activity</a><% } %>

@@ -15,7 +15,7 @@
   <p data-simulation-feedback role="status" aria-live="polite" hidden></p>
   <% if (!simulation.enabled) { %>
     <section class="simulator-intro" aria-labelledby="simulator-enable-heading">
-      <span class="status-badge">Simulation off</span><h2 id="simulator-enable-heading">A sample taproom, ready to explore</h2>
+      <span class="badge">Simulation off</span><h2 id="simulator-enable-heading">A sample taproom, ready to explore</h2>
       <p>Enable simulation to use the dashboard and Admin with sample taps, beverages, and kegs. Your simulation and its history are saved separately from your real setup. External integrations are unavailable here.</p>
       <p class="muted">Your sample workspace is kept when you exit. Come back whenever you want to continue.</p>
       <form action="/admin/simulation/enable" method="post" data-workspace-action><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary" type="submit"<% if (simulation.changing) { %> disabled<% } %>><%= simulation.changing ? 'Switching workspace…' : 'Enable simulation' %></button></form>
@@ -40,7 +40,7 @@
             </form>
             <div class="simulator-sensor__controls">
               <form action="/admin/simulation/sensor" method="post" data-simulation-action data-online-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="online" value="<%= !sensor.online %>" /><button type="submit" class="button button--secondary button--small" data-online-button<% if (simulation.changing) { %> disabled<% } %>><%= sensor.online ? 'Pause sensor' : 'Bring online' %></button></form>
-              <form action="/admin/simulation/noise" method="post" data-simulation-action data-noise-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="enabled" value="<%= !sensor.noiseEnabled %>" /><button type="submit" class="button button--secondary button--small" role="switch" aria-checked="<%= sensor.noiseEnabled %>" aria-label="Reading noise for tap <%= sensor.tapNumber %>" data-noise-button<% if (simulation.changing) { %> disabled<% } %>>Noise <%= sensor.noiseEnabled ? 'on' : 'off' %></button></form>
+              <form action="/admin/simulation/noise" method="post" data-simulation-action data-noise-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="enabled" value="<%= !sensor.noiseEnabled %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= sensor.noiseEnabled %>" data-noise-button<% if (simulation.changing) { %> disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Noise<span class="sr-only"> for tap <%= sensor.tapNumber %></span></button></form>
             </div>
           </article>
         <% } %>

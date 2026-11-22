@@ -7,13 +7,13 @@
   <div class="display-theme-cards">
     <% if (it.inherit) { %>
       <label class="display-theme-card display-theme-card--inherit">
-        <input class="display-choice__input" type="radio" name="theme" value=""<% if (!it.selected) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="theme" value=""<% if (!it.selected) { %> checked<% } %> />
         <span class="display-theme-card__name">Use default</span>
       </label>
     <% } %>
     <% for (const option of it.options) { const width = 120 / option.scenes.length; %>
       <label class="display-theme-card">
-        <input class="display-choice__input" type="radio" name="theme" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="theme" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
         <svg class="display-theme-card__art" viewBox="0 0 120 72" aria-hidden="true" focusable="false">
           <% option.scenes.forEach((scene, index) => { const x = index * width; const inner = width - 36; %>
             <rect x="<%= x %>" y="0" width="<%= width %>" height="72" fill="<%= scene.background %>" />

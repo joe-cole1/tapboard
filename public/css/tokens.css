@@ -9,9 +9,10 @@
  * [hidden] beats every later display. Unlayered rules would beat every layer; add none.
  *
  * Breakpoints (media queries cannot read custom properties, so the values are repeated):
- *   40rem   phones: single-column grids and stacked rows (dashboard, story, recipe sheet)
- *   48rem   small tablets: Admin tables scroll; Admin, Tap Wars and story layouts stack
- *   60rem   tablets: the Admin sidebar becomes a drawer and the header stacks
+ *   40rem   phones: single-column grids and stacked rows (dashboard, story, recipe sheet, tables)
+ *   48rem   small tablets: Admin, Tap Wars and story layouts stack
+ *   60rem   tablets: the Admin sidebar becomes a drawer and the header stacks; wide tables
+ *           stack (and, as a container query on Admin's <main>, below 48rem beside the sidebar)
  *           (min-width: 60.0625rem starts just past it)
  *   150rem  very large displays: a wider Tap grid
  * Component-fit widths, used by one layout each:

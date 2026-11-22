@@ -22,7 +22,7 @@
     <% } else { %>
       <ul class="attention-list">
         <% for (const item of attention) { %>
-          <li><span class="status-badge status-badge--<%= item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : item.state === "active" ? "active" : "degraded" %>"><%= item.severity === "none" ? item.stateLabel : item.severityLabel %></span><a href="<%= item.href %>"><strong>Tap <%= item.tapNumber ?? "unknown" %></strong><% if (item.tapName) { %> — <%= item.tapName %><% } %></a><% if (item.checks.length > 0) { %><span class="muted"> · <%= item.checks.map((check) => check.label).join(", ") %></span><% } %></li>
+          <li><span class="badge badge--<%= item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : item.state === "active" ? "active" : "degraded" %>"><%= item.severity === "none" ? item.stateLabel : item.severityLabel %></span><a href="<%= item.href %>"><strong>Tap <%= item.tapNumber ?? "unknown" %></strong><% if (item.tapName) { %> — <%= item.tapName %><% } %></a><% if (item.checks.length > 0) { %><span class="muted"> · <%= item.checks.map((check) => check.label).join(", ") %></span><% } %></li>
         <% } %>
       </ul>
     <% } %>
@@ -33,9 +33,9 @@
     <% if (it.taps.length === 0) { %>
       <p class="empty-state">No Taps are configured yet. <a href="/admin/taps">Add a Tap</a>.</p>
     <% } else { %>
-      <div class="table-scroll"><table class="admin-table"><thead><tr><th scope="col">Tap</th><th scope="col">Assignment</th><th scope="col">Status</th><th scope="col">Public</th></tr></thead><tbody>
-      <% for (const tap of it.taps) { const lifecycleLabel = tap.isRetired ? "Retired" : tap.enabled ? "Enabled" : "Disabled"; const isPublic = tap.enabled && !tap.isRetired; %><tr><th scope="row"><a href="<%= tap.href %>">#<%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } %></a></th><td><%= tap.beverageName || "Unassigned" %></td><td><span class="status-badge status-badge--<%= isPublic ? "healthy" : "muted" %>"><%= lifecycleLabel %></span></td><td><%= isPublic ? "Enabled" : "Hidden" %></td></tr><% } %>
-      </tbody></table></div>
+      <table class="table"><thead><tr><th scope="col">Tap</th><th scope="col">Assignment</th><th scope="col">Status</th><th scope="col">Public</th></tr></thead><tbody>
+      <% for (const tap of it.taps) { const lifecycleLabel = tap.isRetired ? "Retired" : tap.enabled ? "Enabled" : "Disabled"; const isPublic = tap.enabled && !tap.isRetired; %><tr><th scope="row"><a href="<%= tap.href %>">#<%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } %></a></th><td data-label="Assignment"><%= tap.beverageName || "Unassigned" %></td><td data-label="Status"><span class="badge badge--<%= isPublic ? "healthy" : "muted" %>"><%= lifecycleLabel %></span></td><td data-label="Public"><%= isPublic ? "Enabled" : "Hidden" %></td></tr><% } %>
+      </tbody></table>
     <% } %>
   </section>
 
@@ -49,7 +49,7 @@
 
   <section aria-labelledby="connectivity-heading">
     <div class="header-row"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button button--secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
-    <p class="status-line"><span class="status-badge status-badge--<%= it.connectivity.state === "disconnected" ? "critical" : it.connectivity.state === "healthy" ? "healthy" : "degraded" %>"><%= it.connectivity.label %></span></p>
+    <p class="status-line"><span class="badge badge--<%= it.connectivity.state === "disconnected" ? "critical" : it.connectivity.state === "healthy" ? "healthy" : "degraded" %>"><%= it.connectivity.label %></span></p>
     <div class="auto-grid auto-grid--xs"><a class="card card--link" href="/admin/integrations/telemetry"><span class="card__label">Telemetry sources</span><strong class="card__value"><%= it.integrations.telemetryConfigured %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Brewfather</span><strong class="card__value"><%= it.integrations.brewfatherConfigured ? (it.integrations.brewfatherEnabled ? (it.integrations.brewfatherApiKeyConfigured ? "Enabled" : "API key required") : "Disabled") : "Not configured" %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Linked beverages</span><strong class="card__value"><%= it.integrations.brewfatherLinkedBeverages %></strong></a></div>
   </section>
 

@@ -8,20 +8,20 @@
   <div class="display-accent-options">
     <% if (it.inherit) { %>
       <label class="display-accent-option">
-        <input class="display-choice__input" type="radio" name="accent" value=""<% if (!it.selected) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="accent" value=""<% if (!it.selected) { %> checked<% } %> />
         <span class="display-accent-swatch display-accent-swatch--inherit" aria-hidden="true"></span>
         <span>Use default</span>
       </label>
     <% } %>
     <% for (const option of it.options) { %>
       <label class="display-accent-option">
-        <input class="display-choice__input" type="radio" name="accent" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="accent" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
         <span class="display-accent-swatch display-accent-swatch--<%= option.value %>" aria-hidden="true"></span>
         <span><%= option.label %></span>
       </label>
     <% } %>
     <label class="display-accent-option">
-      <input class="display-choice__input" type="radio" name="accent" value="custom"<% if (custom) { %> checked<% } %> data-accent-custom-choice />
+      <input class="sr-only" type="radio" name="accent" value="custom"<% if (custom) { %> checked<% } %> data-accent-custom-choice />
       <span class="display-accent-swatch display-accent-swatch--custom" aria-hidden="true"></span>
       <span>Custom</span>
     </label>

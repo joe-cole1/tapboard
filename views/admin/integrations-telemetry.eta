@@ -23,7 +23,7 @@
       <div class="auto-grid auto-grid--lg">
         <% for (const source of it.activeSources) { %>
           <article class="card integration-source-card">
-            <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="status-badge status-badge--healthy">Active</span></div>
+            <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="badge badge--healthy">Active</span></div>
             <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Key label</dt><dd><%= source.keyLabel %></dd></div><div><dt>Created</dt><dd><time datetime="<%= source.keyCreatedAt %>"><%= source.keyCreatedAtLabel %></time></dd></div></dl>
             <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">Open source</a>
           </article>
@@ -50,7 +50,7 @@
         <div class="auto-grid auto-grid--lg">
           <% for (const source of it.disabledSources) { %>
             <article class="card integration-source-card integration-source-card--disabled">
-              <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="status-badge status-badge--muted">Disabled</span></div>
+              <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="badge">Disabled</span></div>
               <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Key label</dt><dd><%= source.keyLabel %></dd></div><div><dt>Disabled</dt><dd><time datetime="<%= source.disabledAt %>"><%= source.disabledAtLabel %></time></dd></div></dl>
               <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">View history</a>
             </article>

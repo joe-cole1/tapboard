@@ -78,7 +78,6 @@ if (page?.dataset.simulationEnabled === "true") {
       }
       const noiseButton = card.querySelector("[data-noise-button]");
       if (noiseButton) {
-        noiseButton.textContent = sensor.noiseEnabled ? "Noise on" : "Noise off";
         noiseButton.setAttribute("aria-checked", String(sensor.noiseEnabled));
         noiseButton.disabled = blocked;
       }
