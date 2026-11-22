@@ -147,7 +147,7 @@ test("Issue 80 System supports no-JS save, Activity filtering, selected/self rev
     }
 
     const selectedForm = page.locator(`form[action="${selectedAction!}"]`);
-    await selectedForm.getByRole("checkbox", { name: "Confirm revocation", exact: true }).check();
+    await selectedForm.getByRole("switch", { name: "Confirm revocation", exact: true }).check();
     await selectedForm.getByRole("button", { name: "Revoke session", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("Session revoked.");
     await selectedPage.goto("/admin/system");
@@ -160,7 +160,7 @@ test("Issue 80 System supports no-JS save, Activity filtering, selected/self rev
       has: page.getByRole("heading", { name: "This session", exact: true }),
     });
     await currentArticle
-      .getByRole("checkbox", { name: "Confirm revocation of this session" })
+      .getByRole("switch", { name: "Confirm revocation of this session" })
       .check();
     await currentArticle.getByRole("button", { name: "Revoke this session", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/login\?notice=/u);

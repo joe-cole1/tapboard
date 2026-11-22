@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <header class="page-header">
     <p class="eyebrow"><a href="/admin/integrations">Integrations</a> / <a href="/admin/integrations/outbound">Outbound delivery</a></p>
     <h1><%= it.destination.label %></h1>
@@ -32,7 +32,7 @@
       <h2 id="outbound-token-heading">Home Assistant token</h2>
       <p class="muted">Replace or remove the token without displaying the current value.</p>
       <div class="outbound-secret-actions">
-        <form class="admin-form admin-form--inline" method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/token"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label>Replacement token <input name="token" type="password" maxlength="4096" autocomplete="new-password" required /></label><button class="button button--secondary button--small" type="submit">Replace token</button></form>
+        <form class="form" method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/token"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Replacement token <input name="token" type="password" maxlength="4096" autocomplete="new-password" required /></label><button class="button button--secondary button--small" type="submit">Replace token</button></form>
         <% if (it.destination.config.endpointConfigured || it.destination.config.endpointAvailable) { %><form method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/token/remove"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--danger button--small" type="submit">Remove token</button></form><% } %>
       </div>
     </section>
@@ -44,7 +44,7 @@
       <p class="muted">Only the safe header name, slot, and configured status are shown.</p>
       <div>
         <% for (const header of it.destination.config.secretHeaders) { %>
-          <div class="outbound-secret-row"><span><strong><%= header.name %></strong><small>Slot <code><%= header.slot %></code> · <%= header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured" %></small></span><form class="admin-form admin-form--inline" method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/header-secret"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="slot" value="<%= header.slot %>" /><label class="sr-only" for="secret-replace-<%= header.slot %>">Replacement value for <%= header.name %></label><input id="secret-replace-<%= header.slot %>" name="secret" type="password" maxlength="1024" autocomplete="new-password" required /><button class="button button--secondary button--small" type="submit">Replace</button></form><form method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/header-secret/remove"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="slot" value="<%= header.slot %>" /><button class="button button--danger button--small" type="submit">Remove</button></form></div>
+          <div class="outbound-secret-row"><span><strong><%= header.name %></strong><small>Slot <code><%= header.slot %></code> · <%= header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured" %></small></span><form class="form" method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/header-secret"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="slot" value="<%= header.slot %>" /><label class="sr-only" for="secret-replace-<%= header.slot %>">Replacement value for <%= header.name %></label><input id="secret-replace-<%= header.slot %>" name="secret" type="password" maxlength="1024" autocomplete="new-password" required /><button class="button button--secondary button--small" type="submit">Replace</button></form><form method="post" action="/admin/integrations/outbound/<%= encodeURIComponent(it.destination.id) %>/header-secret/remove"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="slot" value="<%= header.slot %>" /><button class="button button--danger button--small" type="submit">Remove</button></form></div>
         <% } %>
       </div>
     </section>

@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <header class="page-header">
     <p class="eyebrow">Manage</p>
     <h1>Taps</h1>
@@ -16,7 +16,7 @@
     <a class="button button--primary button--small" href="/admin/taps/new">Add Tap</a>
   </section>
 
-  <form class="admin-search" method="get" action="/admin/taps" role="search">
+  <form class="form admin-search" method="get" action="/admin/taps" role="search">
     <label for="tap-search">Search by tap number, name, assignment, or keg</label>
     <div class="admin-search__controls">
       <input id="tap-search" name="q" type="search" value="<%= it.query %>" maxlength="80" />

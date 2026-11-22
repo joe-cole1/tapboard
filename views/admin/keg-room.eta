@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <div class="page-header">
     <p class="eyebrow">Service flow</p>
     <h1>Keg Room</h1>
@@ -10,10 +10,10 @@
   <%~ include("/partials/keg-room-nav", { kegRoomNav: it.kegRoomNav }) %>
   <section aria-labelledby="keg-room-filters">
     <div class="header-row"><div><h2 id="keg-room-filters">Find a Filled Keg</h2><p class="muted"><%= it.pagination.total %> result<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
-    <form class="admin-form admin-form--inline auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">
-      <label>Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
-      <label>Show <select name="state"><option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option><option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option><option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option><option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option><option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option><option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option></select></label>
-      <label>Sort <select name="sort"><option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option><option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option><option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option><option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
+    <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">
+      <label class="field">Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
+      <label class="field">Show <select name="state"><option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option><option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option><option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option><option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option><option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option><option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option></select></label>
+      <label class="field">Sort <select name="sort"><option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option><option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option><option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option><option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
       <button class="button button--secondary button--small" type="submit">Apply</button>
     </form>
   </section>

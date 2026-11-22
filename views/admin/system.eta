@@ -11,9 +11,9 @@
       <h2 id="simulation-settings-heading">Simulation</h2>
       <p>Try the complete Tapboard experience with sample taps and simulated pours. Your simulation and its history are saved separately from your real setup. External integrations are unavailable in simulation.</p>
     </div>
-    <form action="/admin/simulation/<%= workspace.enabled ? 'disable' : 'enable' %>" method="post" class="simulation-switch-form" data-workspace-action>
+    <form action="/admin/simulation/<%= workspace.enabled ? 'disable' : 'enable' %>" method="post" class="stack" data-workspace-action>
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <div class="simulation-switch-row"><span id="simulation-switch-label">Enable simulation</span><button type="submit" class="simulation-switch" role="switch" aria-checked="<%= workspace.enabled %>" aria-labelledby="simulation-switch-label"<% if (workspace.changing) { %> disabled<% } %>><span aria-hidden="true"><%= workspace.enabled ? 'On' : 'Off' %></span></button></div>
+      <button type="submit" class="switch" role="switch" aria-checked="<%= workspace.enabled %>"<% if (workspace.changing) { %> disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Enable simulation</button>
       <p class="muted"><% if (workspace.changing) { %>Switching workspace…<% } else if (workspace.enabled) { %>Simulation is on. Open displays are showing your sample workspace.<% } else { %>Simulation is off. Enable it to open your saved sample workspace.<% } %></p>
       <% if (workspace.enabled) { %><a class="button button--secondary" href="/admin/simulator">Open Simulator</a><% } %>
     </form>
@@ -33,11 +33,11 @@
   <section aria-labelledby="system-calculation-heading">
     <h2 id="system-calculation-heading">Calculation defaults</h2>
     <p>Fallback gravity is used when a beverage has no measured final gravity or density override. Serving size is used when that beverage has no pour-size override. Completed pour history stays unchanged.</p>
-    <form action="/admin/system/calculation" method="post" class="stack-form">
+    <form action="/admin/system/calculation" method="post" class="form form--wide">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <div class="auto-grid auto-grid--md">
-        <label>Fallback final gravity<input type="number" name="fallbackFg" min="0.5" max="2" step="any" required value="<%= it.system.calculation.fallbackFg %>" /></label>
-        <label>Default serving size (mL)<input type="number" name="servingSizeMl" min="0.001" step="any" required value="<%= it.system.calculation.servingSizeMl %>" /></label>
+        <label class="field">Fallback final gravity<input type="number" name="fallbackFg" min="0.5" max="2" step="any" required value="<%= it.system.calculation.fallbackFg %>" /></label>
+        <label class="field">Default serving size (mL)<input type="number" name="servingSizeMl" min="0.001" step="any" required value="<%= it.system.calculation.servingSizeMl %>" /></label>
       </div>
       <button class="button button--primary" type="submit">Save calculation defaults</button>
     </form>
@@ -46,11 +46,11 @@
   <section aria-labelledby="units-heading">
     <h2 id="units-heading">Units and readouts</h2>
     <p>How public displays show volumes and temperatures. A browser can still choose its own units on <a href="/admin/display/this-display">This display</a>.</p>
-    <form action="/admin/system/units" method="post" class="stack-form">
+    <form action="/admin/system/units" method="post" class="form form--wide">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedDisplayRevision" value="<%= it.system.display.revision %>" />
-      <label>Units <select name="unitSystem"><option value="us"<% if (it.system.display.unitSystem === "us") { %> selected<% } %>>US customary</option><option value="metric"<% if (it.system.display.unitSystem === "metric") { %> selected<% } %>>Metric</option></select></label>
-      <label class="switch-field">Serving temperature <input class="switch-input" type="checkbox" name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label>
+      <label class="field">Units <select name="unitSystem"><option value="us"<% if (it.system.display.unitSystem === "us") { %> selected<% } %>>US customary</option><option value="metric"<% if (it.system.display.unitSystem === "metric") { %> selected<% } %>>Metric</option></select></label>
+      <label class="switch"><input class="switch__control" type="checkbox" role="switch" name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %> />Serving temperature</label>
       <button class="button button--primary" type="submit">Save units</button>
     </form>
   </section>
@@ -62,9 +62,9 @@
         <article class="card" aria-labelledby="session-<%= session.id %>">
           <h3 id="session-<%= session.id %>"><%= session.current ? 'This session' : `Session ${session.id.slice(0, 8)}` %></h3>
           <dl class="key-value-list"><div><dt>Created</dt><dd><time datetime="<%= session.createdAt %>"><%= session.createdAt %></time></dd></div><div><dt>Last used</dt><dd><time datetime="<%= session.lastUsedAt %>"><%= session.lastUsedAt %></time></dd></div><div><dt>Expires</dt><dd><time datetime="<%= session.expiresAt %>"><%= session.expiresAt %></time></dd></div><div><dt>Absolute expiry</dt><dd><time datetime="<%= session.absoluteExpiresAt %>"><%= session.absoluteExpiresAt %></time></dd></div></dl>
-          <form action="/admin/system/sessions/<%= session.id %>/revoke" method="post" class="system-revoke-form">
+          <form action="/admin/system/sessions/<%= session.id %>/revoke" method="post" class="form system-revoke-form">
             <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-            <label class="checkbox-field"><input type="checkbox" name="confirm" value="revoke" required /> Confirm revocation<%= session.current ? ' of this session' : '' %></label>
+            <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="confirm" value="revoke" required /> Confirm revocation<%= session.current ? ' of this session' : '' %></label>
             <button type="submit" class="button button--secondary">Revoke <%= session.current ? 'this session' : 'session' %></button>
           </form>
         </article>
@@ -72,23 +72,23 @@
     </div>
     <h3>Session lifetimes</h3>
     <p>Both limits can be one minute to one year (525,600 minutes). Inactivity cannot exceed the absolute lifetime. Shortening applies immediately; lengthening preserves each existing session's original absolute deadline.</p>
-    <form action="/admin/system/session-policy" method="post" class="stack-form">
+    <form action="/admin/system/session-policy" method="post" class="form form--wide">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedRevision" value="<%= it.system.sessionPolicy.revision %>" />
       <div class="auto-grid auto-grid--md">
-        <label>Inactivity timeout (minutes)<input type="number" name="inactivityMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.inactivityMs / 60000 %>" /></label>
-        <label>Absolute lifetime (minutes)<input type="number" name="absoluteMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.absoluteMs / 60000 %>" /></label>
+        <label class="field">Inactivity timeout (minutes)<input type="number" name="inactivityMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.inactivityMs / 60000 %>" /></label>
+        <label class="field">Absolute lifetime (minutes)<input type="number" name="absoluteMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.absoluteMs / 60000 %>" /></label>
       </div>
       <button class="button button--primary" type="submit">Save session lifetimes</button>
     </form>
     <details class="disclosure"><summary>Change Admin PIN</summary>
       <p>Use exactly four ASCII digits. Changing the PIN signs out every Admin session.</p>
-      <form action="/admin/system/pin" method="post" class="stack-form" autocomplete="off">
+      <form action="/admin/system/pin" method="post" class="form form--wide" autocomplete="off">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <div class="auto-grid auto-grid--md">
-          <label>Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password" /></label>
-          <label>New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
-          <label>Confirm new PIN<input type="password" name="confirmPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
+          <label class="field">Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password" /></label>
+          <label class="field">New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
+          <label class="field">Confirm new PIN<input type="password" name="confirmPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
         </div>
         <button class="button button--primary" type="submit">Change PIN and sign out all sessions</button>
       </form>
@@ -97,16 +97,16 @@
   <section aria-labelledby="system-retention-heading">
     <h2 id="system-retention-heading">Retention</h2>
     <p>Automatic pruning uses small batches. Kegs, fills, completed pours, telemetry epochs, calibration, maintenance, deletion audits, and a Tap's first-use history remain protected. Queued and leased deliveries remain protected.</p>
-    <form action="/admin/system/retention" method="post" class="stack-form">
+    <form action="/admin/system/retention" method="post" class="form form--wide">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <div class="auto-grid auto-grid--md">
-        <label>Activity Log (days)<input type="number" name="activityDays" min="1" max="3650" step="1" required value="<%= it.system.retention.activity.retentionDays %>" /></label>
-        <label>Raw telemetry (seconds)<input type="number" name="rawSeconds" min="300" max="86400" step="1" required value="<%= it.system.retention.telemetry.rawRetentionSeconds %>" /></label>
-        <label>Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600" max="604800" step="1" required value="<%= it.system.retention.telemetry.receiptRetentionSeconds %>" /></label>
-        <label>Reconnect horizon (seconds)<input type="number" name="reconnectSeconds" min="60" max="86400" step="1" required value="<%= it.system.retention.telemetry.reconnectHorizonSeconds %>" /></label>
-        <label>Hourly reading history (days)<input type="number" name="hourlyRollupDays" min="1" max="365" step="1" required value="<%= it.system.retention.telemetry.hourlyRollupRetentionDays %>" /></label>
-        <label>Daily reading history (days)<input type="number" name="dailyRollupDays" min="1" max="3650" step="1" required value="<%= it.system.retention.telemetry.dailyRollupRetentionDays %>" /></label>
-        <label>Terminal outbound history (days)<input type="number" name="outboxDays" min="1" max="3650" step="1" required value="<%= it.system.retention.outbox.retentionDays %>" /></label>
+        <label class="field">Activity Log (days)<input type="number" name="activityDays" min="1" max="3650" step="1" required value="<%= it.system.retention.activity.retentionDays %>" /></label>
+        <label class="field">Raw telemetry (seconds)<input type="number" name="rawSeconds" min="300" max="86400" step="1" required value="<%= it.system.retention.telemetry.rawRetentionSeconds %>" /></label>
+        <label class="field">Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600" max="604800" step="1" required value="<%= it.system.retention.telemetry.receiptRetentionSeconds %>" /></label>
+        <label class="field">Reconnect horizon (seconds)<input type="number" name="reconnectSeconds" min="60" max="86400" step="1" required value="<%= it.system.retention.telemetry.reconnectHorizonSeconds %>" /></label>
+        <label class="field">Hourly reading history (days)<input type="number" name="hourlyRollupDays" min="1" max="365" step="1" required value="<%= it.system.retention.telemetry.hourlyRollupRetentionDays %>" /></label>
+        <label class="field">Daily reading history (days)<input type="number" name="dailyRollupDays" min="1" max="3650" step="1" required value="<%= it.system.retention.telemetry.dailyRollupRetentionDays %>" /></label>
+        <label class="field">Terminal outbound history (days)<input type="number" name="outboxDays" min="1" max="3650" step="1" required value="<%= it.system.retention.outbox.retentionDays %>" /></label>
       </div>
       <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon. Old raw measurements are pruned before their receipts. Reading history keeps hourly and daily minimum, maximum, mean and last values per Tap and metric after raw measurements are pruned.</p>
       <button class="button button--primary" type="submit">Save retention settings</button>
@@ -130,8 +130,8 @@
   </section>
   <section id="activity" aria-labelledby="system-activity-heading">
     <h2 id="system-activity-heading">Activity Log</h2>
-    <form action="/admin/system#activity" method="get" class="system-activity-filter">
-      <label>Activity category<select name="category"><option value="">All categories</option><% for (const category of ['security', 'admin', 'domain', 'integration', 'outbox', 'system']) { %><option value="<%= category %>"<% if (it.system.activity.category === category) { %> selected<% } %>><%= category[0].toUpperCase() + category.slice(1) %></option><% } %></select></label>
+    <form action="/admin/system#activity" method="get" class="form system-activity-filter">
+      <label class="field">Activity category<select name="category"><option value="">All categories</option><% for (const category of ['security', 'admin', 'domain', 'integration', 'outbox', 'system']) { %><option value="<%= category %>"<% if (it.system.activity.category === category) { %> selected<% } %>><%= category[0].toUpperCase() + category.slice(1) %></option><% } %></select></label>
       <button type="submit" class="button button--secondary">Filter Activity Log</button>
     </form>
     <% if (it.system.activity.items.length === 0) { %><p>No activity matches this view.</p><% } else { %>

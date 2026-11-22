@@ -39,8 +39,8 @@ test("Issue 79 outbound Admin forms are SSR-safe, disabled by default in setup, 
   const subscriptions = page.locator('input[type="checkbox"][name^="subscription_"]');
   await expect(subscriptions).toHaveCount(6);
   for (let index = 0; index < 6; index += 1) await expect(subscriptions.nth(index)).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^Required destination/u })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /^Enabled/u }).uncheck();
+  await expect(page.getByRole("switch", { name: /^Required destination/u })).not.toBeChecked();
+  await page.getByRole("switch", { name: /^Enabled/u }).uncheck();
   await page.getByRole("button", { name: "Create outbound destination" }).click();
   await expect(page).toHaveURL(/\/admin\/integrations\/outbound\?notice=/u);
   expect(await page.content()).not.toContain(TOKEN_SENTINEL);
@@ -54,8 +54,8 @@ test("Issue 79 outbound Admin forms are SSR-safe, disabled by default in setup, 
   await page.locator('input[name="secret_header_0_name"]').fill("X-Webhook-Secret");
   await page.locator('input[name="secret_header_0_slot"]').fill("issue-79-secret");
   await page.locator('input[name="secret_header_0_value"]').fill(HEADER_SENTINEL);
-  await expect(page.getByRole("checkbox", { name: /^Required destination/u })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /^Enabled/u }).uncheck();
+  await expect(page.getByRole("switch", { name: /^Required destination/u })).not.toBeChecked();
+  await page.getByRole("switch", { name: /^Enabled/u }).uncheck();
   await page.getByRole("button", { name: "Create outbound destination" }).click();
   await expect(page).toHaveURL(/\/admin\/integrations\/outbound\?notice=/u);
   const listHtml = await page.content();

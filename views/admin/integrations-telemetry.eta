@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <header class="page-header">
     <p class="eyebrow"><a href="/admin/integrations">Integrations</a> / Measurement sources</p>
     <h1>Telemetry</h1>
@@ -16,7 +16,7 @@
     </ol>
     <p>Endpoint: <code>POST /api/v1/telemetry/taps/{tapNumber}</code></p>
   </section>
-  <form class="admin-form admin-form--inline" method="get" action="/admin/integrations/telemetry" role="search"><label>Search sources <input type="search" name="q" value="<%= it.query || "" %>" maxlength="80" /></label><button class="button button--secondary button--small" type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry">Clear</a><% } %></form>
+  <form class="form" method="get" action="/admin/integrations/telemetry" role="search"><label class="field">Search sources <input type="search" name="q" value="<%= it.query || "" %>" maxlength="80" /></label><button class="button button--secondary button--small" type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry">Clear</a><% } %></form>
   <section aria-labelledby="active-telemetry-heading">
     <div class="header-row"><div><h2 id="active-telemetry-heading">Active sources</h2><p class="muted">Sources that can currently authenticate and report measurements.</p></div><a class="button button--primary button--small" href="#create-telemetry-source">Add source</a></div>
     <% if (it.activeSources.length === 0) { %><div class="empty-state"><h3>No active telemetry sources</h3><p>Create a source to issue the first machine key.</p></div><% } else { %>
@@ -35,10 +35,10 @@
   <section id="create-telemetry-source" aria-labelledby="create-telemetry-heading">
     <details class="disclosure">
       <summary><span><strong id="create-telemetry-heading">Create a telemetry source</strong><small>Issue a new machine key. The secret is shown exactly once.</small></span></summary>
-      <form action="/admin/integrations/telemetry-sources/create" method="post">
+      <form class="form" action="/admin/integrations/telemetry-sources/create" method="post">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <label>Source name <input name="name" maxlength="120" required /></label>
-        <label>Key label <input name="label" maxlength="120" /></label>
+        <label class="field">Source name <input name="name" maxlength="120" required /></label>
+        <label class="field">Key label <input name="label" maxlength="120" /></label>
         <button class="button button--primary" type="submit">Create source and show key</button>
       </form>
     </details>

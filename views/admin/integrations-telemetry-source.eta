@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <header class="page-header">
     <p class="eyebrow"><a href="/admin/integrations/telemetry">Telemetry</a> / Source</p>
     <h1><%= it.source.name %></h1>
@@ -27,7 +27,7 @@
       <details class="disclosure">
         <summary><span><strong id="source-key-actions-heading">Key actions</strong><small>Explicit actions issue a replacement secret or permanently disable this source.</small></span></summary>
         <div>
-          <form action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label>New key label <input name="label" maxlength="120" /></label><button class="button button--primary" type="submit">Rotate key and show replacement once</button></form>
+          <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">New key label <input name="label" maxlength="120" /></label><button class="button button--primary" type="submit">Rotate key and show replacement once</button></form>
           <form action="/admin/integrations/telemetry-sources/<%= it.source.id %>/disable" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--danger" type="submit">Disable source</button><p class="muted">A source assigned to any Tap must be unassigned before it can be disabled.</p></form>
         </div>
       </details>

@@ -137,7 +137,7 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   expect(resumed.sensors[0]!.online).toBe(false);
   expect(resumed.sensors[0]!.remainingMl).toBeCloseTo(first.remainingMl - 12 * 29.5735295625, 2);
   await page
-    .getByRole("checkbox", { name: "I want to replace my simulation and its history." })
+    .getByRole("switch", { name: "I want to replace my simulation and its history." })
     .check();
   await page.getByRole("button", { name: "Reset simulation", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("reset");
