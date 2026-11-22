@@ -14,7 +14,7 @@
       <label>Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
       <label>Show <select name="state"><option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option><option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option><option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option><option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option><option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option><option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option></select></label>
       <label>Sort <select name="sort"><option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option><option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option><option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option><option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
-      <button class="secondary button--small" type="submit">Apply</button>
+      <button class="button button--secondary button--small" type="submit">Apply</button>
     </form>
   </section>
   <% for (const section of it.sections) { %>
@@ -36,18 +36,18 @@
                   <td><%= fill.remainingEstimate %></td>
                   <td><div class="card-actions keg-room-table__actions">
                   <% if (fill.state === "available") { %>
-                    <form action="/admin/fills/<%= fill.id %>/on-deck" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="primary button--small" type="submit">Put On Deck</button></form>
+                    <form action="/admin/fills/<%= fill.id %>/on-deck" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary button--small" type="submit">Put On Deck</button></form>
                   <% } else if (fill.state === "on_deck") { %>
-                    <button class="secondary button--small" type="button" data-reorder-handle draggable="true" aria-label="Drag to reorder <%= fill.beverageName %>">☷ <span class="sr-only">Drag to reorder</span></button>
-                    <a class="button primary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Assign to a Tap</a>
+                    <button class="button button--secondary button--small" type="button" data-reorder-handle draggable="true" aria-label="Drag to reorder <%= fill.beverageName %>">☷ <span class="sr-only">Drag to reorder</span></button>
+                    <a class="button button--primary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Assign to a Tap</a>
                     <div class="reorder-actions" data-keg-room-reorder-controls>
-                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="secondary button--small" name="direction" value="up" type="submit">Move up</button></form>
-                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="secondary button--small" name="direction" value="down" type="submit">Move down</button></form>
+                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" name="direction" value="up" type="submit">Move up</button></form>
+                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" name="direction" value="down" type="submit">Move down</button></form>
                     </div>
                   <% } else if (fill.state === "on_tap") { %>
-                    <a class="button secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Open Filled Keg</a>
+                    <a class="button button--secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Open Filled Keg</a>
                   <% } else { %>
-                    <a class="button secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">View Filled Keg</a>
+                    <a class="button button--secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">View Filled Keg</a>
                   <% } %>
                   </div></td>
                 </tr>
@@ -58,5 +58,5 @@
       <% } %>
     </section>
   <% } %>
-  <% if (it.pagination.previousHref || it.pagination.nextHref) { %><nav class="pagination" aria-label="Keg Room pages"><% if (it.pagination.previousHref) { %><a class="button secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %><span>Page <%= it.pagination.page %> of <%= it.pagination.pageCount %></span><% if (it.pagination.nextHref) { %><a class="button secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %></nav><% } %>
+  <% if (it.pagination.previousHref || it.pagination.nextHref) { %><nav class="pagination" aria-label="Keg Room pages"><% if (it.pagination.previousHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %><span>Page <%= it.pagination.page %> of <%= it.pagination.pageCount %></span><% if (it.pagination.nextHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %></nav><% } %>
 </main>

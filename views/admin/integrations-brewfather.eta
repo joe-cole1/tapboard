@@ -23,7 +23,7 @@
         <label>User ID <input name="userId" autocomplete="off" maxlength="120" required /></label>
         <label>Replace API key <input name="apiKey" type="password" autocomplete="new-password" maxlength="256" /></label>
         <label>Enabled <select name="enabled"><option value="true"<% if (it.brewfather.enabled) { %> selected<% } %>>Enabled</option><option value="false"<% if (!it.brewfather.enabled) { %> selected<% } %>>Disabled</option></select></label>
-        <button type="submit">Save Brewfather configuration</button>
+        <button class="button button--primary" type="submit">Save Brewfather configuration</button>
       </form>
     </details>
   </section>
@@ -32,8 +32,8 @@
     <details class="admin-disclosure">
       <summary><span><strong id="brewfather-actions-heading">Maintenance</strong><small>Refresh imported data or remove the stored credential.</small></span></summary>
       <div>
-        <% if (it.brewfather.configured) { %><form action="/admin/integrations/brewfather/sync" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button type="submit">Refresh Brewfather now</button></form><% } %>
-        <% if (it.brewfather.apiKeyConfigured) { %><form action="/admin/integrations/brewfather/remove-key" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="danger" type="submit">Remove stored API key</button></form><% } %>
+        <% if (it.brewfather.configured) { %><form action="/admin/integrations/brewfather/sync" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary" type="submit">Refresh Brewfather now</button></form><% } %>
+        <% if (it.brewfather.apiKeyConfigured) { %><form action="/admin/integrations/brewfather/remove-key" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--danger" type="submit">Remove stored API key</button></form><% } %>
       </div>
     </details>
   </section>

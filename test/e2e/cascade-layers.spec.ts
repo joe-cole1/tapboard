@@ -1,41 +1,13 @@
 /// <reference lib="dom" />
 
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import { colours, signIn } from "./helpers.ts";
 
 // #187 moved the element defaults into the base cascade layer. Before that the generic
 // `button:hover:not(:disabled)` accent fill (specificity 0,2,1) beat every one-class button
 // rule, so Danger buttons turned amber on hover and the On Deck toggle's own hover never showed.
 // Nothing here saves settings, so other specs see unchanged state.
-
-async function signIn(page: Page): Promise<void> {
-  await page.goto("/admin/login");
-  await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
-  await expect(page).toHaveURL(/\/admin\/overview$/u);
-}
-
-/** The element's computed colours, and what each named role resolves to in its scope. */
-async function colours(
-  locator: Locator,
-  roles: readonly string[],
-): Promise<Record<string, string>> {
-  return locator.evaluate((node, names) => {
-    const probe = document.createElement("span");
-    node.parentElement!.append(probe);
-    const resolved: Record<string, string> = {};
-    for (const name of names) {
-      probe.style.color = `var(${name})`;
-      resolved[name] = getComputedStyle(probe).color;
-    }
-    probe.remove();
-    const style = getComputedStyle(node);
-    return {
-      background: style.backgroundColor,
-      color: style.color,
-      border: style.borderTopColor,
-      ...resolved,
-    };
-  }, roles);
-}
 
 test("Danger buttons stay red on hover", async ({ page }) => {
   await signIn(page);

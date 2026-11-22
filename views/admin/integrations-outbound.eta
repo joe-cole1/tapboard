@@ -16,8 +16,8 @@
     <div class="section-heading outbound-list-heading">
       <div><h2>Destinations</h2><p class="muted">Each destination keeps its own subscription and delivery history.</p></div>
       <div class="card-actions">
-        <a class="button secondary button--small" href="/admin/integrations/outbound/new?transport=home_assistant">Add Home Assistant</a>
-        <a class="button primary button--small" href="/admin/integrations/outbound/new?transport=webhook">Add webhook</a>
+        <a class="button button--secondary button--small" href="/admin/integrations/outbound/new?transport=home_assistant">Add Home Assistant</a>
+        <a class="button button--primary button--small" href="/admin/integrations/outbound/new?transport=webhook">Add webhook</a>
       </div>
     </div>
     <% if (it.destinations.length === 0) { %>
@@ -37,7 +37,7 @@
             </dl>
             <% if (destination.disabledReason) { %><p class="status-line"><strong>Disabled:</strong> <%= destination.disabledReason %></p><% } %>
             <% if (destination.failure) { %><p class="status-line"><strong>Last safe error:</strong> <code><%= destination.failure.code %></code> · <%= destination.failure.failureClass %></p><% } %>
-            <a class="button secondary button--small" href="/admin/integrations/outbound/<%= encodeURIComponent(destination.id) %>">Open destination</a>
+            <a class="button button--secondary button--small" href="/admin/integrations/outbound/<%= encodeURIComponent(destination.id) %>">Open destination</a>
           </article>
         <% } %>
       </section>

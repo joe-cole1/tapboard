@@ -3,19 +3,19 @@
     <a class="admin-brand" href="/"><%= it.page.siteName || "Tapboard" %></a>
     <span class="admin-header__context">Admin</span>
   </div>
-  <button class="admin-menu-toggle" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="false">Menu</button>
+  <button class="button admin-menu-toggle" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="false">Menu</button>
   <div class="admin-header__actions">
-    <a class="button secondary button--small admin-exit" href="/">Exit Admin</a>
+    <a class="button button--secondary button--small admin-exit" href="/">Exit Admin</a>
     <form class="logout-form" action="/admin/logout" method="post">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <button type="submit">Log out</button>
+      <button class="button button--primary" type="submit">Log out</button>
     </form>
   </div>
 </header>
 <aside id="admin-sidebar" class="admin-sidebar" data-admin-sidebar>
   <div class="admin-sidebar__controls">
-    <button class="admin-sidebar-toggle" type="button" data-admin-sidebar-toggle hidden aria-controls="admin-sidebar" aria-expanded="true">Hide menu</button>
-    <button class="admin-sidebar-close" type="button" data-admin-sidebar-close hidden>Close menu</button>
+    <button class="button admin-sidebar-toggle" type="button" data-admin-sidebar-toggle hidden aria-controls="admin-sidebar" aria-expanded="true">Hide menu</button>
+    <button class="button admin-sidebar-close" type="button" data-admin-sidebar-close hidden>Close menu</button>
   </div>
   <nav aria-label="Admin">
     <% const sourceItems = it.items?.length ? it.items : [

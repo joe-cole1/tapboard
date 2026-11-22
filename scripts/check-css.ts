@@ -29,6 +29,9 @@ export const IMPORTANT_ALLOWED: readonly {
   readonly property: string;
 }[] = [{ selector: "[hidden]", property: "display" }];
 
+/** The old bare button modifiers; `.button` takes `button--primary` and so on instead. */
+export const BARE_BUTTON_MODIFIERS: readonly string[] = ["primary", "secondary", "danger"];
+
 /** CSS named colours; `transparent` and `currentColor` are not literals. */
 const NAMED_COLOURS = new Set(
   (
@@ -81,7 +84,10 @@ export type CssRuleName =
   | "dynamic-class"
   | "colour-literal"
   | "important"
-  | "unlayered";
+  | "unlayered"
+  | "bare-button-modifier"
+  | "button-modifier"
+  | "unclassed-button";
 
 /** The cascade layers tokens.css declares, lowest priority first. */
 export const CASCADE_LAYERS: readonly string[] = ["tokens", "base", "components", "features"];
@@ -111,11 +117,17 @@ interface ClassUse {
   readonly name: string;
   readonly path: string;
   readonly line: number;
+  /** Classes from one class attribute or `className` value share a group; `classList` has none. */
+  readonly group?: number | undefined;
+  /** The conditional outcome a class came from; literal classes have none. */
+  readonly branch?: number | undefined;
 }
 
 interface Markup {
   readonly classes: ClassUse[];
   readonly dynamicPrefixes: ClassUse[];
+  /** The last group or branch number handed out in this run. */
+  serial: number;
 }
 
 const CLASS_TOKEN = /^-?[_a-zA-Z][\w-]*$/u;
@@ -329,13 +341,20 @@ interface Template {
 
 const EXPRESSION_MARK = "\u0001";
 
-function classTokens(template: Template, path: string, line: number, markup: Markup): void {
+function classTokens(
+  template: Template,
+  path: string,
+  line: number,
+  markup: Markup,
+  grouped = true,
+): void {
+  const group = grouped ? (markup.serial += 1) : undefined;
   const tokens = template.text.split(/\s+/u).filter(Boolean);
   let next = 0;
   for (const token of tokens) {
     const marks = token.split(EXPRESSION_MARK).length - 1;
     if (marks === 0) {
-      if (CLASS_TOKEN.test(token)) markup.classes.push({ name: token, path, line });
+      if (CLASS_TOKEN.test(token)) markup.classes.push({ name: token, path, line, group });
       continue;
     }
     const expressions = template.expressions.slice(next, next + marks);
@@ -348,8 +367,9 @@ function classTokens(template: Template, path: string, line: number, markup: Mar
         if (prefix !== "") markup.dynamicPrefixes.push({ name: prefix, path, line });
         continue;
       }
+      const branch = (markup.serial += 1);
       for (const name of `${prefix}${outcome}${suffix}`.split(/\s+/u).filter(Boolean))
-        if (CLASS_TOKEN.test(name)) markup.classes.push({ name, path, line });
+        if (CLASS_TOKEN.test(name)) markup.classes.push({ name, path, line, group, branch });
     }
   }
 }
@@ -418,15 +438,15 @@ function rightHandSide(text: string, start: number): string {
 
 function collectScriptClasses(file: SourceFile, markup: Markup): void {
   collectClassAttributes(file, markup);
-  const add = (expression: string, index: number): void => {
+  const add = (expression: string, index: number, grouped = true): void => {
     const line = lineAt(file.text, index);
     const value = expression.trim();
     if (value.startsWith("`")) {
       const { template } = readTemplate(value, 1, "`");
-      classTokens(template, file.path, line, markup);
+      classTokens(template, file.path, line, markup, grouped);
       return;
     }
-    classTokens({ text: EXPRESSION_MARK, expressions: [value] }, file.path, line, markup);
+    classTokens({ text: EXPRESSION_MARK, expressions: [value] }, file.path, line, markup, grouped);
   };
   // `element.className = …`, `{ className: … }`, `className: "a" | "b"` types, and the
   // `{ class: … }` attributes of elements a script builds.
@@ -440,16 +460,22 @@ function collectScriptClasses(file: SourceFile, markup: Markup): void {
     /\bclassList\.(?:add|remove|toggle|replace|contains)\(/gu,
   )) {
     const args = rightHandSide(file.text, match.index + match[0].length);
-    for (const literal of args.matchAll(/(["'`])([^"'`]*)\1/gu)) add(literal[0], match.index);
+    // Each argument edits an existing element's classes, so it is not a whole class list.
+    for (const literal of args.matchAll(/(["'`])([^"'`]*)\1/gu))
+      add(literal[0], match.index, false);
   }
   for (const match of file.text.matchAll(/setAttribute\(\s*["']class["']\s*,/gu))
     add(rightHandSide(file.text, match.index + match[0].length), match.index);
 }
 
+/** The text with Eta tags blanked: they hold JavaScript (`it.beverage.style === null`), not markup. */
+function withoutEta(text: string): string {
+  return text.replace(/<%[\s\S]*?%>/gu, (tag) => tag.replace(/[^\n]/gu, " "));
+}
+
 function inlineStyles(file: SourceFile): CssViolation[] {
   const violations: CssViolation[] = [];
-  // Eta tags hold JavaScript (`it.beverage.style === null`), not markup.
-  const markup = file.text.replace(/<%[\s\S]*?%>/gu, (tag) => tag.replace(/[^\n]/gu, " "));
+  const markup = withoutEta(file.text);
   for (const match of markup.matchAll(/<style[\s>]|<[a-zA-Z][^>]*?(?<![\w:.-])style\s*=/gu)) {
     const element = match[0].startsWith("<style");
     violations.push({
@@ -461,6 +487,51 @@ function inlineStyles(file: SourceFile): CssViolation[] {
         : "a style attribute; use a class (the CSP is style-src 'self')",
     });
   }
+  return violations;
+}
+
+/** A `<button>` written in markup with no class: the base layer no longer styles bare buttons. */
+function unclassedButtons(file: SourceFile): CssViolation[] {
+  return [...withoutEta(file.text).matchAll(/<button\b[^>]*>/gu)]
+    .filter((match) => !/(?<![\w:.-])class\s*=/u.test(match[0]))
+    .map((match) => ({
+      rule: "unclassed-button",
+      path: file.path,
+      line: lineAt(file.text, match.index),
+      message:
+        "a <button> with no class; give it `button` and a modifier, or a component class that styles it",
+    }));
+}
+
+/** Bare button modifiers, and `button--*` modifiers without `button` in the same class list. */
+function buttonClassViolations(classes: readonly ClassUse[]): CssViolation[] {
+  const violations: CssViolation[] = [];
+  const groups = new Map<number, ClassUse[]>();
+  for (const use of classes) {
+    if (BARE_BUTTON_MODIFIERS.includes(use.name))
+      violations.push({
+        rule: "bare-button-modifier",
+        path: use.path,
+        line: use.line,
+        message: `\`${use.name}\` is a bare button modifier; use \`button button--${use.name}\``,
+      });
+    if (use.group !== undefined) groups.set(use.group, [...(groups.get(use.group) ?? []), use]);
+  }
+  for (const uses of groups.values())
+    for (const modifier of uses.filter((use) => use.name.startsWith("button--"))) {
+      // `button` counts when it is always present, or comes from the modifier's own branch.
+      const paired = uses.some(
+        (use) =>
+          use.name === "button" && (use.branch === undefined || use.branch === modifier.branch),
+      );
+      if (!paired)
+        violations.push({
+          rule: "button-modifier",
+          path: modifier.path,
+          line: modifier.line,
+          message: `\`${modifier.name}\` needs \`button\` in the same class list`,
+        });
+    }
   return violations;
 }
 
@@ -517,11 +588,15 @@ function ruleViolations(sheet: SourceFile, rule: StyleRule): CssViolation[] {
 }
 
 export function checkCss(input: CssCheckInput): CssViolation[] {
-  const violations: CssViolation[] = input.views.flatMap(inlineStyles);
+  const violations: CssViolation[] = [
+    ...input.views.flatMap(inlineStyles),
+    ...[...input.views, ...input.scripts].flatMap(unclassedButtons),
+  ];
 
-  const markup: Markup = { classes: [], dynamicPrefixes: [] };
+  const markup: Markup = { classes: [], dynamicPrefixes: [], serial: 0 };
   for (const view of input.views) collectClassAttributes(view, markup);
   for (const script of input.scripts) collectScriptClasses(script, markup);
+  violations.push(...buttonClassViolations(markup.classes));
 
   const defined = new Set<string>();
   for (const sheet of [...input.stylesheets, ...input.generatedStylesheets])

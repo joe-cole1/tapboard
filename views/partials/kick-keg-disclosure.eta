@@ -4,6 +4,6 @@
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>" />
     <label>Reason <input name="reason" maxlength="255" /></label>
     <%~ include("/partials/kick-confirmation") %>
-    <button class="danger button--small" type="submit">Kick Keg</button>
+    <button class="button button--danger button--small" type="submit">Kick Keg</button>
   </form>
 </details>

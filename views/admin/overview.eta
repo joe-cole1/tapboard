@@ -29,7 +29,7 @@
   </section>
 
   <section aria-labelledby="tap-summary-heading">
-    <div class="section-heading"><div><p class="eyebrow">Live assignments</p><h2 id="tap-summary-heading">Taps and current assignments</h2></div><a class="button secondary button--small" href="/admin/taps">Manage Taps</a></div>
+    <div class="section-heading"><div><p class="eyebrow">Live assignments</p><h2 id="tap-summary-heading">Taps and current assignments</h2></div><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div>
     <% if (it.taps.length === 0) { %>
       <p class="empty-state">No Taps are configured yet. <a href="/admin/taps">Add a Tap</a>.</p>
     <% } else { %>
@@ -41,14 +41,14 @@
 
   <% const kegRoom = it.kegRoom || { activeKegs: 0, onTap: 0, onDeck: 0, available: 0, href: "/admin/keg-room" }; %>
   <section aria-labelledby="keg-room-heading">
-    <div class="section-heading"><div><p class="eyebrow">Inventory snapshot</p><h2 id="keg-room-heading">Keg Room</h2></div><a class="button secondary button--small" href="/admin/keg-room">Open Keg Room</a></div>
+    <div class="section-heading"><div><p class="eyebrow">Inventory snapshot</p><h2 id="keg-room-heading">Keg Room</h2></div><a class="button button--secondary button--small" href="/admin/keg-room">Open Keg Room</a></div>
     <div class="summary-grid summary-link-grid">
       <a class="summary-card summary-card--link" href="/admin/keg-room/kegs?status=active"><span class="summary-card__label">Active kegs</span><strong class="summary-card__value"><%= kegRoom.activeKegs %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=on_tap"><span class="summary-card__label">On tap</span><strong class="summary-card__value"><%= kegRoom.onTap %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=on_deck"><span class="summary-card__label">On deck</span><strong class="summary-card__value"><%= kegRoom.onDeck %></strong></a><a class="summary-card summary-card--link" href="/admin/keg-room?state=available"><span class="summary-card__label">Available fills</span><strong class="summary-card__value"><%= kegRoom.available %></strong></a>
     </div>
   </section>
 
   <section aria-labelledby="connectivity-heading">
-    <div class="section-heading"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
+    <div class="section-heading"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button button--secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
     <p class="status-line"><span class="status-badge status-badge--<%= it.connectivity.state === "disconnected" ? "critical" : it.connectivity.state === "healthy" ? "healthy" : "degraded" %>"><%= it.connectivity.label %></span></p>
     <dl class="summary-grid"><div><dt>Telemetry sources</dt><dd><%= it.integrations.telemetryConfigured %></dd></div><div><dt>Brewfather</dt><dd><%= it.integrations.brewfatherConfigured ? (it.integrations.brewfatherEnabled ? (it.integrations.brewfatherApiKeyConfigured ? "Enabled" : "API key required") : "Disabled") : "Not configured" %></dd></div><div><dt>Linked beverages</dt><dd><%= it.integrations.brewfatherLinkedBeverages %></dd></div></dl>
   </section>

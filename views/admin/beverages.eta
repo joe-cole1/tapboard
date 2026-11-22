@@ -12,21 +12,21 @@
       <h2 id="beverage-library-heading">Beverage library</h2>
       <p class="muted"><%= it.pagination.total %> beverage<%= it.pagination.total === 1 ? "" : "s" %></p>
     </div>
-    <a class="button primary button--small" href="/admin/beverages/new">Add beverage</a>
+    <a class="button button--primary button--small" href="/admin/beverages/new">Add beverage</a>
   </section>
   <form class="admin-search" method="get" action="/admin/beverages" role="search">
     <label for="beverage-search">Search by name, style, type, or source</label>
     <div class="admin-search__controls">
       <input id="beverage-search" name="q" type="search" value="<%= it.query %>" maxlength="80" />
-      <button type="submit">Search</button>
-      <% if (it.query) { %><a class="button secondary button--small" href="/admin/beverages">Clear</a><% } %>
+      <button class="button button--primary" type="submit">Search</button>
+      <% if (it.query) { %><a class="button button--secondary button--small" href="/admin/beverages">Clear</a><% } %>
     </div>
   </form>
   <% if (it.beverages.length === 0) { %>
     <section class="empty-state admin-card" aria-labelledby="beverage-empty-heading">
       <h2 id="beverage-empty-heading"><%= it.query ? "No matching beverages" : "Your beverage library is empty" %></h2>
       <p><%= it.query ? "Try a different search or clear the filter." : "Create a custom beverage to start building the library." %></p>
-      <a class="button primary button--small" href="/admin/beverages/new"><%= it.query ? "Add a beverage" : "Create the first beverage" %></a>
+      <a class="button button--primary button--small" href="/admin/beverages/new"><%= it.query ? "Add a beverage" : "Create the first beverage" %></a>
     </section>
   <% } else { %>
     <div class="table-scroll">
@@ -54,9 +54,9 @@
     </div>
     <% if (it.pagination.pageCount > 1) { %>
       <nav class="pagination" aria-label="Beverage pages">
-        <% if (it.pagination.previousHref) { %><a class="button secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %>
+        <% if (it.pagination.previousHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %>
         <span>Page <%= it.pagination.page %> of <%= it.pagination.pageCount %></span>
-        <% if (it.pagination.nextHref) { %><a class="button secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %>
+        <% if (it.pagination.nextHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %>
       </nav>
     <% } %>
   <% } %>
@@ -66,7 +66,7 @@
         <summary><span><strong id="brewfather-candidates-heading">Unlinked Brewfather batches</strong><small>Link a cached batch only when you are ready to manage it here.</small></span></summary>
         <div class="resource-list">
           <% for (const candidate of it.brewfatherCandidates) { %>
-            <article class="resource-card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="secondary" type="submit">Link as beverage</button></form></article>
+            <article class="resource-card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>
           <% } %>
         </div>
       </details>

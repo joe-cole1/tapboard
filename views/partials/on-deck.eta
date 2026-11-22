@@ -6,5 +6,5 @@
       <% for (let index = 0; index < it.onDeck.items.length; index += 1) { const item = it.onDeck.items[index]; %><li data-fill-id="<%= item.fillId %>"><span class="on-deck-number" aria-hidden="true"><%= index + 1 %></span><span><strong><%= item.name %></strong><% if (item.style) { %> — <span><%= item.style %></span><% } %></span></li><% } %>
     </ol>
   </div>
-  <button class="on-deck-toggle" data-on-deck-toggle type="button" aria-label="Pause On Deck scrolling" aria-pressed="false" hidden>Pause</button>
+  <button class="button on-deck-toggle" data-on-deck-toggle type="button" aria-label="Pause On Deck scrolling" aria-pressed="false" hidden>Pause</button>
 </footer>
