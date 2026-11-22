@@ -1,6 +1,7 @@
 /*
  * Element defaults. They sit in the base layer, below every class, until #181 replaces the
- * opinionated form, table and button styles with opt-in classes.
+ * opinionated form and table styles with opt-in classes. Buttons look like buttons only
+ * through `.button`; a bare <button> keeps just the reset below.
  */
 @layer base {
   table {
@@ -26,8 +27,7 @@
   }
   input,
   select,
-  textarea,
-  button {
+  textarea {
     max-width: 100%;
     padding: var(--space-2-5) var(--space-3);
     border: 1px solid var(--control-border);
@@ -49,16 +49,7 @@
     resize: vertical;
   }
   button {
-    width: fit-content;
-    border-color: transparent;
-    background: var(--accent);
-    color: var(--on-accent);
-    font-weight: var(--weight-strong);
     cursor: pointer;
-  }
-  button:hover:not(:disabled) {
-    background: var(--accent-hover);
-    color: var(--on-accent-hover);
   }
   details {
     margin-block: var(--space-2-5);
@@ -81,6 +72,53 @@
   }
   .skip-link:focus {
     top: 1rem;
+  }
+  /*
+   * The one button API, for <a>, <button> and <summary> on Admin and public pages. `.button`
+   * alone is the neutral look; add one of --primary, --secondary or --danger, and --small.
+   */
+  .button {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2-5) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    text-decoration: none;
+  }
+  .button:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--accent-hover);
+    color: var(--on-accent-hover);
+  }
+  .button--primary {
+    border-color: transparent;
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .button--secondary:hover:not(:disabled) {
+    border-color: var(--accent-strong);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
+    color: var(--text);
+  }
+  .button--danger,
+  .button--danger:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--danger);
+    color: var(--on-danger);
+  }
+  .button--small {
+    min-height: 2.1rem;
+    padding: var(--space-1-5) var(--space-2-5);
+    font-size: var(--text-compact);
+  }
+  summary.button::-webkit-details-marker {
+    display: none;
   }
   .sr-only {
     position: absolute;
@@ -117,7 +155,7 @@
     text-decoration: none;
   }
   .public-brand:focus-visible,
-  .public-settings-link:focus-visible,
+  .public-header .button:focus-visible,
   .connectivity:focus-visible {
     outline: 2px solid var(--accent-strong);
     outline-offset: 4px;
@@ -129,22 +167,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3) var(--space-5);
-  }
-  .public-settings-link {
-    display: inline-flex;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--accent-readable);
-    font-weight: var(--weight-strong);
-    text-decoration: none;
-  }
-  .public-settings-link:hover {
-    background: var(--surface-raised);
-    border-color: var(--accent-readable);
   }
   .eyebrow,
   .meta {
@@ -210,10 +232,6 @@
   }
   .error {
     border-left-color: var(--danger);
-  }
-  button.danger {
-    background: var(--danger);
-    color: var(--on-danger);
   }
   .resource-list {
     display: grid;

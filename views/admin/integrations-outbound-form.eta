@@ -73,7 +73,7 @@
   </fieldset>
 
   <div class="form-actions">
-    <button class="primary" type="submit"><%= editing ? "Save outbound destination" : "Create outbound destination" %></button>
-    <a class="button secondary" href="<%= editing ? `/admin/integrations/outbound/${encodeURIComponent(it.destination.id)}` : "/admin/integrations/outbound" %>">Cancel</a>
+    <button class="button button--primary" type="submit"><%= editing ? "Save outbound destination" : "Create outbound destination" %></button>
+    <a class="button button--secondary" href="<%= editing ? `/admin/integrations/outbound/${encodeURIComponent(it.destination.id)}` : "/admin/integrations/outbound" %>">Cancel</a>
   </div>
 </form>

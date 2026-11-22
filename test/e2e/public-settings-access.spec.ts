@@ -2,6 +2,7 @@
 
 import { expect, test as base } from "@playwright/test";
 import type { PublicDashboardView } from "../../src/features/dashboard/types.ts";
+import { colours } from "./helpers.ts";
 
 interface TapVisibility {
   readonly tapIds: readonly string[];
@@ -90,6 +91,11 @@ test("mobile Settings reaches PIN, System and simulation controls from an empty 
       emptyState.getByRole("heading", { name: "No taps to display", exact: true }),
     ).toBeVisible();
     await expect(emptyState).toContainText("Admin");
+    // Both Settings links are the shared secondary button (#181).
+    const openSettings = emptyState.getByRole("link", { name: "Open settings", exact: true });
+    const openSettingsLook = await colours(openSettings, ["--surface-raised"]);
+    expect(openSettingsLook.background).toBe(openSettingsLook["--surface-raised"]);
+    expect(openSettingsLook).toEqual(await colours(settings, ["--surface-raised"]));
     await expect(page.locator(".connectivity")).toContainText("Disconnected");
     await expect(page.locator(".public-header")).toHaveAttribute(
       "data-connectivity",

@@ -2,6 +2,6 @@
   <h1><a class="public-brand" href="/"><%= it.header.tapboardName %></a></h1>
   <div class="public-header-actions">
     <a class="connectivity" href="/admin"><span aria-hidden="true"></span><span data-connectivity-label><%= it.header.connectivityLabel %></span><span class="sr-only"> Open administration</span></a>
-    <a class="public-settings-link" href="/admin/system">Settings</a>
+    <a class="button button--secondary" href="/admin/system">Settings</a>
   </div>
 </header>

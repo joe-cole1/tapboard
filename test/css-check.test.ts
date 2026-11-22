@@ -286,6 +286,47 @@ void test("!important outside the allow-list fails", () => {
   );
 });
 
+void test("buttons use .button with its modifiers, and every <button> has a class", () => {
+  assert.deepEqual(
+    check({
+      stylesheets: layered({
+        "public/css/app.css": [
+          ".button, .button--primary, .button--secondary, .button--danger { margin: 0; }",
+          ".button--small, .secondary, .switch { margin: 0; }",
+        ].join("\n"),
+      }),
+      views: files({
+        "views/page.eta": [
+          '<button class="button button--primary" type="submit">Save</button>',
+          '<a class="secondary" href="/x">Back</a>',
+          '<button type="submit"<% if (it.busy) { %> disabled<% } %>>Go</button>',
+          '<summary class="button--small">More</summary>',
+          '<button type="button"<% if (it.on) { %> aria-checked="true"<% } %> class="switch">On</button>',
+          '<a class="button <%= it.risky ? "button--danger" : "button--secondary" %>" href="/y">Y</a>',
+          '<a class="<%= it.on ? "button button--primary" : "button--danger" %>" href="/z">Z</a>',
+          '<a class="<%= it.on ? "button button--primary" : "button button--danger" %>">Z</a>',
+        ].join("\n"),
+      }),
+      scripts: files({
+        "public/js/app.js": [
+          'undo.className = "button button--secondary";',
+          'remove.className = "button--danger";',
+          'node.classList.add("button--small");',
+          'legacy.className = "secondary";',
+        ].join("\n"),
+      }),
+    }),
+    [
+      { rule: "button-modifier", path: "public/js/app.js", line: 2 },
+      { rule: "bare-button-modifier", path: "public/js/app.js", line: 4 },
+      { rule: "bare-button-modifier", path: "views/page.eta", line: 2 },
+      { rule: "unclassed-button", path: "views/page.eta", line: 3 },
+      { rule: "button-modifier", path: "views/page.eta", line: 4 },
+      { rule: "button-modifier", path: "views/page.eta", line: 7 },
+    ],
+  );
+});
+
 void test("classes defined only by the generated display stylesheet count as defined", () => {
   const generated = readCheckout(repositoryRoot).generatedStylesheets.flatMap((sheet) =>
     parseStylesheet(sheet.text).flatMap((rule) => selectorClasses(rule.selector)),

@@ -15,66 +15,10 @@
   .admin-shell h1 {
     margin-bottom: var(--space-2);
   }
-  .admin-shell a.button,
-  .admin-shell a.primary,
-  .admin-shell a.secondary {
-    display: inline-flex;
-    width: fit-content;
-    min-height: 2.5rem;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-2-5) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-    color: var(--text);
-    font-weight: var(--weight-strong);
-    text-decoration: none;
-  }
-  .admin-shell a.button:hover,
-  .admin-shell a.primary:hover {
-    border-color: transparent;
-    background: var(--accent-hover);
-    color: var(--on-accent-hover);
-  }
-  .admin-shell a.secondary:hover {
-    border-color: var(--accent-strong);
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
-    color: var(--text);
-  }
-  .admin-shell a.button:focus-visible,
-  .admin-shell a.primary:focus-visible,
-  .admin-shell a.secondary:focus-visible,
-  .admin-shell button:focus-visible {
+  /* Admin's own focus ring for buttons: closer than the base one. */
+  .admin-shell :is(button, .button):focus-visible {
     outline: 3px solid var(--accent-strong);
     outline-offset: 2px;
-  }
-  .admin-shell a.button.primary,
-  .admin-shell a.primary {
-    border-color: transparent;
-    background: var(--accent);
-    color: var(--on-accent);
-  }
-  .admin-shell a.button.secondary,
-  .admin-shell a.secondary,
-  .admin-shell a.button--secondary,
-  .admin-shell button.secondary,
-  .admin-shell button.button--secondary {
-    border-color: var(--border);
-    background: var(--surface-raised);
-    color: var(--text);
-  }
-  .admin-shell button.secondary:hover:not(:disabled),
-  .admin-shell button.button--secondary:hover:not(:disabled) {
-    border-color: var(--accent-strong);
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-raised));
-    color: var(--text);
-  }
-  .admin-shell a.button--small,
-  .admin-shell button.button--small {
-    min-height: 2.1rem;
-    padding: var(--space-1-5) var(--space-2-5);
-    font-size: var(--text-compact);
   }
   .page-actions,
   .card-actions,
@@ -422,19 +366,6 @@
     overflow-wrap: anywhere;
     color: var(--text);
     font-size: var(--text-body);
-  }
-  .admin-menu-toggle,
-  .admin-sidebar-toggle,
-  .admin-sidebar-close {
-    width: fit-content;
-    border: 1px solid var(--border);
-    background: var(--surface-raised);
-    color: var(--text);
-  }
-  /* The base layer's button hover no longer beats the rule above, so it is restated here. */
-  :is(.admin-menu-toggle, .admin-sidebar-toggle, .admin-sidebar-close):hover:not(:disabled) {
-    background: var(--accent-hover);
-    color: var(--on-accent-hover);
   }
   .admin-menu-toggle {
     display: none;
@@ -960,19 +891,11 @@
     white-space: nowrap;
     border: 0;
   }
-  .pin-keypad button {
+  .pin-keypad .button {
     width: 100%;
     min-height: 3rem;
-    background: var(--surface-raised);
-    color: var(--text);
-    border-color: var(--border);
   }
-  /* The base layer's button hover no longer beats the rule above, so it is restated here. */
-  .pin-keypad button:hover:not(:disabled) {
-    background: var(--accent-hover);
-    color: var(--on-accent-hover);
-  }
-  .pin-keypad + button[type="submit"] {
+  .pin-keypad + .button {
     margin-inline: auto;
   }
   /* Later than .admin-shell > .admin-header, at the same specificity. */
@@ -1140,8 +1063,8 @@
     border-radius: 2rem;
     background: var(--surface);
     color: var(--muted);
+    font-weight: var(--weight-strong);
   }
-  /* Keep the Off look on hover; the shared button hover would paint it like On. */
   .simulation-switch:hover:not(:disabled, [aria-checked="true"]),
   .tap-wars-mystery__switch:hover:not(:disabled, [aria-checked="true"]) {
     background: var(--surface-raised);

@@ -1,41 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { closeCurrentWar, startWar } from "./helpers.ts";
+
 /** Signs in with JavaScript off, where the PIN form is submitted with its button. */
 async function login(page: Page): Promise<void> {
   await page.goto("/admin");
   await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/admin\/overview$/u);
-}
-
-async function closeCurrentWar(page: Page): Promise<void> {
-  await page.goto("/admin/tap-wars");
-  const stop = page.getByRole("button", { name: "Stop Tap War" });
-  if (await stop.count()) {
-    await stop.click();
-    await expect(page.getByRole("heading", { name: "Published result" })).toBeVisible();
-  }
-  const dismiss = page.getByRole("button", { name: "Dismiss public result" });
-  if (await dismiss.count()) {
-    await dismiss.click();
-    await expect(page.getByRole("heading", { name: "Start a Tap War" })).toBeVisible();
-  }
-}
-
-async function startWar(page: Page): Promise<void> {
-  await page.goto("/admin/tap-wars");
-  const form = page.locator("[data-tap-wars-start]");
-  const selects = form.locator("[data-tap-wars-selector]");
-  for (const [index, tapNumber] of [4, 5].entries()) {
-    const value = await selects
-      .nth(index)
-      .locator(`option[data-tap-number="${tapNumber}"]`)
-      .getAttribute("value");
-    if (value === null) throw new Error(`Expected fixture Tap ${tapNumber}.`);
-    await selects.nth(index).selectOption(value);
-  }
-  await form.getByRole("button", { name: "Start Tap War" }).click();
-  await expect(page.getByRole("heading", { name: "Current Tap War" })).toBeVisible();
 }
 
 async function publicTitles(page: Page): Promise<readonly string[]> {

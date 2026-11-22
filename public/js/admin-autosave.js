@@ -209,7 +209,7 @@ function ensureUndoButton(form, state) {
   if (!output) return null;
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "autosave-undo secondary";
+  button.className = "autosave-undo button button--secondary";
   button.hidden = true;
   button.textContent = "Undo";
   button.addEventListener("click", () => {

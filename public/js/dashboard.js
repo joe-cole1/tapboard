@@ -851,6 +851,7 @@ function createTapWarsCardControls(war, side) {
     input.value = String(side.side);
     const button = document.createElement("button");
     button.type = "submit";
+    button.className = "button button--primary";
     text(button, "Vote for this tap");
     const live = document.createElement("span");
     live.className = "tap-wars-vote-feedback";

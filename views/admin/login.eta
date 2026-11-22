@@ -19,11 +19,11 @@
     <span class="sr-only" data-pin-live aria-live="polite">0 of 4 digits entered</span>
     <input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="[0-9]{4}" minlength="4" maxlength="4" required data-pin-input />
     <fieldset class="pin-keypad" data-pin-keypad><legend class="sr-only">PIN keypad</legend>
-      <button type="button" data-pin-key="1">1</button><button type="button" data-pin-key="2">2</button><button type="button" data-pin-key="3">3</button>
-      <button type="button" data-pin-key="4">4</button><button type="button" data-pin-key="5">5</button><button type="button" data-pin-key="6">6</button>
-      <button type="button" data-pin-key="7">7</button><button type="button" data-pin-key="8">8</button><button type="button" data-pin-key="9">9</button>
-      <button type="button" data-pin-action="clear">Clear</button><button type="button" data-pin-key="0">0</button><button type="button" data-pin-action="backspace" aria-label="Backspace">⌫</button>
+      <button class="button" type="button" data-pin-key="1">1</button><button class="button" type="button" data-pin-key="2">2</button><button class="button" type="button" data-pin-key="3">3</button>
+      <button class="button" type="button" data-pin-key="4">4</button><button class="button" type="button" data-pin-key="5">5</button><button class="button" type="button" data-pin-key="6">6</button>
+      <button class="button" type="button" data-pin-key="7">7</button><button class="button" type="button" data-pin-key="8">8</button><button class="button" type="button" data-pin-key="9">9</button>
+      <button class="button" type="button" data-pin-action="clear">Clear</button><button class="button" type="button" data-pin-key="0">0</button><button class="button" type="button" data-pin-action="backspace" aria-label="Backspace">⌫</button>
     </fieldset>
-    <button type="submit">Sign in</button>
+    <button class="button button--primary" type="submit">Sign in</button>
   </form>
 </main>
