@@ -1,17 +1,17 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content" class="display-settings-page">
+<main id="main-content">
   <header class="page-header"><p class="eyebrow"><a href="/admin/display">Display</a> / Default theme</p><h1>Default theme</h1><p>Every display uses these settings unless a browser chooses its own on <a href="/admin/display/this-display">This display</a>.</p></header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <div class="display-editor">
-    <section class="admin-card display-preview-card display-editor__preview" aria-labelledby="display-preview-heading">
-      <div class="section-heading"><div><h2 id="display-preview-heading">Preview</h2><p class="muted">The same Tap card guests see on the public display.</p></div></div>
+    <section class="card display-preview-card display-editor__preview" aria-labelledby="display-preview-heading">
+      <div class="header-row"><div><h2 id="display-preview-heading">Preview</h2><p class="muted">The same Tap card guests see on the public display.</p></div></div>
       <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.sharedDisplay.theme %>" data-preview-accent="<%= it.sharedDisplay.accent %>" data-preview-font="<%= it.sharedDisplay.font %>" data-preview-unit-system="<%= it.sharedDisplay.unitSystem %>" data-preview-show-serving-temperature="<%= it.sharedDisplay.showServingTemperature %>">
         <%~ include("/partials/tap-card", { tap: it.previewTap, sharedDisplay: { ...it.sharedDisplay, remainingMode: it.tapCardSettings?.remainingMode || "percent" }, previewMetricCatalog: it.previewMetricCatalog }) %>
       </div>
     </section>
     <div class="display-editor__settings">
-      <section class="admin-card" aria-labelledby="default-theme-heading">
+      <section aria-labelledby="default-theme-heading">
         <h2 id="default-theme-heading">Look and feel</h2>
         <form class="display-settings-form" data-shared-display-form action="/admin/display/shared" method="post">
           <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
@@ -25,7 +25,7 @@
           <div class="form-actions"><button class="button button--primary" type="submit">Save Default Theme</button></div>
         </form>
       </section>
-      <% if (it.tapCardSettings) { %><section class="admin-card" id="tap-card-settings" aria-labelledby="tap-card-settings-heading"><h2 id="tap-card-settings-heading">Tap-card metrics</h2><p>These defaults control what public cards show. A Tap can override metric visibility on its own detail page.</p><form class="display-settings-form" action="/admin/display/tap-card" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="expectedRevision" value="<%= it.tapCardSettings.revision %>" /><fieldset><legend>Metrics shown</legend><div class="switch-grid"><% for (const metric of [["showAbv","ABV"],["showIbu","IBU"],["showOg","OG"],["showFg","FG"],["showSrm","SRM"]]) { %><label class="switch-field"><%= metric[1] %><input class="switch-input" type="checkbox" name="<%= metric[0] %>" value="true"<% if (it.tapCardSettings[metric[0]]) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label><% } %></div></fieldset><label>Remaining display <select name="remainingMode"><option value="percent"<% if (it.tapCardSettings.remainingMode === "percent") { %> selected<% } %>>% remaining</option><option value="pints"<% if (it.tapCardSettings.remainingMode === "pints") { %> selected<% } %>>Pints remaining</option><option value="pours"<% if (it.tapCardSettings.remainingMode === "pours") { %> selected<% } %>>Pours remaining</option><option value="volume"<% if (it.tapCardSettings.remainingMode === "volume") { %> selected<% } %>>Volume</option></select></label><button class="button button--primary" type="submit">Save Tap-card settings</button></form></section><% } %>
+      <% if (it.tapCardSettings) { %><section id="tap-card-settings" aria-labelledby="tap-card-settings-heading"><h2 id="tap-card-settings-heading">Tap-card metrics</h2><p>These defaults control what public cards show. A Tap can override metric visibility on its own detail page.</p><form class="display-settings-form" action="/admin/display/tap-card" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="expectedRevision" value="<%= it.tapCardSettings.revision %>" /><fieldset><legend>Metrics shown</legend><div class="auto-grid auto-grid--xs"><% for (const metric of [["showAbv","ABV"],["showIbu","IBU"],["showOg","OG"],["showFg","FG"],["showSrm","SRM"]]) { %><label class="switch-field"><%= metric[1] %><input class="switch-input" type="checkbox" name="<%= metric[0] %>" value="true"<% if (it.tapCardSettings[metric[0]]) { %> checked<% } %> /><span class="switch-track" aria-hidden="true"></span></label><% } %></div></fieldset><label>Remaining display <select name="remainingMode"><option value="percent"<% if (it.tapCardSettings.remainingMode === "percent") { %> selected<% } %>>% remaining</option><option value="pints"<% if (it.tapCardSettings.remainingMode === "pints") { %> selected<% } %>>Pints remaining</option><option value="pours"<% if (it.tapCardSettings.remainingMode === "pours") { %> selected<% } %>>Pours remaining</option><option value="volume"<% if (it.tapCardSettings.remainingMode === "volume") { %> selected<% } %>>Volume</option></select></label><button class="button button--primary" type="submit">Save Tap-card settings</button></form></section><% } %>
     </div>
   </div>
 </main>

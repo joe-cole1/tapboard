@@ -70,7 +70,7 @@ test("Issue 80 System supports no-JS save, Activity filtering, selected/self rev
 
     await login(selectedPage);
     await selectedPage.goto("/admin/system");
-    const selectedArticle = selectedPage.locator(".system-session").filter({
+    const selectedArticle = selectedPage.getByRole("article").filter({
       has: selectedPage.getByRole("heading", { name: "This session", exact: true }),
     });
     const selectedAction = await selectedArticle.locator("form").getAttribute("action");
@@ -156,7 +156,7 @@ test("Issue 80 System supports no-JS save, Activity filtering, selected/self rev
 
     await restoreSettings(page, original);
     restoreNeeded = false;
-    const currentArticle = page.locator(".system-session").filter({
+    const currentArticle = page.getByRole("article").filter({
       has: page.getByRole("heading", { name: "This session", exact: true }),
     });
     await currentArticle

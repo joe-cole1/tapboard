@@ -7,7 +7,7 @@
 <form class="admin-form outbound-form" action="<%= it.action %>" method="post">
   <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
   <input type="hidden" name="transport" value="<%= selectedTransport %>" />
-  <div class="outbound-form-grid">
+  <div class="auto-grid auto-grid--md outbound-form-grid">
     <label>Friendly name <input name="label" maxlength="120" required value="<%= editing ? it.destination.label : "" %>" autocomplete="off" /></label>
     <label class="outbound-check-field"><input type="checkbox" name="required" value="on"<% if (editing && it.destination.required) { %> checked<% } %> /> Required destination <small>When enabled, delivery health contributes to the required integration status.</small></label>
     <label class="outbound-check-field"><input type="checkbox" name="enabled" value="on"<% if (!editing || it.destination.enabled) { %> checked<% } %> /> Enabled <small>Disable while configuring a destination to prevent delivery attempts.</small></label>
@@ -20,7 +20,7 @@
       <% for (const group of [{ label: "Serving", fields: it.eventFields.slice(0, 3) }, { label: "Alerts", fields: it.eventFields.slice(3, 5) }, { label: "System", fields: it.eventFields.slice(5) }]) { %>
         <section class="outbound-subscription-group" aria-label="<%= group.label %>">
           <h3><%= group.label %></h3>
-          <div class="outbound-subscription-grid">
+          <div class="auto-grid auto-grid--md">
             <% for (const field of group.fields) { %>
               <label class="outbound-check-field"><input type="checkbox" name="<%= field.name %>" value="on"<% if ((!editing) || subscriptions.includes(field.eventType)) { %> checked<% } %> /> <%= field.label %></label>
             <% } %>

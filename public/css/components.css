@@ -233,37 +233,163 @@
   .error {
     border-left-color: var(--danger);
   }
-  .resource-list {
+  /*
+   * Layout primitives. Page sections are flat; a .card frames one item (a source, a sensor,
+   * a destination) and never another card. A card that responds to hover is a link.
+   */
+  .stack {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
-    gap: var(--space-4);
+    gap: var(--stack-gap, var(--space-3));
+    align-content: start;
   }
-  .resource-card {
+  .stack--loose {
+    --stack-gap: var(--space-5);
+  }
+  .cluster {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  /* Columns of at least --min (set only by a modifier), never wider than the container. */
+  .auto-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--min)), 1fr));
+    gap: var(--space-3);
+  }
+  .auto-grid--xs {
+    --min: 9rem;
+  }
+  .auto-grid--sm {
+    --min: 13rem;
+  }
+  .auto-grid--md {
+    --min: 16rem;
+  }
+  .auto-grid--lg {
+    --min: 20rem;
+  }
+  /* Fields fill their column instead of keeping the browser's intrinsic input width. */
+  .auto-grid > * {
+    min-width: 0;
+  }
+  .auto-grid > label > :is(input, select, textarea) {
+    width: 100%;
+    min-width: 0;
+  }
+  /* A title (and its eyebrow or intro) on the left, at most one action on the right. */
+  .header-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .header-row :is(h1, h2, h3, p) {
+    margin-block: 0;
+  }
+  .header-row > div {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .card {
     min-width: 0;
     padding: var(--space-4);
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-  }
-  .resource-card h3 {
-    margin-top: 0;
     overflow-wrap: anywhere;
   }
-  .metrics {
+  .card > :first-child {
+    margin-top: 0;
+  }
+  .card > :last-child {
+    margin-bottom: 0;
+  }
+  .card--link {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: var(--space-4);
+    gap: var(--space-1);
+    color: var(--text);
+    text-decoration: none;
   }
-  .metrics div {
-    padding: var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+  .card--link:hover {
+    border-color: var(--accent-strong);
   }
-  .metrics dd {
-    margin: var(--space-1-5) 0 0;
+  .card--link:focus-visible {
+    outline: 3px solid var(--accent-strong);
+    outline-offset: 2px;
+  }
+  .card__label {
+    color: var(--muted);
+    font-size: var(--text-small);
+  }
+  .card__value {
     font-size: var(--text-title);
     font-weight: var(--weight-strong);
+  }
+  .card--warning {
+    background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+    border-left: 0.35rem solid var(--warning);
+  }
+  .card--danger {
+    border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+  }
+  /* The one collapsible row: at least 24px tall (WCAG 2.5.8), with the browser's marker. */
+  .disclosure {
+    margin-block: var(--space-3);
+  }
+  .disclosure > summary {
+    display: list-item;
+    min-block-size: 1.5rem;
+    padding-block: var(--space-1-5);
+    color: var(--secondary);
+    font-weight: var(--weight-semibold);
+    cursor: pointer;
+  }
+  .disclosure > summary small {
+    display: block;
+    margin-inline-start: 1.1em;
+    color: var(--muted);
+    font-weight: var(--weight-medium);
+  }
+  .disclosure > summary:focus-visible {
+    outline: 3px solid var(--accent-strong);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  .disclosure[open] > summary {
+    margin-bottom: var(--space-3);
+  }
+  /*
+   * Label/value list: muted labels in a narrow column, values beside them, one divider per row.
+   * Works with <div><dt/><dd/></div> rows and with bare dt/dd pairs; stacks on phones.
+   */
+  .key-value-list {
+    display: grid;
+    grid-template-columns: fit-content(14rem) minmax(0, 1fr);
+    column-gap: var(--space-4);
+    margin-block: var(--space-2) var(--space-4);
+  }
+  .key-value-list > div {
+    display: contents;
+  }
+  .key-value-list dt,
+  .key-value-list dd {
+    margin: 0;
+    padding-block: var(--space-2);
+    border-top: 1px solid var(--border);
+    overflow-wrap: anywhere;
+  }
+  .key-value-list dt {
+    color: var(--muted);
+  }
+  .key-value-list > div:first-child > *,
+  .key-value-list > dt:first-child,
+  .key-value-list > dt:first-child + dd {
+    border-top: 0;
   }
   .skip-link:not(:focus) {
     clip-path: inset(50%);
@@ -297,6 +423,22 @@
   .workspace-banner a:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 3px;
+  }
+  @media (max-width: 30rem) {
+    .key-value-list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .key-value-list dt {
+      padding-bottom: 0;
+    }
+    .key-value-list dd {
+      padding-top: var(--space-1);
+      border-top: 0;
+    }
+    .key-value-list > div:first-child > dt,
+    .key-value-list > dt:first-child {
+      padding-top: 0;
+    }
   }
   @media (max-width: 60rem) {
     .admin-header {

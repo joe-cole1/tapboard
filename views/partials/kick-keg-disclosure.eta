@@ -1,4 +1,4 @@
-<details class="admin-disclosure kick-disclosure">
+<details class="disclosure kick-disclosure">
   <summary><span><strong>Kick keg…</strong><small>Ends this Filled Keg for good and closes its Tap assignment.</small></span></summary>
   <form class="admin-form" action="/admin/fills/<%= it.fillId %>/kick" method="post" data-confirm="Kick this Filled Keg? It will end the fill and close its active Tap assignment.">
     <input type="hidden" name="_csrf" value="<%= it.csrfToken %>" />

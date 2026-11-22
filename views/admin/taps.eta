@@ -8,7 +8,7 @@
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
-  <section class="section-heading" aria-labelledby="tap-list-heading">
+  <section class="header-row" aria-labelledby="tap-list-heading">
     <div>
       <h2 id="tap-list-heading">Tap list</h2>
       <p class="muted"><%= it.pagination.total %> tap<%= it.pagination.total === 1 ? "" : "s" %></p>
@@ -32,7 +32,7 @@
   </form>
 
   <% if (it.taps.length === 0) { %>
-    <section class="empty-state admin-card" aria-labelledby="tap-empty-heading">
+    <section class="empty-state" aria-labelledby="tap-empty-heading">
       <h2 id="tap-empty-heading"><%= it.query || it.state !== "all" ? "No matching Taps" : "No Taps are configured" %></h2>
       <p><%= it.query || it.state !== "all" ? "Try a different search or state filter." : "Create a Tap to establish a serving position." %></p>
       <a class="button button--primary button--small" href="/admin/taps/new"><%= it.query || it.state !== "all" ? "Add a Tap" : "Create the first Tap" %></a>

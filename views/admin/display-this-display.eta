@@ -1,9 +1,9 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content" class="display-settings-page">
+<main id="main-content">
   <header class="page-header"><p class="eyebrow"><a href="/admin/display">Display</a> / This display</p><h1>This display</h1><p>These choices are stored only in this browser. "Use default" follows future changes to the <a href="/admin/display/shared">default theme</a>.</p></header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="admin-card" aria-labelledby="local-settings-heading">
+  <section aria-labelledby="local-settings-heading">
     <h2 id="local-settings-heading">Local overrides</h2>
     <form class="display-settings-form" data-display-preferences action="/admin/display/this-display" method="post" hidden>
       <%~ include("/partials/display-theme-cards", { options: it.themeOptions, selected: "", inherit: true }) %>

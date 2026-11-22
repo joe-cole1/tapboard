@@ -5,7 +5,7 @@
   <header class="page-header"><p class="eyebrow">Configure</p><h1>System</h1><p>Manage your workspace, installation settings, and Admin access.</p></header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (workspace.enabled) { %><p class="muted">Data settings, diagnostics, and activity below belong to the saved simulation workspace. Admin sessions and the PIN are shared with your real installation.</p><% } %>
-  <section class="admin-card simulation-settings" aria-labelledby="simulation-settings-heading">
+  <section class="simulation-settings" aria-labelledby="simulation-settings-heading">
     <div class="simulation-settings__intro">
       <p class="eyebrow">Explore Tapboard</p>
       <h2 id="simulation-settings-heading">Simulation</h2>
@@ -18,9 +18,9 @@
       <% if (workspace.enabled) { %><a class="button button--secondary" href="/admin/simulator">Open Simulator</a><% } %>
     </form>
   </section>
-  <section class="admin-card" aria-labelledby="system-status-heading">
+  <section aria-labelledby="system-status-heading">
     <span class="status-badge status-badge--<%= it.system.ready ? 'healthy' : 'degraded' %>"><%= it.system.ready ? 'Ready' : 'Unavailable' %></span><h2 id="system-status-heading">System status</h2>
-    <dl class="summary-grid">
+    <dl class="key-value-list">
       <div><dt>Application version</dt><dd><%= it.system.version %></dd></div>
       <div><dt>Schema version</dt><dd><%= it.system.schemaVersion %></dd></div>
       <div><dt>Integrations</dt><dd><%= it.system.connectivity %></dd></div>
@@ -30,12 +30,12 @@
     </dl>
     <p class="muted">This report reads local state. Your local inventory and displays remain available when an integration is disconnected.</p>
   </section>
-  <section class="admin-card" aria-labelledby="system-calculation-heading">
+  <section aria-labelledby="system-calculation-heading">
     <h2 id="system-calculation-heading">Calculation defaults</h2>
     <p>Fallback gravity is used when a beverage has no measured final gravity or density override. Serving size is used when that beverage has no pour-size override. Completed pour history stays unchanged.</p>
     <form action="/admin/system/calculation" method="post" class="stack-form">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <div class="form-grid">
+      <div class="auto-grid auto-grid--md">
         <label>Fallback final gravity<input type="number" name="fallbackFg" min="0.5" max="2" step="any" required value="<%= it.system.calculation.fallbackFg %>" /></label>
         <label>Default serving size (mL)<input type="number" name="servingSizeMl" min="0.001" step="any" required value="<%= it.system.calculation.servingSizeMl %>" /></label>
       </div>
@@ -43,7 +43,7 @@
     </form>
     <p class="muted">Configure <a href="/admin/health">health and pour detection</a>, the <a href="/admin/display/shared">default theme</a>, and <a href="/admin/integrations">integrations</a> in their settings pages.</p>
   </section>
-  <section class="admin-card" aria-labelledby="units-heading">
+  <section aria-labelledby="units-heading">
     <h2 id="units-heading">Units and readouts</h2>
     <p>How public displays show volumes and temperatures. A browser can still choose its own units on <a href="/admin/display/this-display">This display</a>.</p>
     <form action="/admin/system/units" method="post" class="stack-form">
@@ -54,14 +54,14 @@
       <button class="button button--primary" type="submit">Save units</button>
     </form>
   </section>
-  <section class="admin-card" aria-labelledby="system-sessions-heading">
+  <section aria-labelledby="system-sessions-heading">
     <h2 id="system-sessions-heading">Admin sessions</h2>
     <p>Up to 100 active sessions are shown, including this session first. Revoking a session signs that browser out.</p>
-    <div class="system-session-list">
+    <div class="stack stack--loose">
       <% for (const session of it.system.sessions) { %>
-        <article class="system-session" aria-labelledby="session-<%= session.id %>">
+        <article class="card" aria-labelledby="session-<%= session.id %>">
           <h3 id="session-<%= session.id %>"><%= session.current ? 'This session' : `Session ${session.id.slice(0, 8)}` %></h3>
-          <dl class="summary-grid"><div><dt>Created</dt><dd><time datetime="<%= session.createdAt %>"><%= session.createdAt %></time></dd></div><div><dt>Last used</dt><dd><time datetime="<%= session.lastUsedAt %>"><%= session.lastUsedAt %></time></dd></div><div><dt>Expires</dt><dd><time datetime="<%= session.expiresAt %>"><%= session.expiresAt %></time></dd></div><div><dt>Absolute expiry</dt><dd><time datetime="<%= session.absoluteExpiresAt %>"><%= session.absoluteExpiresAt %></time></dd></div></dl>
+          <dl class="key-value-list"><div><dt>Created</dt><dd><time datetime="<%= session.createdAt %>"><%= session.createdAt %></time></dd></div><div><dt>Last used</dt><dd><time datetime="<%= session.lastUsedAt %>"><%= session.lastUsedAt %></time></dd></div><div><dt>Expires</dt><dd><time datetime="<%= session.expiresAt %>"><%= session.expiresAt %></time></dd></div><div><dt>Absolute expiry</dt><dd><time datetime="<%= session.absoluteExpiresAt %>"><%= session.absoluteExpiresAt %></time></dd></div></dl>
           <form action="/admin/system/sessions/<%= session.id %>/revoke" method="post" class="system-revoke-form">
             <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
             <label class="checkbox-field"><input type="checkbox" name="confirm" value="revoke" required /> Confirm revocation<%= session.current ? ' of this session' : '' %></label>
@@ -75,17 +75,17 @@
     <form action="/admin/system/session-policy" method="post" class="stack-form">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedRevision" value="<%= it.system.sessionPolicy.revision %>" />
-      <div class="form-grid">
+      <div class="auto-grid auto-grid--md">
         <label>Inactivity timeout (minutes)<input type="number" name="inactivityMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.inactivityMs / 60000 %>" /></label>
         <label>Absolute lifetime (minutes)<input type="number" name="absoluteMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.absoluteMs / 60000 %>" /></label>
       </div>
       <button class="button button--primary" type="submit">Save session lifetimes</button>
     </form>
-    <details class="system-pin-change"><summary>Change Admin PIN</summary>
+    <details class="disclosure"><summary>Change Admin PIN</summary>
       <p>Use exactly four ASCII digits. Changing the PIN signs out every Admin session.</p>
       <form action="/admin/system/pin" method="post" class="stack-form" autocomplete="off">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <div class="form-grid">
+        <div class="auto-grid auto-grid--md">
           <label>Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password" /></label>
           <label>New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
           <label>Confirm new PIN<input type="password" name="confirmPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
@@ -94,12 +94,12 @@
       </form>
     </details>
   </section>
-  <section class="admin-card" aria-labelledby="system-retention-heading">
+  <section aria-labelledby="system-retention-heading">
     <h2 id="system-retention-heading">Retention</h2>
     <p>Automatic pruning uses small batches. Kegs, fills, completed pours, telemetry epochs, calibration, maintenance, deletion audits, and a Tap's first-use history remain protected. Queued and leased deliveries remain protected.</p>
     <form action="/admin/system/retention" method="post" class="stack-form">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <div class="form-grid">
+      <div class="auto-grid auto-grid--md">
         <label>Activity Log (days)<input type="number" name="activityDays" min="1" max="3650" step="1" required value="<%= it.system.retention.activity.retentionDays %>" /></label>
         <label>Raw telemetry (seconds)<input type="number" name="rawSeconds" min="300" max="86400" step="1" required value="<%= it.system.retention.telemetry.rawRetentionSeconds %>" /></label>
         <label>Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600" max="604800" step="1" required value="<%= it.system.retention.telemetry.receiptRetentionSeconds %>" /></label>
@@ -112,9 +112,9 @@
       <button class="button button--primary" type="submit">Save retention settings</button>
     </form>
   </section>
-  <section class="admin-card" aria-labelledby="system-diagnostics-heading">
+  <section aria-labelledby="system-diagnostics-heading">
     <h2 id="system-diagnostics-heading">Diagnostics</h2>
-    <dl class="summary-grid">
+    <dl class="key-value-list">
       <div><dt>Activity rows</dt><dd><%= it.system.diagnostics.counts.activity %></dd></div>
       <div><dt>Raw telemetry rows</dt><dd><%= it.system.diagnostics.counts.rawTelemetry %></dd></div>
       <div><dt>Ingest receipts</dt><dd><%= it.system.diagnostics.counts.ingestReceipts %></dd></div>
@@ -128,7 +128,7 @@
     </dl>
     <p class="muted">Counts and storage totals contain no credentials, integration endpoints, raw payloads, or private notes. Database backups and restores are managed by your installation operator.</p>
   </section>
-  <section id="activity" class="admin-card" aria-labelledby="system-activity-heading">
+  <section id="activity" aria-labelledby="system-activity-heading">
     <h2 id="system-activity-heading">Activity Log</h2>
     <form action="/admin/system#activity" method="get" class="system-activity-filter">
       <label>Activity category<select name="category"><option value="">All categories</option><% for (const category of ['security', 'admin', 'domain', 'integration', 'outbox', 'system']) { %><option value="<%= category %>"<% if (it.system.activity.category === category) { %> selected<% } %>><%= category[0].toUpperCase() + category.slice(1) %></option><% } %></select></label>
