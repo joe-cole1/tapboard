@@ -28,7 +28,7 @@ void test("display stylesheet params accept only bounded themes, accents, and pr
   assert.equal(validateStylesheetParams("light_minimal", "amber", "comic-sans"), undefined);
   assert.equal(
     displayStylesheetHref("light_minimal", "#abcdef", "system"),
-    "/assets/css/display.css?v=3&theme=light_minimal&accent=%23abcdef&font=system",
+    "/assets/css/display.css?v=4&theme=light_minimal&accent=%23abcdef&font=system",
   );
 });
 
@@ -389,4 +389,73 @@ void test("every theme's own muted colour is readable on its raised surface", ()
       assert.ok(ratio >= 4.5, `${theme} muted ${palette.muted} on ${ground}: ${ratio.toFixed(2)}`);
     }
   }
+});
+
+void test("the unknown-health dot has 3:1 on the card's grounds in every palette and is grey in Monochrome", () => {
+  for (const theme of DISPLAY_THEMES) {
+    for (const accent of EVERY_ACCENT) {
+      for (const [scope, block] of paletteBlocks(
+        generateDisplayStylesheet(theme, accent, "system").css,
+      )) {
+        // A Tap card is the surface at 88% over the background.
+        for (const ground of ["--background", "--surface"]) {
+          const ratio = contrastRatio(role(block, "--unknown"), role(block, ground));
+          assert.ok(
+            ratio >= 3,
+            `${theme}/${accent} ${scope} unknown on ${ground}: ${ratio.toFixed(2)}`,
+          );
+        }
+      }
+    }
+  }
+  const monochrome = paletteBlocks(
+    generateDisplayStylesheet("monochrome", "amber", "system").css,
+  )[0]![1];
+  const unknown = role(monochrome, "--unknown");
+  assert.ok(
+    unknown.slice(1, 3) === unknown.slice(3, 5) && unknown.slice(3, 5) === unknown.slice(5, 7),
+  );
+  // It stays distinguishable from the degraded dot.
+  assert.notEqual(unknown, monochrome.get("--warning"));
+});
+
+void test("the On Deck shadow colour follows the theme", () => {
+  const shadowOf = (theme: (typeof DISPLAY_THEMES)[number]): string | undefined =>
+    paletteBlocks(generateDisplayStylesheet(theme, "amber", "system").css)[0]![1].get(
+      "--shadow-color",
+    );
+  assert.equal(shadowOf("modern_dark"), "rgba(0,0,0,.22)");
+  assert.equal(shadowOf("copper_kettle"), "rgba(59,35,20,.22)");
+  for (const [theme, palette] of Object.entries(DISPLAY_PALETTES))
+    assert.match(palette.shadowColor, /^rgba\(\d+,\d+,\d+,\.\d+\)$/u, theme);
+});
+
+void test("the generated stylesheet sets custom properties in the tokens layer only", () => {
+  for (const font of ["system", "all"] as const) {
+    const css = generateDisplayStylesheet("auto", "amber", font).css;
+    const layered = css.slice(css.indexOf("@layer tokens{"));
+    // Font faces come first; everything after them is one tokens layer block.
+    assert.match(layered, /^@layer tokens\{[\s\S]*\}$/u);
+    assert.doesNotMatch(css.slice(0, css.indexOf("@layer tokens{")), /[:.][\w-]+\{/u);
+    // Every declaration in the layer is a custom property, apart from each palette's color-scheme.
+    const declarations = [...layered.matchAll(/[{;]([\w-]+):/gu)].map((match) => match[1]!);
+    assert.ok(declarations.length > 0);
+    for (const name of declarations)
+      assert.ok(name.startsWith("--") || name === "color-scheme", `${font}: ${name}`);
+  }
+});
+
+void test("named accent swatches are generated from the palette, only for the Admin pickers", () => {
+  const pickers = generateDisplayStylesheet("auto", "theme", "all").css;
+  for (const accent of DISPLAY_ACCENTS.filter((accent) => accent !== "theme")) {
+    const hex = resolveDisplayPaletteRoles(DISPLAY_PALETTES.modern_dark!, accent).accent;
+    assert.ok(
+      pickers.includes(`.display-accent-swatch--${accent}{--accent-swatch:${hex}}`),
+      accent,
+    );
+  }
+  assert.doesNotMatch(
+    generateDisplayStylesheet("auto", "theme", "system").css,
+    /display-accent-swatch/u,
+  );
 });

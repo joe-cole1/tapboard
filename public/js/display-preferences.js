@@ -123,7 +123,7 @@ export function stylesheetHref(values = {}) {
   // A page that loads every font face (the Admin display pages' font cards) keeps them all.
   const font = rendered?.get("font") === "all" ? "all" : readValue("font");
   if (!theme || !accent || !font) return undefined;
-  return `/assets/css/display.css?v=3&theme=${encodeURIComponent(theme)}&accent=${encodeURIComponent(accent)}&font=${encodeURIComponent(font)}`;
+  return `/assets/css/display.css?v=4&theme=${encodeURIComponent(theme)}&accent=${encodeURIComponent(accent)}&font=${encodeURIComponent(font)}`;
 }
 
 export function syncStylesheet(values = {}) {

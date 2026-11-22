@@ -60,11 +60,11 @@ Each command reads secrets only from stdin and prints only safe metadata. In a c
 
 ## Development checks
 
-| Command             | Purpose                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------ |
-| `npm run check`     | The full gate CI runs: format, lint, types, architecture and CSS rules, and the unit tests       |
-| `npm run check:css` | The stylesheet rules only: no inline CSS, no undefined or unused classes, no duplicate selectors |
-| `npm run test:e2e`  | The Playwright browser suite against a throwaway fixture server                                  |
+| Command             | Purpose                                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check`     | The full gate CI runs: format, lint, types, architecture and CSS rules, and the unit tests                                                                                                |
+| `npm run check:css` | The stylesheet rules only: no inline CSS, no undefined or unused classes, no duplicate selectors, every rule in a cascade layer, no colour literals outside the palettes, no `!important` |
+| `npm run test:e2e`  | The Playwright browser suite against a throwaway fixture server                                                                                                                           |
 
 [Development](docs/development.md) lists every command.
 

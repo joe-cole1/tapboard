@@ -12,7 +12,7 @@ import {
 export type DisplayStylesheetFont = DisplayFont | "all";
 // Bump whenever the generated CSS changes shape, so browsers never pair a cached
 // stylesheet with newer static CSS.
-export const DISPLAY_STYLESHEET_VERSION = "3" as const;
+export const DISPLAY_STYLESHEET_VERSION = "4" as const;
 
 type FontWeight = number | `${number} ${number}`;
 
@@ -40,10 +40,14 @@ export interface DisplayPalette {
   /** The accent used while the operator's accent is "theme". */
   readonly accent: string;
   readonly shadow: string;
+  /** The On Deck footer's upward shadow. */
+  readonly shadowColor: string;
   readonly colorScheme: "dark" | "light";
   readonly danger: string;
   readonly warning: string;
   readonly success: string;
+  /** The health dot of a Tap whose health is unknown: 3:1 on the background and surface. */
+  readonly unknown: string;
   /** Corner radii for the sm, md, lg and xl steps. */
   readonly radius: readonly [string, string, string, string];
   /** Multiplier applied to every --space-* step. */
@@ -55,10 +59,28 @@ export interface DisplayPalette {
 }
 
 const STANDARD_RADIUS = [".5rem", ".75rem", "1rem", "1.5rem"] as const;
-const DARK_STATUS = { danger: "#ef4444", warning: "#f59e0b", success: "#22c55e" } as const;
-const LIGHT_STATUS = { danger: "#bb303d", warning: "#a15c00", success: "#147d4d" } as const;
+const UNKNOWN_HEALTH = "#a855f7";
+const DARK_STATUS = {
+  danger: "#ef4444",
+  warning: "#f59e0b",
+  success: "#22c55e",
+  unknown: UNKNOWN_HEALTH,
+} as const;
+const LIGHT_STATUS = {
+  danger: "#bb303d",
+  warning: "#a15c00",
+  success: "#147d4d",
+  unknown: UNKNOWN_HEALTH,
+} as const;
 /** Lighter status colours for dark themes whose grounds are not near-black. */
-const SOFT_STATUS = { danger: "#ff8a80", warning: "#f6c453", success: "#7ddba3" } as const;
+const SOFT_STATUS = {
+  danger: "#ff8a80",
+  warning: "#f6c453",
+  success: "#7ddba3",
+  unknown: UNKNOWN_HEALTH,
+} as const;
+/** The On Deck shadow on dark grounds; light themes tint it with their own ink. */
+const DARK_SHADOW_COLOR = "rgba(0,0,0,.22)";
 
 type NamedTheme = Exclude<DisplayTheme, "auto">;
 
@@ -73,6 +95,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(255,255,255,.2)",
     secondary: "#38bdf8",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.25)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...DARK_STATUS,
     radius: STANDARD_RADIUS,
@@ -88,6 +111,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(212,175,55,.3)",
     secondary: "#c5a880",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...DARK_STATUS,
     radius: [".625rem", "1rem", "1.25rem", "2rem"],
@@ -105,6 +129,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "#00f0ff",
     secondary: "#00f0ff",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.35)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...DARK_STATUS,
     radius: ["0", "0", "0", "0"],
@@ -120,6 +145,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "#cbd5e1",
     secondary: "#2563eb",
     shadow: "0 .5rem 1.5rem rgba(15,23,42,.12)",
+    shadowColor: "rgba(15,23,42,.22)",
     colorScheme: "light",
     ...LIGHT_STATUS,
     radius: STANDARD_RADIUS,
@@ -135,6 +161,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(244,241,232,.28)",
     secondary: "#9fd8cb",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...SOFT_STATUS,
     radius: [".25rem", ".375rem", ".5rem", ".75rem"],
@@ -151,6 +178,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(183,227,106,.28)",
     secondary: "#b7e36a",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.3)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...SOFT_STATUS,
     radius: [".75rem", "1rem", "1.5rem", "2rem"],
@@ -166,10 +194,12 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "#c9a27e",
     secondary: "#8f4317",
     shadow: "0 .5rem 1.5rem rgba(59,35,20,.14)",
+    shadowColor: "rgba(59,35,20,.22)",
     colorScheme: "light",
     danger: "#a8242f",
     warning: "#8a4d00",
     success: "#0f6b40",
+    unknown: UNKNOWN_HEALTH,
     radius: STANDARD_RADIUS,
     density: 1,
     headingFont: "bree_serif",
@@ -184,6 +214,7 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(196,148,74,.45)",
     secondary: "#7cc4b4",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.4)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     ...SOFT_STATUS,
     radius: [".125rem", ".25rem", ".375rem", ".5rem"],
@@ -200,11 +231,13 @@ const THEMES: Readonly<Record<NamedTheme, DisplayPalette>> = {
     border: "rgba(255,255,255,.3)",
     secondary: "#d4d4d4",
     shadow: "0 .5rem 1.5rem rgba(0,0,0,.5)",
+    shadowColor: DARK_SHADOW_COLOR,
     colorScheme: "dark",
     // Greyscale throughout, so the beer is the only colour on the display.
     danger: "#f5f5f5",
     warning: "#bdbdbd",
     success: "#8f8f8f",
+    unknown: "#737373",
     radius: [".125rem", ".25rem", ".25rem", ".375rem"],
     density: 0.9,
     // The vote split reads as pure white against pure black, whatever the accent.
@@ -227,10 +260,12 @@ const ADMIN_PALETTES: Readonly<Record<"dark" | "light", DisplayPalette>> = {
     border: "rgba(217,229,243,.2)",
     secondary: "#8cc9ff",
     shadow: "0 .75rem 2rem rgba(1,8,18,.24)",
+    shadowColor: "rgba(1,8,18,.22)",
     colorScheme: "dark",
     danger: "#f07178",
     warning: "#f6bd4b",
     success: "#65d49a",
+    unknown: UNKNOWN_HEALTH,
     radius: STANDARD_RADIUS,
     density: 1,
   },
@@ -244,6 +279,7 @@ const ADMIN_PALETTES: Readonly<Record<"dark" | "light", DisplayPalette>> = {
     border: "rgba(19,32,51,.18)",
     secondary: "#1769aa",
     shadow: "0 .75rem 2rem rgba(36,55,78,.12)",
+    shadowColor: "rgba(36,55,78,.22)",
     colorScheme: "light",
     ...LIGHT_STATUS,
     radius: STANDARD_RADIUS,
@@ -478,7 +514,7 @@ function paletteDeclarations(
   headingFamily: string,
 ): string {
   const [radiusSm, radiusMd, radiusLg, radiusXl] = palette.radius;
-  return `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--surface-accent:${roles.surfaceAccent};--text:${palette.text};--muted:${roles.muted};--border:${palette.border};--control-border:${roles.controlBorder};${accentDeclarations(roles)};--secondary:${palette.secondary};--tap-wars-side-1:${palette.tapWarsSides?.[0] ?? roles.accent};--tap-wars-side-2:${palette.tapWarsSides?.[1] ?? palette.secondary};--shadow:${palette.shadow};--font-family:${family};--font-heading:${headingFamily};color-scheme:${palette.colorScheme};--danger:${palette.danger};--on-danger:${onFill(palette.danger)};--warning:${palette.warning};--success:${palette.success};--radius-sm:${radiusSm};--radius-md:${radiusMd};--radius-lg:${radiusLg};--radius-xl:${radiusXl};--density:${palette.density}`;
+  return `--background:${palette.background};--surface:${palette.surface};--surface-raised:${palette.raised};--surface-accent:${roles.surfaceAccent};--text:${palette.text};--muted:${roles.muted};--border:${palette.border};--control-border:${roles.controlBorder};${accentDeclarations(roles)};--secondary:${palette.secondary};--tap-wars-side-1:${palette.tapWarsSides?.[0] ?? roles.accent};--tap-wars-side-2:${palette.tapWarsSides?.[1] ?? palette.secondary};--shadow:${palette.shadow};--shadow-color:${palette.shadowColor};--font-family:${family};--font-heading:${headingFamily};color-scheme:${palette.colorScheme};--danger:${palette.danger};--on-danger:${onFill(palette.danger)};--warning:${palette.warning};--success:${palette.success};--unknown:${palette.unknown};--radius-sm:${radiusSm};--radius-md:${radiusMd};--radius-lg:${radiusLg};--radius-xl:${radiusXl};--density:${palette.density}`;
 }
 
 export function generateDisplayStylesheet(
@@ -500,13 +536,17 @@ export function generateDisplayStylesheet(
       ? (Object.keys(FONT_FILES) as BundledFont[]).map(fontFace).join("")
       : `${font === "system" ? "" : fontFace(font)}${headingFonts.map(fontFace).join("")}`;
   const selectedFamily = font === "all" ? fontFamily("system") : fontFamily(font);
-  const previewFonts =
+  // "all" serves the Admin pickers: every font card and named accent swatch in its own look.
+  const pickers =
     font === "all"
       ? Object.entries(FONT_FILES)
           .map(
             ([name, value]) =>
               `.display-preview[data-preview-font="${name}"]{--preview-font:"${value.family}",system-ui,sans-serif;--font-heading:var(--preview-font)}`,
           )
+          .join("") +
+        Object.entries(NAMED_ACCENTS)
+          .map(([name, hex]) => `.display-accent-swatch--${name}{--accent-swatch:${hex}}`)
           .join("")
       : "";
   const block = (selector: ":root" | ".display-preview", palette: DisplayPalette): string => {
@@ -539,7 +579,9 @@ export function generateDisplayStylesheet(
       fontFamily("system"),
       "var(--font-family)",
     )}}`;
-  const css = `${faces}${themed(":root")}${adminBlock("dark")}@media (prefers-color-scheme:light){${adminBlock("light")}}${themed(".display-preview")}${previewFonts}`;
+  // Custom properties and color-scheme only, in the tokens layer after tokens.css: they
+  // replace its fallbacks, and every later layer still beats them, as unlayered rules would not.
+  const css = `${faces}@layer tokens{${themed(":root")}${adminBlock("dark")}@media (prefers-color-scheme:light){${adminBlock("light")}}${themed(".display-preview")}${pickers}}`;
   return { css, etag: `"${createHash("sha256").update(css).digest("hex")}"` };
 }
 
