@@ -45,8 +45,8 @@ function check(input: Partial<CssCheckInput>): { rule: string; path: string; lin
 const cleanStylesheet = `
 .card { padding: 1rem; }
 .card__title, .card--wide { margin: 0; }
-.status-badge { border: 1px solid; }
-.status-badge--healthy, .status-badge--muted { color: var(--success); }
+.badge { border: 1px solid; }
+.badge--healthy, .badge--muted { color: var(--success); }
 .is-open:not(.card) [data-x="a.b"] { display: block; }
 @media (max-width: 40rem) { .card { padding: 0; } }
 .script-made { color: var(--danger); }
@@ -62,8 +62,8 @@ void test("markup that uses every rule, and only defined classes, passes", () =>
         "views/page.eta": [
           '<main class="generated-shell"><article class="card <%= it.wide ? "card--wide" : "" %>">',
           '<h2 class="card__title<% if (it.open) { %> is-open<% } %>" data-preview-style="x">',
-          '<span class="status-badge status-badge--<%= it.state %>"></span>',
-          '<span class="status-badge status-badge--<%= it.ok === "yes" ? "healthy" : "muted" %>"></span>',
+          '<span class="badge badge--<%= it.state %>"></span>',
+          '<span class="badge badge--<%= it.ok === "yes" ? "healthy" : "muted" %>"></span>',
           '<input name="style" value="<%= it.beverage.style === null ? "" : it.beverage.style %>" />',
           "</h2></article></main>",
         ].join("\n"),

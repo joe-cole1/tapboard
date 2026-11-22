@@ -28,7 +28,7 @@
           <article class="card outbound-destination-card">
             <div class="header-row">
               <div><p class="eyebrow"><%= destination.transportLabel %></p><h2><a href="/admin/integrations/outbound/<%= encodeURIComponent(destination.id) %>"><%= destination.label %></a></h2></div>
-              <span class="status-badge status-badge--<%= destination.enabled && !destination.retired ? destination.stateClass : "muted" %>"><%= destination.retired ? "Retired" : destination.enabled ? destination.stateLabel : "Disabled" %></span>
+              <span class="badge badge--<%= destination.enabled && !destination.retired ? destination.stateClass : "muted" %>"><%= destination.retired ? "Retired" : destination.enabled ? destination.stateLabel : "Disabled" %></span>
             </div>
             <dl class="key-value-list">
               <div><dt>Required</dt><dd><%= destination.required ? "Yes" : "No" %></dd></div>

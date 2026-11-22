@@ -305,6 +305,8 @@ if (shell) {
     const form = queue.querySelector("[data-reorder-form]");
     const input = form?.querySelector("[name=fillIds]");
     const status = queue.querySelector("[data-reorder-status]");
+    const help = queue.querySelector("[data-reorder-help]");
+    if (help instanceof HTMLElement) help.hidden = false;
     let dragging = null;
     const items = () => [...list.querySelectorAll("[data-reorder-item]")];
     const updateOrder = () => {
@@ -318,6 +320,7 @@ if (shell) {
       const handle = item.querySelector("[data-reorder-handle]");
       if (!(handle instanceof HTMLElement) || !(item instanceof HTMLElement)) return;
       handle.draggable = true;
+      handle.hidden = false;
       handle.addEventListener("keydown", (event) => {
         if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
         event.preventDefault();

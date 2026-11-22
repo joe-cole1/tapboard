@@ -272,7 +272,7 @@ test("authenticated article-card updates preserve pour-preview controls and do n
 
   await admin.goto("/admin/taps");
   const adminRow = admin.locator(`tr[data-tap-id="${tapId}"]`);
-  await adminRow.getByRole("link", { name: "Open", exact: true }).click();
+  await adminRow.getByRole("link", { name: /^Open Tap /u }).click();
   await admin.getByText("Edit tap name", { exact: true }).click();
   const nameForm = admin.locator('form[data-tap-name-form][data-autosave="blur"]');
   await expect(nameForm).toHaveAttribute("data-autosave-initialized", "true");
@@ -384,7 +384,7 @@ test("Brew Story ignores ordinary telemetry reloads but reconciles Mystery updat
 
   await admin.goto("/admin/taps");
   const normalAdminRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
-  await normalAdminRow.getByRole("link", { name: "Open", exact: true }).click();
+  await normalAdminRow.getByRole("link", { name: /^Open Tap /u }).click();
   await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").check();
   await admin.getByRole("button", { name: "Save Mystery settings" }).click();
@@ -397,7 +397,7 @@ test("Brew Story ignores ordinary telemetry reloads but reconciles Mystery updat
 
   await admin.goto("/admin/taps");
   const cleanupRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
-  await cleanupRow.getByRole("link", { name: "Open", exact: true }).click();
+  await cleanupRow.getByRole("link", { name: /^Open Tap /u }).click();
   await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").uncheck();
   await admin.getByRole("button", { name: "Save Mystery settings" }).click();
@@ -478,7 +478,7 @@ test("Mystery redaction, reveal, finite graphics, and stable roots", async ({ br
   await login(admin);
   await admin.goto("/admin/taps");
   const normalAdminRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
-  await normalAdminRow.getByRole("link", { name: "Open", exact: true }).click();
+  await normalAdminRow.getByRole("link", { name: /^Open Tap /u }).click();
   await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").check();
   await admin.getByRole("button", { name: "Save Mystery settings" }).click();
@@ -569,7 +569,7 @@ test("Mystery redaction, reveal, finite graphics, and stable roots", async ({ br
 
   await admin.goto("/admin/taps");
   const adminRow = admin.locator(`tr[data-tap-id="${storyId}"]`);
-  await adminRow.getByRole("link", { name: "Open", exact: true }).click();
+  await adminRow.getByRole("link", { name: /^Open Tap /u }).click();
   await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Style").check();
   await admin.getByRole("button", { name: "Save Mystery settings" }).click();

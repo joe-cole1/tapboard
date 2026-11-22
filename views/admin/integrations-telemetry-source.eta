@@ -8,14 +8,14 @@
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="source-status-heading">
-    <div class="header-row"><div><h2 id="source-status-heading">Source status</h2><p class="muted">Authentication and key information for this source.</p></div><span class="status-badge status-badge--<%= it.source.disabledAt === null ? "healthy" : "muted" %>"><%= it.source.disabledAt === null ? "Active" : "Disabled" %></span></div>
-    <div class="table-scroll"><table class="admin-table"><tbody>
+    <div class="header-row"><div><h2 id="source-status-heading">Source status</h2><p class="muted">Authentication and key information for this source.</p></div><span class="badge badge--<%= it.source.disabledAt === null ? "healthy" : "muted" %>"><%= it.source.disabledAt === null ? "Active" : "Disabled" %></span></div>
+    <table class="table"><tbody>
       <tr><th scope="row">Key ID (audit reference)</th><td><code><%= it.source.keyPublicId %></code><br /><span class="muted">Reference only; it is not sent in the URL or request.</span></td></tr>
       <tr><th scope="row">Key label</th><td><%= it.source.keyLabel %></td></tr>
       <tr><th scope="row">Source created</th><td><time datetime="<%= it.source.createdAt %>"><%= it.source.createdAtLabel %></time></td></tr>
       <tr><th scope="row">Key created</th><td><time datetime="<%= it.source.keyCreatedAt %>"><%= it.source.keyCreatedAtLabel %></time></td></tr>
       <% if (it.source.disabledAt !== null) { %><tr><th scope="row">Disabled</th><td><time datetime="<%= it.source.disabledAt %>"><%= it.source.disabledAtLabel %></time></td></tr><% } %>
-    </tbody></table></div>
+    </tbody></table>
   </section>
   <section aria-labelledby="source-usage-heading">
     <h2 id="source-usage-heading">Usage</h2>

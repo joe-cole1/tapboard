@@ -130,8 +130,8 @@ test("Admin login, navigation, and a normal HTTP mutation work without JavaScrip
   await expect(page.getByText("PRIVATE_BREWFATHER_USER")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText("tbk_");
   await page.goto("/admin/taps");
-  const firstTap = page.locator("table.tap-list tbody tr").first();
-  await firstTap.getByRole("link", { name: "Open", exact: true }).click();
+  const firstTap = page.getByRole("table", { name: "Taps" }).locator("tbody tr").first();
+  await firstTap.getByRole("link", { name: /^Open Tap /u }).click();
   await saveTapName(page, "Normal form Tap", { waitForAutosave: false });
   await expect(page.getByRole("heading", { name: /Normal form Tap/u })).toBeVisible();
   await page.getByRole("button", { name: "Log out" }).click();
@@ -155,7 +155,9 @@ test("annotated Admin surfaces share compact tables, controls, and human labels"
   expect(quickActions!.y).toBeLessThan(healthSummary!.y);
 
   await page.goto("/admin/keg-room");
-  expect(await page.locator("table.keg-room-table").count()).toBeGreaterThanOrEqual(2);
+  expect(await page.getByRole("table", { name: /Filled Kegs$/u }).count()).toBeGreaterThanOrEqual(
+    2,
+  );
   const referenceAction = page.getByRole("link", { name: "Assign to a Tap", exact: true }).first();
   await expect(referenceAction).toBeVisible();
   const referenceHeight = await referenceAction.evaluate(
@@ -163,8 +165,8 @@ test("annotated Admin surfaces share compact tables, controls, and human labels"
   );
 
   await page.goto("/admin/keg-room/kegs");
-  await expect(page.locator(".table-scroll > table.keg-inventory-table")).toBeVisible();
-  const inventoryAction = page.getByRole("link", { name: "Open", exact: true }).first();
+  await expect(page.getByRole("table", { name: "Physical Keg inventory" })).toBeVisible();
+  const inventoryAction = page.getByRole("link", { name: /^Open Keg /u }).first();
   await expect(inventoryAction).toBeVisible();
   const inventoryHeight = await inventoryAction.evaluate(
     (node) => node.getBoundingClientRect().height,
@@ -172,14 +174,12 @@ test("annotated Admin surfaces share compact tables, controls, and human labels"
   expect(Math.abs(referenceHeight - inventoryHeight)).toBeLessThanOrEqual(1);
 
   await page.goto("/admin/taps");
-  const tapTable = page.locator(".table-scroll > table.tap-list");
+  const tapTable = page.getByRole("table", { name: "Taps" });
   await expect(tapTable).toBeVisible();
   const assignedRow = tapTable.locator("tbody tr").filter({ hasText: "Tap 1" }).first();
-  await assignedRow.getByRole("link", { name: "Open", exact: true }).click();
+  await assignedRow.getByRole("link", { name: /^Open Tap /u }).click();
 
-  const identityTable = page.locator(
-    'section[aria-labelledby="tap-identity-heading"] table.admin-detail-table',
-  );
+  const identityTable = page.getByRole("table", { name: "Tap identity and lifecycle" });
   await expect(identityTable.locator("tbody tr")).toHaveCount(1);
   const assignmentSection = page.locator('section[aria-labelledby="assignment-heading"]');
   await expect(assignmentSection.locator('a[href^="/admin/keg-room/fills/"]')).toBeVisible();
@@ -231,7 +231,7 @@ test("mobile Admin navigation is modal while open and Beverage rows have a safe 
 
   await page.setViewportSize({ width: 1180, height: 900 });
   await page.goto("/admin/beverages");
-  const firstRow = page.locator(".beverage-list__row").first();
+  const firstRow = page.locator("tr[data-row-href]").first();
   const destination = await firstRow.getAttribute("data-row-href");
   expect(destination).not.toBeNull();
   await firstRow.locator("td").last().click();
@@ -272,7 +272,7 @@ test("targeted updates preserve the graphic node and On Deck updates do not rebu
   await admin.goto("/admin/taps");
   const row = admin.locator(`tr[data-tap-id="${tap1Id!}"]`);
   await expect(row).toHaveCount(1);
-  await row.getByRole("link", { name: "Open", exact: true }).click();
+  await row.getByRole("link", { name: /^Open Tap /u }).click();
   const tapNameForm = await openTapNameForm(admin);
   const targetedRefresh = publicPage.waitForRequest((request) =>
     request.url().endsWith(`/api/public/dashboard/taps/${tap1Id}`),
@@ -833,9 +833,10 @@ for (const returnToOriginal of [true, false]) {
     await login(page);
     await page.goto("/admin/taps");
     await page
-      .locator("table.tap-list tbody tr")
+      .getByRole("table", { name: "Taps" })
+      .locator("tbody tr")
       .first()
-      .getByRole("link", { name: "Open", exact: true })
+      .getByRole("link", { name: /^Open Tap /u })
       .click();
     const form = await openTapNameForm(page);
     const name = form.getByLabel("Tap name");
@@ -986,7 +987,7 @@ test("targeted tap updates leave every card's bubble animation running", async (
   await admin.goto("/admin/taps");
   await admin
     .locator(`tr[data-tap-id="${tap1Id!}"]`)
-    .getByRole("link", { name: "Open", exact: true })
+    .getByRole("link", { name: /^Open Tap /u })
     .click();
   const form = await openTapNameForm(admin);
   const originalName = await form.getByLabel("Tap name").inputValue();
@@ -1025,8 +1026,10 @@ test("this display's local choices keep every font card and reset to the shared 
   expect(shared.font).toBe("all");
   const theme = shared.theme === "warm_pub" ? "cyberpunk" : "warm_pub";
 
-  await page.locator(`input[name="theme"][value="${theme}"]`).check({ force: true });
-  await page.locator('input[name="font"][value="rye"]').check({ force: true });
+  // The radios are visually hidden; choose by clicking the card, as a person does.
+  await page.locator(`label:has(> input[name="theme"][value="${theme}"])`).click();
+  await page.locator('label:has(> input[name="font"][value="rye"])').click();
+  await expect(page.locator(`input[name="theme"][value="${theme}"]`)).toBeChecked();
   await expect.poll(params).toMatchObject({ theme, font: "all" });
 
   await page.getByRole("button", { name: "Reset to default theme" }).click();

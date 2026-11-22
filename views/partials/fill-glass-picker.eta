@@ -19,7 +19,7 @@
     </span>
   </summary>
   <fieldset id="<%= pickerId %>-options">
-    <legend>Choose a catalog vessel</legend>
+    <legend class="sr-only">Choose a catalog vessel</legend>
     <label class="fill-glass-picker__option">
       <input type="radio" name="<%= it.name || "fillGlass" %>" value=""<% if (selected === "") { %> checked<% } %> />
       <span class="fill-glass-picker__copy"><strong>None</strong><small>Use style suggestion</small></span>

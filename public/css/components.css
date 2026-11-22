@@ -1,21 +1,9 @@
 /*
  * Element defaults. They sit in the base layer, below every class. Forms, fields and
- * fieldsets look like that only through `.form`, `.field` and `.fieldset`, and buttons only
- * through `.button`; bare elements keep just the resets below. Tables follow in #181's
- * tables PR.
+ * fieldsets look like that only through `.form`, `.field` and `.fieldset`, buttons only
+ * through `.button` and tables only through `.table`; bare elements keep just the resets below.
  */
 @layer base {
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th,
-  td {
-    padding: var(--space-2-5);
-    text-align: left;
-    vertical-align: top;
-    border-bottom: 1px solid var(--border);
-  }
   ::placeholder {
     color: var(--muted);
     opacity: 1;
@@ -103,7 +91,12 @@
   summary.button::-webkit-details-marker {
     display: none;
   }
-  .sr-only {
+  /*
+   * The one visually hidden definition. The PIN field shares it once the keypad script runs;
+   * without JavaScript it stays visible, so it can't carry the class.
+   */
+  .sr-only,
+  .admin-shell--js [data-pin-input] {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -360,6 +353,11 @@
     display: grid;
     gap: var(--space-1);
   }
+  /* One column that never grows past its container, so a wide control (a file input) shrinks;
+   * :where() keeps it below any other grid class, such as .auto-grid on a filter form. */
+  :where(.form, .field) {
+    grid-template-columns: minmax(0, 1fr);
+  }
   :where(.form, .field) :is(input:not([type="checkbox"], [type="radio"]), select, textarea) {
     max-width: 100%;
     padding: var(--space-2-5) var(--space-3);
@@ -496,6 +494,235 @@
   .key-value-list > dt:first-child,
   .key-value-list > dt:first-child + dd {
     border-top: 0;
+  }
+  /*
+   * A status label: an outlined pill in its status colour. The modifier often comes from data
+   * (`badge--<%= state %>`); a state without a modifier rule stays muted.
+   */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.18rem var(--space-2);
+    border: 1px solid currentColor;
+    border-radius: var(--radius-pill);
+    color: var(--muted);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-strong);
+    text-transform: capitalize;
+  }
+  .badge--healthy,
+  .badge--active {
+    color: var(--success);
+  }
+  .badge--warning,
+  .badge--degraded {
+    color: var(--warning);
+  }
+  .badge--critical {
+    color: var(--danger);
+  }
+  /* The default look, named so a template can choose it from data. */
+  .badge--muted {
+    color: var(--muted);
+  }
+  /*
+   * The identity cell of a record list (Taps, Beverages, Keg Room, Kegs): a preview, the
+   * record's link and a muted type line. The grid sits inside the row header, because a grid
+   * <th> drops out of table column sizing. The 8rem floor sets the column's minimum width, and
+   * long names wrap inside it.
+   */
+  .library-cell {
+    display: grid;
+    grid-template-columns: 4rem minmax(8rem, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: var(--space-2-5);
+    align-items: center;
+  }
+  .library-cell__preview {
+    display: grid;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    place-items: center;
+    width: 4rem;
+    height: 5rem;
+    padding: var(--space-1);
+    background: var(--surface-raised);
+    border-radius: var(--radius-sm);
+  }
+  .library-cell__preview .tap-graphic {
+    width: 100%;
+    max-width: 4rem;
+    max-height: 5rem;
+    height: auto;
+  }
+  .library-cell__preview .glass {
+    fill: color-mix(in srgb, var(--surface) 58%, transparent);
+    stroke: var(--muted);
+    stroke-width: 5;
+  }
+  .library-cell__preview .rim {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 5;
+  }
+  .library-cell__preview .beer-pour-stream {
+    display: none;
+  }
+  .library-cell__name {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--text);
+    font-weight: var(--weight-strong);
+    overflow-wrap: anywhere;
+    text-decoration: none;
+  }
+  tr[data-row-href]:hover .library-cell__name {
+    color: var(--accent-readable);
+    text-decoration: underline;
+  }
+  .library-cell__type {
+    grid-column: 2;
+    grid-row: 2;
+    display: block;
+    margin-top: 0.15rem;
+    color: var(--muted);
+    font-size: var(--text-small);
+    font-weight: var(--weight-medium);
+    text-transform: capitalize;
+  }
+  /*
+   * Tables never scroll sideways. Below the width a table needs, each row stacks: the first
+   * cell (the row header, when there is one), then one "label: value" line per cell with a
+   * data-label, then the cells without one, such as actions. A `.table` stacks below 40rem.
+   * A `.table--wide` stacks below 60rem, and also while its size container (Admin's <main>)
+   * is under 48rem, because beside the sidebar a wide screen leaves less room than a tablet.
+   * Stacked rows keep their table roles: the header row is only visually hidden (display:
+   * none would drop the column headers from the accessibility tree), and the drawn label has
+   * empty alternative text, so a screen reader hears each column header once.
+   */
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table tr {
+    border-bottom: 1px solid var(--border);
+  }
+  .table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .table :is(th, td) {
+    padding: var(--space-2-5);
+    text-align: left;
+    vertical-align: top;
+  }
+  /* A long unbroken name, id or error code wraps instead of widening its column; a badge or a
+   * button keeps its words whole. */
+  .table tbody :is(th, td) {
+    overflow-wrap: anywhere;
+  }
+  .table :is(.badge, .button) {
+    overflow-wrap: normal;
+  }
+  .table tbody th[scope="row"] {
+    font-weight: var(--weight-strong);
+  }
+  /* A list of records: rows highlight under the pointer and while a control in them has focus. */
+  .table--library :is(th, td) {
+    padding-block: var(--space-3);
+    vertical-align: middle;
+  }
+  .table--library tbody tr {
+    transition: background-color var(--duration-fast) ease;
+  }
+  .table--library tbody tr:hover {
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  }
+  .table--library tbody tr:focus-within {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  }
+  /* A row the script makes clickable as a whole. */
+  .table tr[data-row-href] {
+    cursor: pointer;
+  }
+  @media (max-width: 60rem) {
+    .table--wide,
+    .table--wide tbody {
+      display: block;
+    }
+    .table--wide thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .table--wide tr {
+      display: grid;
+      gap: var(--space-1);
+      padding-block: var(--space-3);
+    }
+    .table--wide :is(th, td) {
+      padding: 0;
+    }
+    .table--wide [data-label]::before {
+      content: attr(data-label) ": " / "";
+      color: var(--muted);
+    }
+  }
+  @container (max-width: 48rem) {
+    .table--wide,
+    .table--wide tbody {
+      display: block;
+    }
+    .table--wide thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .table--wide tr {
+      display: grid;
+      gap: var(--space-1);
+      padding-block: var(--space-3);
+    }
+    .table--wide :is(th, td) {
+      padding: 0;
+    }
+    .table--wide [data-label]::before {
+      content: attr(data-label) ": " / "";
+      color: var(--muted);
+    }
+  }
+  @media (max-width: 40rem) {
+    .table,
+    .table tbody {
+      display: block;
+    }
+    .table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .table tr {
+      display: grid;
+      gap: var(--space-1);
+      padding-block: var(--space-3);
+    }
+    .table :is(th, td) {
+      padding: 0;
+    }
+    .table [data-label]::before {
+      content: attr(data-label) ": " / "";
+      color: var(--muted);
+    }
   }
   .skip-link:not(:focus) {
     clip-path: inset(50%);

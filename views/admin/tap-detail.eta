@@ -8,15 +8,14 @@
       <h1>Tap <%= it.tap.identity.tapNumber %><% if (it.tap.identity.name) { %> — <%= it.tap.identity.name %><% } else { %> — (unnamed)<% } %></h1>
       <p class="muted">Read-first operational detail. Public presentation is shown below from the authoritative public projection.</p>
     </div>
-    <span class="status-badge<%= it.tap.lifecycle.enabled && !it.tap.lifecycle.isRetired ? " status-badge--active" : "" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
+    <span class="badge<%= it.tap.lifecycle.enabled && !it.tap.lifecycle.isRetired ? " badge--active" : "" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
   <section aria-labelledby="assignment-heading">
     <div class="header-row"><div><h2 id="assignment-heading">Assignment</h2></div></div>
     <% if (it.tap.assignment.active) { %>
-      <div class="table-scroll">
-        <table class="admin-table admin-detail-table">
+        <table class="table">
           <caption class="sr-only">Current Tap assignment</caption>
           <thead><tr><th scope="col">Field</th><th scope="col">Value</th></tr></thead>
           <tbody>
@@ -25,7 +24,6 @@
             <tr><th scope="row">Assigned</th><td><%= it.tap.assignment.active.assignedAtLabel %></td></tr>
           </tbody>
         </table>
-      </div>
       <div class="tap-assignment-actions">
         <% if (it.tap.moveTargets.length > 0) { %>
           <form class="form tap-assignment-action" action="/admin/taps/<%= it.tap.identity.id %>/move" method="post">
@@ -62,15 +60,13 @@
 
   <section aria-labelledby="tap-identity-heading">
     <div class="header-row"><div><h2 id="tap-identity-heading">Identity and lifecycle</h2><p class="muted">Tap number changes affect the telemetry endpoint and require an explicit acknowledgement.</p></div></div>
-    <div class="table-scroll">
-      <table class="admin-table admin-detail-table">
+      <table class="table">
         <caption class="sr-only">Tap identity and lifecycle</caption>
         <thead><tr><th scope="col">Tap number</th><th scope="col">Name</th><th scope="col">Public display</th><th scope="col">Lifecycle</th><th scope="col">First used</th><th scope="col">Last updated</th></tr></thead>
         <tbody>
-          <tr><th scope="row"><%= it.tap.identity.tapNumber %></th><td><%= it.tap.identity.name || "(unnamed)" %></td><td><%= it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></td><td><%= it.tap.lifecycle.isRetired ? "Retired" : "Active" %></td><td><%= it.tap.lifecycle.firstUsedAtLabel %></td><td><time datetime="<%= it.tap.identity.updatedAt %>"><%= it.tap.identity.updatedAtLabel %></time></td></tr>
+          <tr><th scope="row" data-label="Tap number"><%= it.tap.identity.tapNumber %></th><td data-label="Name"><%= it.tap.identity.name || "(unnamed)" %></td><td data-label="Public display"><%= it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></td><td data-label="Lifecycle"><%= it.tap.lifecycle.isRetired ? "Retired" : "Active" %></td><td data-label="First used"><%= it.tap.lifecycle.firstUsedAtLabel %></td><td data-label="Last updated"><time datetime="<%= it.tap.identity.updatedAt %>"><%= it.tap.identity.updatedAtLabel %></time></td></tr>
         </tbody>
       </table>
-    </div>
     <details class="disclosure">
       <summary><span><strong>Edit tap name</strong><small>Current name: <%= it.tap.identity.name || "(unnamed)" %>.</small></span></summary>
       <form class="form" data-tap-name-form action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name">

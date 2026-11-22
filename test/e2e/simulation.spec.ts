@@ -29,11 +29,10 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   await expect(sensor.locator("[data-sensor-status-label]")).toHaveText("Ready", {
     timeout: 10_000,
   });
-  const noise = sensor.getByRole("switch", { name: "Reading noise for tap 1" });
-  await expect(noise).toHaveText("Noise off");
+  const noise = sensor.getByRole("switch", { name: "Noise for tap 1" });
+  await expect(noise).toHaveAttribute("aria-checked", "false");
   await noise.click();
   await expect(noise).toHaveAttribute("aria-checked", "true");
-  await expect(noise).toHaveText("Noise on");
   await noise.click();
   await expect(noise).toHaveAttribute("aria-checked", "false");
   const initial = (await (

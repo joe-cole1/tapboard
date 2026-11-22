@@ -10,12 +10,12 @@ import { fileURLToPath } from "node:url";
 
 import { generateDisplayStylesheet } from "../src/features/display/palette.ts";
 
-/** Class families whose modifier comes from data, such as `status-badge--<%= fill.state %>`. */
+/** Class families whose modifier comes from data, such as `badge--<%= fill.state %>`. */
 export const DYNAMIC_MODIFIER_PREFIXES: readonly string[] = [
+  "badge--",
   "display-accent-swatch--",
   "display-font-preview--",
   "health-badge--",
-  "status-badge--",
   "tap-badge--",
   "tap-wars-current--",
 ];

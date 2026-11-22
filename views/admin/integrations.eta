@@ -12,7 +12,7 @@
     <article class="card integration-resource-card">
       <div class="header-row">
         <div><p class="eyebrow">Beverage source</p><h2>Brewfather</h2></div>
-        <span class="status-badge status-badge--<%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "healthy" : "muted" %>"><%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "Connected" : "Not configured" %></span>
+        <span class="badge badge--<%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "healthy" : "muted" %>"><%= it.brewfather.configured && it.brewfather.apiKeyConfigured ? "Connected" : "Not configured" %></span>
       </div>
       <p><%= it.brewfather.apiKeyConfigured ? "Beverage data is available for linking." : "Add an API key to import and refresh beverage data." %></p>
       <dl class="integration-resource-card__summary"><div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div><div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div></dl>
@@ -21,7 +21,7 @@
     <article class="card integration-resource-card">
       <div class="header-row">
         <div><p class="eyebrow">Measurement sources</p><h2>Telemetry</h2></div>
-        <span class="status-badge status-badge--<%= it.telemetry.activeCount > 0 ? "healthy" : "muted" %>"><%= it.telemetry.activeCount > 0 ? `${it.telemetry.activeCount} active` : "Not configured" %></span>
+        <span class="badge badge--<%= it.telemetry.activeCount > 0 ? "healthy" : "muted" %>"><%= it.telemetry.activeCount > 0 ? `${it.telemetry.activeCount} active` : "Not configured" %></span>
       </div>
       <p>Manage source keys and the devices that report Tap measurements.</p>
       <dl class="integration-resource-card__summary"><div><dt>Active sources</dt><dd><%= it.telemetry.activeCount %></dd></div><div><dt>Disabled history</dt><dd><%= it.telemetry.disabledCount %></dd></div></dl>
@@ -30,7 +30,7 @@
     <article class="card integration-resource-card">
       <div class="header-row">
         <div><p class="eyebrow">Delivery destinations</p><h2>Outbound</h2></div>
-        <span class="status-badge status-badge--<%= it.outbound && it.outbound.available ? (it.outbound.enabledCount > 0 ? "healthy" : "muted") : "muted" %>"><%= it.outbound && it.outbound.available ? `${it.outbound.enabledCount} enabled` : "Unavailable" %></span>
+        <span class="badge badge--<%= it.outbound && it.outbound.available ? (it.outbound.enabledCount > 0 ? "healthy" : "muted") : "muted" %>"><%= it.outbound && it.outbound.available ? `${it.outbound.enabledCount} enabled` : "Unavailable" %></span>
       </div>
       <% if (it.outbound && it.outbound.available) { %>
         <p>Deliver safe Tapboard events to Home Assistant or an HTTP webhook.</p>

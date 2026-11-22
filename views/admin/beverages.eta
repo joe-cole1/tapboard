@@ -29,29 +29,27 @@
       <a class="button button--primary button--small" href="/admin/beverages/new"><%= it.query ? "Add a beverage" : "Create the first beverage" %></a>
     </section>
   <% } else { %>
-    <div class="table-scroll">
-      <table class="admin-table beverage-list">
+      <table class="table table--library">
         <caption class="sr-only">Beverage library</caption>
         <thead><tr><th scope="col">Beverage</th><th scope="col">Style</th><th scope="col">ABV</th><th scope="col">Source</th><th scope="col">Current use</th></tr></thead>
         <tbody>
           <% for (const beverage of it.beverages) { %>
-            <tr class="beverage-list__row" data-row-href="/admin/beverages/<%= beverage.id %>">
-              <th scope="row"><div class="beverage-list__identity">
-                <div class="beverage-list__preview"><%~ include("/partials/fill-graphic", { tap: { id: `beverage-${beverage.id}`, graphic: beverage.graphic, title: beverage.name, accessibleLabel: `${beverage.name} vessel preview`, fillPercent: beverage.fillPercent, displayColor: beverage.displayColor, tapNumber: 0 } }) %></div>
-                <a class="beverage-list__name" href="/admin/beverages/<%= beverage.id %>">
+            <tr data-row-href="/admin/beverages/<%= beverage.id %>">
+              <th scope="row"><div class="library-cell">
+                <div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: `beverage-${beverage.id}`, graphic: beverage.graphic, title: beverage.name, accessibleLabel: `${beverage.name} vessel preview`, fillPercent: beverage.fillPercent, displayColor: beverage.displayColor, tapNumber: 0 } }) %></div>
+                <a class="library-cell__name" href="/admin/beverages/<%= beverage.id %>">
                   <span><%= beverage.name %></span>
                 </a>
-                <span class="beverage-list__type"><%= beverage.beverageType %><% if (beverage.fillGlass) { %> · <%= beverage.fillGlass %><% } %></span>
+                <span class="library-cell__type"><%= beverage.beverageType %><% if (beverage.fillGlass) { %> · <%= beverage.fillGlass %><% } %></span>
               </div></th>
-              <td><%= beverage.style || "—" %></td>
-              <td><%= beverage.abv === null ? "—" : `${beverage.abv}%` %></td>
-              <td><span class="status-badge status-badge--muted"><%= beverage.source %></span></td>
-              <td><%= beverage.currentUsage === 0 ? "Not in use" : `${beverage.currentUsage} active fill${beverage.currentUsage === 1 ? "" : "s"}` %></td>
+              <td data-label="Style"><%= beverage.style || "—" %></td>
+              <td data-label="ABV"><%= beverage.abv === null ? "—" : `${beverage.abv}%` %></td>
+              <td data-label="Source"><span class="badge"><%= beverage.source %></span></td>
+              <td data-label="Current use"><%= beverage.currentUsage === 0 ? "Not in use" : `${beverage.currentUsage} active fill${beverage.currentUsage === 1 ? "" : "s"}` %></td>
             </tr>
           <% } %>
         </tbody>
       </table>
-    </div>
     <% if (it.pagination.pageCount > 1) { %>
       <nav class="pagination" aria-label="Beverage pages">
         <% if (it.pagination.previousHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %>

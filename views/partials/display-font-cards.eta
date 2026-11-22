@@ -6,13 +6,13 @@
   <div class="display-font-previews">
     <% if (it.inherit) { %>
       <label class="display-font-preview">
-        <input class="display-choice__input" type="radio" name="font" value=""<% if (!it.selected) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="font" value=""<% if (!it.selected) { %> checked<% } %> />
         <strong>Use default</strong>
       </label>
     <% } %>
     <% for (const option of it.options) { %>
       <label class="display-font-preview display-font-preview--<%= option.value %>">
-        <input class="display-choice__input" type="radio" name="font" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
+        <input class="sr-only" type="radio" name="font" value="<%= option.value %>"<% if (it.selected === option.value) { %> checked<% } %> />
         <strong><%= option.label %></strong>
         <span>Hazardous Brews</span>
         <small>Northbound Pale Ale · 5.0%</small>
