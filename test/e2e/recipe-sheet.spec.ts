@@ -137,7 +137,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     await admin.goto(`/admin/taps/${tap.id}`);
     await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByLabel("Enable Mystery Tap").check();
-    await admin.getByRole("checkbox", { name: "Recipe", exact: true }).check();
+    await admin.getByRole("switch", { name: "Recipe", exact: true }).check();
     await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
     await expect(page.locator("[data-recipe-sheet] h3")).toHaveText("Mystery Tap");
     const redacted = (await (await page.request.get(api)).json()) as PublicStoryView;
@@ -157,7 +157,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     ).not.toContainText("6.3%");
     await expect(page.locator("[data-recipe-sheet]")).not.toContainText("Oktoberfest");
     await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
-    await admin.getByRole("checkbox", { name: "ABV", exact: true }).check();
+    await admin.getByRole("switch", { name: "ABV", exact: true }).check();
     await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
     await expect(page.getByRole("region", { name: "Recipe targets", exact: true })).toContainText(
       "6.3%",
@@ -165,7 +165,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     const revealed = (await (await page.request.get(api)).json()) as PublicStoryView;
     expect(revealed.recipes!.sources[0]!.sheet!.summary.og).toBeNull();
     await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
-    await admin.getByRole("checkbox", { name: "Recipe", exact: true }).uncheck();
+    await admin.getByRole("switch", { name: "Recipe", exact: true }).uncheck();
     await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
     await expect(page.locator("[data-recipe-sheet]")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "View recipe", exact: true })).toHaveCount(0);
@@ -173,8 +173,8 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     await admin.goto(`/admin/taps/${tap.id}`);
     await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByLabel("Enable Mystery Tap").uncheck();
-    await admin.getByRole("checkbox", { name: "Recipe", exact: true }).uncheck();
-    await admin.getByRole("checkbox", { name: "ABV", exact: true }).uncheck();
+    await admin.getByRole("switch", { name: "Recipe", exact: true }).uncheck();
+    await admin.getByRole("switch", { name: "ABV", exact: true }).uncheck();
     await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
     if (!wasSimulation) {
       await admin.goto("/admin/simulator");

@@ -36,7 +36,7 @@
   </nav>
   <div class="cluster admin-sidebar__account">
     <a class="button button--secondary button--small admin-exit" href="/">Exit Admin</a>
-    <form class="logout-form" action="/admin/logout" method="post">
+    <form action="/admin/logout" method="post">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <button class="button button--primary button--small" type="submit">Log out</button>
     </form>

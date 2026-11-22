@@ -1,16 +1,16 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
-<main id="main-content">
+<main id="main-content" class="admin-page">
   <div class="page-header"><p class="eyebrow">Keg Room · Inventory</p><h1>Kegs</h1><p class="muted">Physical Kegs are the inventory layer behind each Filled Keg.</p></div>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <%~ include("/partials/keg-room-nav", { kegRoomNav: it.kegRoomNav }) %>
   <div class="cluster page-actions"><a class="button button--primary button--small" href="<%= it.newKegHref %>">Add a Keg</a></div>
   <section aria-labelledby="physical-keg-filters">
     <div class="header-row"><div><h2 id="physical-keg-filters">Physical inventory</h2><p class="muted"><%= it.pagination.total %> Keg<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
-    <form class="admin-form admin-form--inline auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room/kegs" role="search">
-      <label>Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Keg number or label" /></label>
-      <label>Show <select name="status"><option value="active"<% if (it.query.status === "active") { %> selected<% } %>>Active</option><option value="inactive"<% if (it.query.status === "inactive") { %> selected<% } %>>Inactive</option><option value="all"<% if (it.query.status === "all") { %> selected<% } %>>All</option></select></label>
-      <label>Sort <select name="sort"><option value="number"<% if (it.query.sort === "number") { %> selected<% } %>>Keg number</option><option value="label"<% if (it.query.sort === "label") { %> selected<% } %>>Label</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
+    <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room/kegs" role="search">
+      <label class="field">Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Keg number or label" /></label>
+      <label class="field">Show <select name="status"><option value="active"<% if (it.query.status === "active") { %> selected<% } %>>Active</option><option value="inactive"<% if (it.query.status === "inactive") { %> selected<% } %>>Inactive</option><option value="all"<% if (it.query.status === "all") { %> selected<% } %>>All</option></select></label>
+      <label class="field">Sort <select name="sort"><option value="number"<% if (it.query.sort === "number") { %> selected<% } %>>Keg number</option><option value="label"<% if (it.query.sort === "label") { %> selected<% } %>>Label</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
       <button class="button button--secondary button--small" type="submit">Apply</button>
     </form>
   </section>

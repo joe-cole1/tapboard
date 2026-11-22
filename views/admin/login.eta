@@ -4,14 +4,14 @@
   <span class="admin-header__context">Admin sign in</span>
   <a class="admin-exit" href="/">Return to site</a>
 </header>
-<main id="main-content" class="card login">
+<main id="main-content" class="admin-page card login">
   <header class="page-header">
     <p class="eyebrow">Admin</p>
     <h1>Admin sign in</h1>
     <p>Enter the four-digit Admin PIN.</p>
   </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <form action="/admin/login" method="post" data-pin-form>
+  <form class="form" action="/admin/login" method="post" data-pin-form>
     <label for="pin">Admin PIN</label>
     <div class="pin-indicators" data-pin-indicators tabindex="0" role="group" aria-label="Admin PIN entry">
       <span data-pin-indicator></span><span data-pin-indicator></span><span data-pin-indicator></span><span data-pin-indicator></span>

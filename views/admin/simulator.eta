@@ -33,9 +33,9 @@
             <div class="simulator-pour-presets" role="group" aria-label="Quick pours for tap <%= sensor.tapNumber %>">
               <% for (const ounces of [4, 12, 16]) { %><form action="/admin/simulation/pour" method="post" data-simulation-action data-pour-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><button class="button button--secondary" type="submit" name="ounces" value="<%= ounces %>" data-pour-button<% if (blocked) { %> disabled<% } %> aria-label="Pour <%= ounces %> US fl oz from tap <%= sensor.tapNumber %>"><%= ounces %> oz</button></form><% } %>
             </div>
-            <form action="/admin/simulation/pour" method="post" class="simulator-custom-pour" data-simulation-action data-pour-form>
+            <form action="/admin/simulation/pour" method="post" class="form simulator-custom-pour" data-simulation-action data-pour-form>
               <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" />
-              <label for="sensor-<%= sensor.tapId %>-ounces">Custom pour <span class="sr-only">for tap <%= sensor.tapNumber %></span><span class="simulator-custom-pour__input"><input id="sensor-<%= sensor.tapId %>-ounces" name="ounces" type="number" min="1" max="32" step="0.01" value="8" inputmode="decimal" required /><span>oz</span></span></label>
+              <label class="field" for="sensor-<%= sensor.tapId %>-ounces">Custom pour <span class="sr-only">for tap <%= sensor.tapNumber %></span><span class="simulator-custom-pour__input"><input id="sensor-<%= sensor.tapId %>-ounces" name="ounces" type="number" min="1" max="32" step="0.01" value="8" inputmode="decimal" required /><span>oz</span></span></label>
               <button class="button button--primary" type="submit" data-pour-button<% if (blocked) { %> disabled<% } %>>Pour</button>
             </form>
             <div class="simulator-sensor__controls">
@@ -49,9 +49,9 @@
     </section>
     <section class="simulator-reset" aria-labelledby="simulation-reset-heading">
       <div><h2 id="simulation-reset-heading">Start fresh</h2><p>Reset restores the original sample taps, beverages, and kegs. It replaces all changes and history in this simulation.</p></div>
-      <form action="/admin/simulation/reset" method="post" data-workspace-action>
+      <form class="form" action="/admin/simulation/reset" method="post" data-workspace-action>
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <label class="simulator-reset__confirmation"><input type="checkbox" name="confirm" value="yes" required />I want to replace my simulation and its history.</label>
+        <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="confirm" value="yes" required />I want to replace my simulation and its history.</label>
         <button type="submit" class="button button--danger"<% if (simulation.changing) { %> disabled<% } %>>Reset simulation</button>
       </form>
     </section>
