@@ -17,7 +17,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
   await admin.goto("/admin/login");
   await admin.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
   await expect(admin).toHaveURL(/\/admin\/overview/u);
-  await admin.goto("/admin/system");
+  await admin.goto("/admin/simulator");
   const toggle = admin.getByRole("switch", { name: "Enable simulation" });
   const wasSimulation = (await toggle.getAttribute("aria-checked")) === "true";
   if (!wasSimulation) await toggle.click();
@@ -178,7 +178,7 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
     if (!wasSimulation) {
       await admin.goto("/admin/simulator");
-      await admin.getByRole("button", { name: "Exit simulation", exact: true }).click();
+      await admin.getByRole("switch", { name: "Enable simulation", exact: true }).click();
     }
     await guest.close();
   }

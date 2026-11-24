@@ -3,7 +3,7 @@ import { redirect, sendHtml } from "../../../infrastructure/http/html.ts";
 import { ApplicationError } from "../../../shared/errors.ts";
 import { displayStylesheetHref } from "../../display/palette.ts";
 import { type AdminContext, pageMessage, adminContext } from "./context.ts";
-import { adminNavItems } from "./layout.ts";
+import { adminBreadcrumbs, adminNavItems } from "./layout.ts";
 import type {
   RenderAdminNotFoundDependencies,
   RegisterAdminNotFoundDependencies,
@@ -24,6 +24,7 @@ export function renderAdminNotFound(
       page: {
         title: "Page not found",
         path: pathname,
+        breadcrumbs: adminBreadcrumbs(pathname, pathname, "Page not found"),
         csrfToken: context.csrfToken,
         siteName: display.tapboardName,
         displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),

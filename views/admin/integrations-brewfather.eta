@@ -1,11 +1,11 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <header class="page-header">
-    <p class="eyebrow"><a href="/admin/integrations">Integrations</a> / Beverage source</p>
     <h1>Brewfather</h1>
     <p>Connect Brewfather to import beverage data. Stored credentials are never shown.</p>
   </header>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="brewfather-status-heading">
     <% const connectionLabel = !it.brewfather.configured ? "Not configured" : !it.brewfather.enabled ? "Disabled" : ({ healthy: "Connected", unknown: "Awaiting verification", partial: "Refresh incomplete", disconnected: "Disconnected", disabled: "Disabled" }[it.brewfather.connectionState] || "Awaiting verification"); %>

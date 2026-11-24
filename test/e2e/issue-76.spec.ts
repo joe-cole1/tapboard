@@ -117,6 +117,8 @@ test("Admin login, navigation, and a normal HTTP mutation work without JavaScrip
     ["tap-wars", "/admin/tap-wars"],
     ["display", "/admin/display"],
     ["system", "/admin/system"],
+    ["logs", "/admin/logs"],
+    ["simulator", "/admin/simulator"],
   ] as const) {
     await page.goto(route === "kegs" ? "/admin/kegs" : `/admin/${route}`);
     await expect(page.locator('nav[aria-label="Admin"] a[aria-current="page"]')).toHaveAttribute(
@@ -217,12 +219,17 @@ test("mobile Admin navigation is modal while open and Beverage rows have a safe 
   await expect(sidebar).toHaveJSProperty("inert", true);
   await expect(sidebar).toHaveAttribute("aria-hidden", "true");
 
-  await page.getByRole("button", { name: "Menu" }).click();
+  const menu = page.getByRole("button", { name: "Admin menu", exact: true });
+  await menu.click();
   await expect(sidebar).toHaveJSProperty("inert", false);
   await expect(sidebar).not.toHaveAttribute("aria-hidden", "true");
   await expect(page.locator("main")).toHaveJSProperty("inert", true);
-  await expect(page.getByRole("button", { name: "Close menu" })).toBeFocused();
-  // Focus wraps to the drawer's last control, Log out, which sits under the navigation.
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await expect(sidebar.getByRole("link", { name: "Overview" })).toBeFocused();
+  // The menu button stays in the trap as the drawer's close control; focus then wraps to the
+  // drawer's last control, Log out, which sits under the navigation.
+  await page.keyboard.press("Shift+Tab");
+  await expect(menu).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(page.getByRole("button", { name: "Log out", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");

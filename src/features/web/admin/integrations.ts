@@ -18,7 +18,7 @@ import type {
 } from "../../outbound/types.ts";
 import type { TelemetryService } from "../../telemetry/service.ts";
 import { registerAdminGet, registerAdminAction } from "./http.ts";
-import { renderAdmin, adminNavItems } from "./layout.ts";
+import { adminBreadcrumbs, adminNavItems, adminTabs, renderAdmin } from "./layout.ts";
 import { requestUrl, actor, adminContext, messageLocation, type AdminContext } from "./context.ts";
 import { adminTimestampLabel } from "./presentation.ts";
 import { invalidForm } from "./forms.ts";
@@ -30,6 +30,12 @@ import type {
   RequireOutboundServiceDependencies,
   MachineKeyPageDataDependencies,
 } from "../contracts.ts";
+
+const OUTBOUND_CRUMB = {
+  label: "Outbound delivery",
+  href: "/admin/integrations/outbound",
+} as const;
+const TELEMETRY_CRUMB = { label: "Telemetry", href: "/admin/integrations/telemetry" } as const;
 
 export function registerIntegrationPages(dependencies: RegisterIntegrationPagesDependencies): void {
   registerAdminGet(dependencies, "/admin/integrations", (request, response, context) => {
@@ -45,6 +51,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       "Integrations",
       "/admin/integrations",
       {
+        tabs: adminTabs("integrations", "/admin/integrations"),
         telemetry: {
           activeCount: sources.filter((source) => source.disabledAt === null).length,
           disabledCount: sources.filter((source) => source.disabledAt !== null).length,
@@ -79,6 +86,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       "Outbound delivery",
       "/admin/integrations/outbound",
       {
+        tabs: adminTabs("integrations", "/admin/integrations/outbound"),
         available: dependencies.outboundService !== undefined,
         destinations: destinations.map((destination) =>
           outboundDestinationPresentation(destination),
@@ -102,6 +110,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         "New outbound destination",
         "/admin/integrations/outbound/new",
         {
+          breadcrumbParents: [OUTBOUND_CRUMB],
           available: dependencies.outboundService !== undefined,
           transport,
           eventFields: OUTBOUND_EVENT_FIELDS,
@@ -130,6 +139,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         destination.label,
         `/admin/integrations/outbound/${encodeURIComponent(destination.id)}`,
         {
+          breadcrumbParents: [OUTBOUND_CRUMB],
           available: true,
           destination: outboundDestinationPresentation(destination),
           history,
@@ -151,6 +161,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       "Brewfather",
       "/admin/integrations/brewfather",
       {
+        tabs: adminTabs("integrations", "/admin/integrations/brewfather"),
         brewfather: {
           configured: brewfather.configured,
           enabled: brewfather.account?.enabled ?? false,
@@ -209,6 +220,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       "Telemetry",
       "/admin/integrations/telemetry",
       {
+        tabs: adminTabs("integrations", "/admin/integrations/telemetry"),
         activeSources: activePage.items.map(mapSource),
         disabledSources: historyPage.items.map(mapSource),
         query,
@@ -251,6 +263,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         source.name,
         `/admin/integrations/telemetry-sources/${encodeURIComponent(source.id)}`,
         {
+          breadcrumbParents: [TELEMETRY_CRUMB],
           source: {
             id: source.id,
             name: source.name,
@@ -1057,6 +1070,12 @@ export function machineKeyPageData(
     page: {
       title,
       path: "/admin/integrations/telemetry",
+      breadcrumbs: adminBreadcrumbs(
+        "/admin/integrations/telemetry",
+        "/admin/integrations/telemetry",
+        title,
+        [TELEMETRY_CRUMB],
+      ),
       csrfToken: context.csrfToken,
       siteName: display.tapboardName,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),

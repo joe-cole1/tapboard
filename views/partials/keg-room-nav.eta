@@ -1,6 +1,0 @@
-<% const nav = it.kegRoomNav || {}; %>
-<nav class="admin-library-nav" aria-label="Keg Room destinations">
-  <a class="button button--secondary button--small" href="<%= nav.fillHref %>"<% if (nav.current === "fill") { %> aria-current="page"<% } %>>Fill a Keg</a>
-  <a class="button button--secondary button--small" href="<%= nav.kegsHref %>"<% if (nav.current === "kegs") { %> aria-current="page"<% } %>>Physical Kegs</a>
-  <a class="button button--secondary button--small" href="<%= nav.historyHref %>"<% if (nav.current === "history") { %> aria-current="page"<% } %>>View history</a>
-</nav>

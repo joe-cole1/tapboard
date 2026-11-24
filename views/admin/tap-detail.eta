@@ -1,10 +1,8 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
-  <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/taps">← Taps</a></nav>
   <header class="page-header">
     <div>
-      <p class="eyebrow">Manage · Tap <%= it.tap.identity.tapNumber %></p>
       <h1>Tap <%= it.tap.identity.tapNumber %><% if (it.tap.identity.name) { %> — <%= it.tap.identity.name %><% } else { %> — (unnamed)<% } %></h1>
       <p class="muted">Read-first operational detail. Public presentation is shown below from the authoritative public projection.</p>
     </div>

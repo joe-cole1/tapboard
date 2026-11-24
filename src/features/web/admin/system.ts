@@ -3,9 +3,8 @@ import { ApplicationError } from "../../../shared/errors.ts";
 import { APPLICATION_VERSION } from "../../../shared/version.ts";
 import type { SystemService } from "../../system/index.ts";
 import { registerAdminGet, registerAdminAction } from "./http.ts";
-import { requestUrl, actor } from "./context.ts";
+import { actor } from "./context.ts";
 import { renderAdmin } from "./layout.ts";
-import { humanizeAdminIdentifier } from "./detector-presentation.ts";
 import { invalidForm } from "./forms.ts";
 import type {
   RegisterSystemPagesDependencies,
@@ -16,15 +15,6 @@ import type {
 export function registerSystemPages(dependencies: RegisterSystemPagesDependencies): void {
   registerAdminGet(dependencies, "/admin/system", (request, response, context) => {
     const service = requireSystemService(dependencies);
-    const url = requestUrl(request);
-    const category = url.searchParams.get("category") ?? "";
-    const activity = service.getActivityPage({
-      ...(category === "" ? {} : { category }),
-      ...(url.searchParams.has("cursor") ? { cursor: url.searchParams.get("cursor") } : {}),
-    });
-    const nextQuery = new URLSearchParams();
-    if (category !== "") nextQuery.set("category", category);
-    if (activity.nextCursor !== null) nextQuery.set("cursor", activity.nextCursor);
     const diagnostics = service.getDiagnostics();
     renderAdmin(
       dependencies,
@@ -44,25 +34,7 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
           diagnostics,
           calculation: service.getCalculationSettings(),
           display: dependencies.displayService.getSettings(),
-          retention: service.getRetentionSettings(),
           sessionPolicy: dependencies.authService.getSessionPolicy(),
-          sessions: dependencies.authService.listActiveSessions({
-            currentSessionId: context.session.id,
-          }),
-          activity: {
-            ...activity,
-            category,
-            hasCursor: url.searchParams.has("cursor"),
-            items: activity.items.map((item) => ({
-              ...item,
-              actionLabel: humanizeAdminIdentifier(item.action.replaceAll(".", " ")),
-              categoryLabel: humanizeAdminIdentifier(item.category),
-              actorLabel: humanizeAdminIdentifier(item.actorType),
-              entityLabel: `${humanizeAdminIdentifier(item.entityType, "—")}${item.entityId === null ? "" : ` ${item.entityId.slice(0, 8)}`}`,
-              entityHref: systemActivityHref(item.entityType, item.entityId),
-            })),
-            nextHref: activity.nextCursor === null ? null : `/admin/system?${nextQuery}#activity`,
-          },
         },
       },
     );
@@ -88,37 +60,6 @@ export function registerSystemMutations(dependencies: RegisterSystemMutationsDep
   );
   registerAdminAction(
     dependencies,
-    "/admin/system/retention",
-    "/admin/system",
-    (form, context) => {
-      systemFormFields(form, [
-        "activityDays",
-        "rawSeconds",
-        "receiptSeconds",
-        "reconnectSeconds",
-        "hourlyRollupDays",
-        "dailyRollupDays",
-        "outboxDays",
-      ]);
-      requireSystemService(dependencies).updateRetentionSettings(
-        {
-          activity: { retentionDays: systemFormNumber(form, "activityDays") },
-          telemetry: {
-            rawRetentionSeconds: systemFormNumber(form, "rawSeconds"),
-            receiptRetentionSeconds: systemFormNumber(form, "receiptSeconds"),
-            reconnectHorizonSeconds: systemFormNumber(form, "reconnectSeconds"),
-            hourlyRollupRetentionDays: systemFormNumber(form, "hourlyRollupDays"),
-            dailyRollupRetentionDays: systemFormNumber(form, "dailyRollupDays"),
-          },
-          outbox: { retentionDays: systemFormNumber(form, "outboxDays") },
-        },
-        { sessionId: context.session.id },
-      );
-    },
-    "Retention settings saved. Pruning runs automatically in bounded batches.",
-  );
-  registerAdminAction(
-    dependencies,
     "/admin/system/session-policy",
     "/admin/system",
     (form, context) => {
@@ -133,18 +74,6 @@ export function registerSystemMutations(dependencies: RegisterSystemMutationsDep
       );
     },
     "Session lifetimes saved. Shorter limits apply to existing sessions immediately.",
-  );
-  registerAdminAction(
-    dependencies,
-    "/admin/system/sessions/:id/revoke",
-    "/admin/system",
-    (form, context, params) => {
-      systemFormFields(form, ["confirm"]);
-      if (form.confirm !== "revoke") invalidForm("Confirm the session revocation.");
-      dependencies.authService.revokeSessionById(params.id, actor(context));
-      return params.id === context.session.id ? "/admin/login" : "/admin/system";
-    },
-    "Session revoked.",
   );
   registerAdminAction(
     dependencies,
@@ -179,7 +108,7 @@ export function systemFormFields(
   fields: readonly string[],
 ): void {
   if (Object.keys(form).some((key) => key !== "_csrf" && !fields.includes(key))) {
-    invalidForm("The System form contains an unsupported field.");
+    invalidForm("The form contains an unsupported field.");
   }
   if (fields.some((field) => form[field] === undefined || form[field] === "")) {
     invalidForm("Complete all fields before saving.");
@@ -194,21 +123,6 @@ export function systemFormNumber(form: Readonly<Record<string, string>>, field: 
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) invalidForm("Enter a valid number.", field);
   return parsed;
-}
-
-export function systemActivityHref(
-  entityType: string | null,
-  entityId: string | null,
-): string | null {
-  if (entityType === null || entityId === null) return null;
-  const paths: Readonly<Record<string, string>> = {
-    beverage: "/admin/beverages",
-    keg: "/admin/kegs",
-    fill: "/admin/fills",
-    tap: "/admin/taps",
-  };
-  const path = paths[entityType];
-  return path === undefined ? null : `${path}/${encodeURIComponent(entityId)}`;
 }
 
 export function systemDurationMinutes(

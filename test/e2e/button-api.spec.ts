@@ -52,7 +52,7 @@ test("the public Settings link is a secondary button", async ({ page }) => {
 test("a neutral button drops its border on hover, like every plain .button", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await signIn(page);
-  const toggle = page.getByRole("button", { name: "Hide menu" });
+  const toggle = page.getByRole("button", { name: "Admin menu", exact: true });
   await toggle.hover();
   const hovered = await colours(toggle, ["--accent-hover"]);
   expect(hovered.background).toBe(hovered["--accent-hover"]);

@@ -21,7 +21,7 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
       JSON.stringify({ version: 1, overrides: { theme: "cyberpunk" } }),
     );
   });
-  await page.goto("/admin/system");
+  await page.goto("/admin/simulator");
   await page.getByRole("switch", { name: "Enable simulation" }).click();
   await expect(page).toHaveURL(/\/admin\/simulator/u);
   await expect(page.locator("[data-simulation-sensor]")).toHaveCount(5);
@@ -121,8 +121,8 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.getByRole("button", { name: "Exit simulation" }).click();
-  await expect(page).toHaveURL(/\/admin\/system/u);
+  await page.getByRole("switch", { name: "Enable simulation" }).click();
+  await expect(page).toHaveURL(/\/admin\/simulator/u);
   await display.bringToFront();
   await expect(display.locator(".workspace-banner")).toHaveCount(0, { timeout: 8000 });
   await expect(display.locator("html")).toHaveAttribute("data-theme", "warm_pub");
@@ -145,7 +145,7 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   ).json()) as SimulationStatus;
   expect(reset.sensors[0]!.tapId).not.toBe(first.tapId);
   expect(reset.sensors[0]!.online).toBe(true);
-  await page.getByRole("button", { name: "Exit simulation" }).click();
+  await page.getByRole("switch", { name: "Enable simulation" }).click();
   await display.close();
 });
 
@@ -167,21 +167,21 @@ async function withNoJavaScriptSimulation(
     await page.goto("/admin/login");
     await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
     await page.getByRole("button", { name: "Sign in" }).click();
-    await page.goto("/admin/system");
+    await page.goto("/admin/simulator");
     const toggle = page.getByRole("switch", { name: "Enable simulation" });
     if ((await toggle.getAttribute("aria-checked")) === "true") {
       await toggle.click();
       await page.getByRole("switch", { name: "Enable simulation" }).click();
     } else await toggle.click();
-    await expect(page.getByRole("heading", { name: "Simulator", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Simulation", exact: true })).toBeVisible();
     await body(page);
   } finally {
     try {
       // A dead page cannot report anything; the body's own failure is what matters then.
       if (await simulationEnabled(page).catch(() => false)) {
         await page.goto("/admin/simulator");
-        await page.getByRole("button", { name: "Exit simulation" }).click();
-        await expect(page).toHaveURL(/\/admin\/system/u);
+        await page.getByRole("switch", { name: "Enable simulation" }).click();
+        await expect(page).toHaveURL(/\/admin\/simulator/u);
       }
     } finally {
       await context.close();
@@ -199,8 +199,8 @@ test("simulation controls work with JavaScript disabled", async ({ browser }) =>
         .first()
         .getByRole("button", { name: "Bring online" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Exit simulation" }).click();
-    await expect(page).toHaveURL(/\/admin\/system/u);
+    await page.getByRole("switch", { name: "Enable simulation" }).click();
+    await expect(page).toHaveURL(/\/admin\/simulator/u);
   });
 });
 
@@ -225,7 +225,7 @@ for (const javaScriptEnabled of [true, false]) {
     await page.goto("/admin/login");
     await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
     await expect(page).toHaveURL(/\/admin\/overview/u);
-    await page.goto("/admin/system");
+    await page.goto("/admin/simulator");
     await page.getByRole("switch", { name: "Enable simulation" }).click();
     await expect(page).toHaveURL(/\/admin\/simulator/u);
     const displayContext = await browser.newContext({
@@ -294,8 +294,8 @@ for (const javaScriptEnabled of [true, false]) {
     } finally {
       await displayContext.close();
       await page.goto("/admin/simulator");
-      await page.getByRole("button", { name: "Exit simulation" }).click();
-      await expect(page).toHaveURL(/\/admin\/system/u);
+      await page.getByRole("switch", { name: "Enable simulation" }).click();
+      await expect(page).toHaveURL(/\/admin\/simulator/u);
     }
   });
 }

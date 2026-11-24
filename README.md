@@ -22,7 +22,7 @@ npm start
 
 Open http://127.0.0.1:3000. A ready server answers `GET /healthz` with HTTP 200 and `{"status":"ok","schemaVersion":31}`; readiness covers only the local application and database, not integrations.
 
-To try Tapboard without hardware, sign in, open **Admin → System**, and select **Enable simulation** (see [Simulation](docs/operations.md#built-in-simulation)). The dashboard's **Settings** link always leads to Admin, even with no taps or with integrations offline.
+To try Tapboard without hardware, sign in, open **Admin → Simulation**, and turn on **Enable simulation** (see [Simulation](docs/operations.md#built-in-simulation)). The dashboard's **Settings** link always leads to Admin, even with no taps or with integrations offline.
 
 For production, use the hardened Compose example described in [operations](docs/operations.md).
 
@@ -75,14 +75,14 @@ Each command reads secrets only from stdin and prints only safe metadata. In a c
 - **Recipe file import.** A Custom beverage can take one recipe file: a Brewfather batch or recipe JSON export, BeerJSON, or BeerXML (BeerSmith, Brewer's Friend, Grainfather and others export it). It feeds the recipe sheet and flavor guidance with no Brewfather account; see [operations](docs/operations.md#import-a-recipe-file).
 - **Mystery Tap and Tap Wars.** A Tap can hide its beer's identity and reveal chosen fields, and two Taps can compete in an anonymous public vote.
 - **Outbound events.** Pours, keg changes, low kegs, health transitions, and integration status changes can go to Home Assistant (`tapboard_event`) or webhooks (public addresses, or LAN and VPN receivers such as n8n over Tailscale when **Allow private network address** is on), each marked Required or optional for the dashboard's connectivity indicator.
-- **System administration.** **Admin → System** has readiness, storage and delivery counts, the Activity Log, calculation defaults, retention, and session management; see [operations](docs/operations.md#system-administration).
+- **System administration.** **Admin → System** has readiness, storage and delivery counts, calculation defaults, units, and Admin access; **Admin → Logs** has the Activity log, Admin sessions, and retention; see [operations](docs/operations.md#system-administration).
 - **Built-in Simulation.** A saved sample taproom with simulated scales and flow meters, kept apart from real data; see [operations](docs/operations.md#built-in-simulation).
 
 Admin error messages carry a reference that matches one sanitized event in the server log; [operations](docs/operations.md#diagnose-failures) explains the connectivity indicator and diagnostics.
 
 ## Documentation
 
-- [Operations](docs/operations.md): production Compose, reverse proxy, PIN and key, backup and restore, Simulation, System, diagnostics.
+- [Operations](docs/operations.md): production Compose, reverse proxy, PIN and key, backup and restore, Simulation, System and Logs, diagnostics.
 - [Development](docs/development.md): running from source, tests, the development container, and pull requests.
 - [Architecture](docs/architecture.md): the current design.
 - [Telemetry clients](docs/telemetry-clients.md) and [`openapi/telemetry-v1.json`](openapi/telemetry-v1.json): sending readings.

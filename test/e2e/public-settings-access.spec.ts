@@ -114,9 +114,9 @@ test("mobile Settings reaches PIN, System and simulation controls from an empty 
     await expect(page).toHaveURL(/\/admin\/overview$/u);
     await page
       .getByRole("navigation", { name: "Admin", exact: true })
-      .getByRole("link", { name: "System", exact: true })
+      .getByRole("link", { name: "Simulation", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/admin\/system$/u);
+    await expect(page).toHaveURL(/\/admin\/simulator$/u);
     await expect(page.getByRole("switch", { name: "Enable simulation" })).toBeVisible();
     await expect(page.getByRole("switch", { name: "Enable simulation" })).toBeEnabled();
 

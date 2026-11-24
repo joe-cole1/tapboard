@@ -161,7 +161,13 @@ void test("Simulator requires Admin auth and projects only the public control fi
   assert.equal(page.status, 200);
   assert.match(page.body, /SIMULATION/u);
   assert.match(page.body, /data-workspace-revision="1"/u);
-  assert.match(page.body, /aria-current="page"[^>]*><span[^>]*>Simulator/u);
+  assert.match(page.body, /aria-current="page"[^>]*><span[^>]*>Simulation/u);
+  // One switch is the only on/off control, and it turns simulation off from this page.
+  assert.match(
+    page.body,
+    /action="\/admin\/simulation\/disable"[^>]*>[\s\S]*?<button type="submit" class="switch" role="switch" aria-checked="true"/u,
+  );
+  assert.doesNotMatch(page.body, /Exit simulation/u);
   assert.match(page.body, /&lt;script&gt;/u);
   assert.doesNotMatch(page.body, /<script>alert/u);
   assert.doesNotMatch(page.body, new RegExp(secret, "u"));
@@ -286,7 +292,7 @@ void test("Workspace forms rotate session and CSRF cookies and require an explic
   assert.match(String(staleForm.headers.location), /could%20not%20be%20authorized/u);
   const replacementCsrf = cookies[1]!.split(";")[0]!.split("=")[1]!;
   const exit = await f.request("/admin/simulation/disable", { _csrf: replacementCsrf });
-  assert.match(String(exit.headers.location), /^\/admin\/system\?notice=/u);
+  assert.match(String(exit.headers.location), /^\/admin\/simulator\?notice=/u);
   assert.deepEqual(f.calls, [["reset"], ["enabled", false]]);
 });
 

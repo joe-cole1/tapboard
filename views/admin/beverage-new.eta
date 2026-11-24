@@ -1,7 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
-  <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/beverages">← Beverages</a></nav>
   <header class="page-header">
     <p class="eyebrow">Beverage library</p>
     <h1>New beverage</h1>

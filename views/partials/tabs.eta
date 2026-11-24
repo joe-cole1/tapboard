@@ -1,0 +1,5 @@
+<nav class="tabs" aria-label="<%= it.tabs.label %> pages">
+  <ul class="tabs__list">
+    <% for (const tab of it.tabs.items) { %><li><a class="tabs__link" href="<%= tab.href %>"<% if (tab.current) { %> aria-current="page"<% } %>><%= tab.label %></a></li><% } %>
+  </ul>
+</nav>

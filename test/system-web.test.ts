@@ -148,9 +148,9 @@ function location(response: Response): URL {
   return new URL(value, ORIGIN);
 }
 
-function assertRejected(response: Response, message?: RegExp): void {
+function assertRejected(response: Response, message?: RegExp, page = "/admin/system"): void {
   const redirect = location(response);
-  assert.equal(redirect.pathname, "/admin/system");
+  assert.equal(redirect.pathname, page);
   assert.ok(redirect.searchParams.has("error"));
   assert.equal(redirect.searchParams.has("notice"), false);
   if (message !== undefined) assert.match(redirect.searchParams.get("error") ?? "", message);
@@ -198,11 +198,18 @@ async function assertSignedOut(f: Fixture, browser: AdminBrowser): Promise<void>
   assert.equal(f.auth.validateSession(browser.token), undefined);
 }
 
-void test("System is authenticated SSR with bounded Activity pagination and private diagnostics", async (context) => {
+void test("System and Logs are authenticated SSR with bounded Activity pagination and private diagnostics", async (context) => {
   const f = await fixture(context);
-  const anonymous = await get(f, "/admin/system");
-  assert.equal(anonymous.status, 303);
-  assert.equal(anonymous.headers.get("location"), "/admin/login");
+  for (const page of [
+    "/admin/system",
+    "/admin/logs",
+    "/admin/logs/sessions",
+    "/admin/logs/retention",
+  ]) {
+    const anonymous = await get(f, page);
+    assert.equal(anonymous.status, 303);
+    assert.equal(anonymous.headers.get("location"), "/admin/login");
+  }
   const now = Date.now();
   for (let index = 0; index < 55; index += 1) {
     appendActivity(f.database, {
@@ -218,19 +225,19 @@ void test("System is authenticated SSR with bounded Activity pagination and priv
     });
   }
   const browser = await login(f);
-  const response = await get(f, "/admin/system?category=domain", browser);
+  const systemResponse = await get(f, "/admin/system", browser);
+  assert.equal(systemResponse.status, 200);
+  assert.equal(systemResponse.headers.get("cache-control"), "no-store");
+  const systemHtml = await systemResponse.text();
+  for (const heading of ["System status", "Application version", "Schema version", "Diagnostics"]) {
+    assert.ok(systemHtml.includes(heading));
+  }
+  assert.ok(!systemHtml.includes('id="activity"'), "the Activity log moved to Logs");
+  const response = await get(f, "/admin/logs?category=domain", browser);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("cache-control"), "no-store");
   const html = await response.text();
-  for (const heading of [
-    "System status",
-    "Application version",
-    "Schema version",
-    "Diagnostics",
-    "Activity Log",
-  ]) {
-    assert.ok(html.includes(heading));
-  }
+  assert.ok(html.includes("Activity log"));
   for (const privateValue of [
     PRIVATE_NOTE,
     PRIVATE_ENDPOINT,
@@ -241,17 +248,20 @@ void test("System is authenticated SSR with bounded Activity pagination and priv
     f.databasePath,
     browser.token,
   ]) {
-    assert.ok(
-      !html.includes(privateValue),
-      "System HTML must exclude private metadata and session tokens",
-    );
+    for (const page of [systemHtml, html]) {
+      assert.ok(
+        !page.includes(privateValue),
+        "System and Logs HTML must exclude private metadata and session tokens",
+      );
+    }
   }
-  assert.doesNotMatch(html, /session_digest|csrf_digest|details_json/u);
+  assert.doesNotMatch(systemHtml + html, /session_digest|csrf_digest|details_json/u);
   assert.equal(activityTimes(html).length, 50);
   const olderHref = /href="([^"]+)"[^>]*>Older activity<\/a>/u.exec(activitySection(html))?.[1];
   assert.ok(olderHref);
   const olderPath = olderHref.replaceAll("&amp;", "&");
   const olderUrl = new URL(olderPath, ORIGIN);
+  assert.equal(olderUrl.pathname, "/admin/logs");
   assert.equal(olderUrl.searchParams.get("category"), "domain");
   assert.ok(olderUrl.searchParams.get("cursor"));
   const secondResponse = await get(f, olderPath, browser);
@@ -263,12 +273,32 @@ void test("System is authenticated SSR with bounded Activity pagination and priv
   assert.equal(new Set([...firstTimes, ...secondTimes]).size, 55);
   assert.ok(!secondHtml.includes(PRIVATE_ENTITY));
   for (const query of ["?category=unsupported", "?cursor=not-a-valid-cursor"]) {
-    const invalid = await get(f, `/admin/system${query}`, browser);
+    const invalid = await get(f, `/admin/logs${query}`, browser);
     assert.equal(invalid.status, 400);
   }
   const publicHtml = await (await get(f, "/")).text();
   assert.ok(!publicHtml.includes(PRIVATE_NOTE));
   assert.ok(!publicHtml.includes("system-diagnostics-heading"));
+});
+
+void test("every Admin link on System and Logs opens a page", async (context) => {
+  // Regression: System linked "health and pour detection" to /admin/health, which has no page.
+  const f = await fixture(context);
+  const browser = await login(f);
+  const hrefs = new Set<string>();
+  for (const page of [
+    "/admin/system",
+    "/admin/logs",
+    "/admin/logs/sessions",
+    "/admin/logs/retention",
+  ]) {
+    const html = mainContent(await (await get(f, page, browser)).text());
+    for (const match of html.matchAll(/href="(\/admin\/[^"#]*)"/gu)) {
+      hrefs.add(match[1]!.replaceAll("&amp;", "&"));
+    }
+  }
+  assert.ok(hrefs.has("/admin/integrations"), "System status links to Integrations");
+  for (const href of hrefs) assert.equal((await get(f, href, browser)).status, 200, href);
 });
 
 void test("System rejects Origin/CSRF failures and unsupported form fields without mutation", async (context) => {
@@ -294,10 +324,10 @@ void test("System rejects Origin/CSRF failures and unsupported form fields witho
     assert.deepEqual(settings(f), baseline);
     assert.equal(activityCount(f), auditCount);
   }
-  const attempts: readonly [string, Record<string, string>][] = [
+  const attempts: readonly [string, Record<string, string>, string?][] = [
     ["/admin/system/calculation", calculation],
     [
-      "/admin/system/retention",
+      "/admin/logs/retention",
       {
         activityDays: "14",
         rawSeconds: "300",
@@ -305,18 +335,20 @@ void test("System rejects Origin/CSRF failures and unsupported form fields witho
         reconnectSeconds: "60",
         outboxDays: "7",
       },
+      "/admin/logs/retention",
     ],
     [
       "/admin/system/session-policy",
       { inactivityMinutes: "30", absoluteMinutes: "60", expectedRevision: "0" },
     ],
-    [`/admin/system/sessions/${other.id}/revoke`, { confirm: "revoke" }],
+    [`/admin/logs/sessions/${other.id}/revoke`, { confirm: "revoke" }, "/admin/logs/sessions"],
     ["/admin/system/pin", { currentPin: "1234", newPin: "2345", confirmPin: "2345" }],
   ];
-  for (const [path, fields] of attempts) {
+  for (const [path, fields, page] of attempts) {
     assertRejected(
       await post(f, path, { ...fields, unsupported: "must-not-be-used" }, browser),
       /unsupported field/u,
+      page,
     );
     assert.deepEqual(settings(f), baseline);
     assert.equal(activityCount(f), auditCount);
@@ -344,13 +376,18 @@ void test("invalid retention horizons reject every setting atomically while vali
     { ...valid, rawSeconds: "7200" },
     { ...valid, reconnectSeconds: "7200" },
   ]) {
-    assertRejected(await post(f, "/admin/system/retention", invalid, browser));
+    assertRejected(
+      await post(f, "/admin/logs/retention", invalid, browser),
+      undefined,
+      "/admin/logs/retention",
+    );
     assert.deepEqual(settings(f), baseline);
     assert.equal(activityCount(f), count);
   }
-  const saved = await post(f, "/admin/system/retention", valid, browser);
+  const saved = await post(f, "/admin/logs/retention", valid, browser);
+  assert.equal(location(saved).pathname, "/admin/logs/retention");
   assert.ok(location(saved).searchParams.has("notice"));
-  const html = await (await get(f, "/admin/system", browser)).text();
+  const html = await (await get(f, "/admin/logs/retention", browser)).text();
   for (const [name, value] of Object.entries(valid)) assert.equal(inputValue(html, name), value);
   assert.ok(activityCount(f) > count);
 });
@@ -489,15 +526,19 @@ void test("System revokes selected and current sessions without revoking other b
   const current = await login(f);
   const selected = await login(f);
   const other = await login(f);
-  assertRejected(await post(f, `/admin/system/sessions/${selected.id}/revoke`, {}, current));
+  assertRejected(
+    await post(f, `/admin/logs/sessions/${selected.id}/revoke`, {}, current),
+    undefined,
+    "/admin/logs/sessions",
+  );
   assert.ok(f.auth.validateSession(selected.token));
   const selectedResult = await post(
     f,
-    `/admin/system/sessions/${selected.id}/revoke`,
+    `/admin/logs/sessions/${selected.id}/revoke`,
     { confirm: "revoke" },
     current,
   );
-  assert.equal(location(selectedResult).pathname, "/admin/system");
+  assert.equal(location(selectedResult).pathname, "/admin/logs/sessions");
   await assertSignedOut(f, selected);
   assert.equal((await get(f, "/admin/system", current)).status, 200);
   assert.equal((await get(f, "/admin/system", other)).status, 200);
@@ -508,7 +549,7 @@ void test("System revokes selected and current sessions without revoking other b
   assert.equal(audit?.entityType, "admin_session");
   const selfResult = await post(
     f,
-    `/admin/system/sessions/${current.id}/revoke`,
+    `/admin/logs/sessions/${current.id}/revoke`,
     { confirm: "revoke" },
     current,
   );
@@ -595,13 +636,13 @@ void test("System in Simulation uses normal authentication policy and revokes no
   assert.ok(f.auth.validateSession(selected.token));
   assert.equal(
     location(
-      await post(f, `/admin/system/sessions/${selected.id}/revoke`, { confirm: "revoke" }, current),
+      await post(f, `/admin/logs/sessions/${selected.id}/revoke`, { confirm: "revoke" }, current),
     ).pathname,
-    "/admin/system",
+    "/admin/logs/sessions",
   );
   await assertSignedOut(f, selected);
   const disabled = await post(f, "/admin/simulation/disable", {}, current);
-  assert.equal(location(disabled).pathname, "/admin/system");
+  assert.equal(location(disabled).pathname, "/admin/simulator");
   current = browserFromResponse(f, disabled);
   const normalPage = await (await get(f, "/admin/system", current)).text();
   assert.ok(!normalPage.includes('aria-label="Simulation mode"'));

@@ -24,6 +24,10 @@ const LIST_PAGES = [
   "/admin/display/shared",
   "/admin/tap-wars",
   "/admin/system",
+  "/admin/logs",
+  "/admin/logs/sessions",
+  "/admin/logs/retention",
+  "/admin/simulator",
 ];
 
 // The first record link on a list page, so the detail pages are covered too.

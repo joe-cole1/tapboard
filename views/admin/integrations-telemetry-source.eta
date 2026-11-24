@@ -1,8 +1,7 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <header class="page-header">
-    <p class="eyebrow"><a href="/admin/integrations/telemetry">Telemetry</a> / Source</p>
     <h1><%= it.source.name %></h1>
     <p>Safe source metadata only. Machine key secrets and digests are never displayed.</p>
   </header>

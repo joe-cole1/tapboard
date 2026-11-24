@@ -17,6 +17,7 @@ import {
 } from "./admin/tap-wars.ts";
 import { registerDisplayPages } from "./admin/display.ts";
 import { registerSystemPages } from "./admin/system.ts";
+import { registerLogsMutations, registerLogsPages } from "./admin/logs.ts";
 import { registerSystemMutations } from "./admin/system.ts";
 import { registerDisplayMutations } from "./admin/display.ts";
 import { registerBeverageMutations } from "./admin/beverages.ts";
@@ -38,10 +39,12 @@ export function registerWebRoutes(dependencies: WebRouteDependencies): void {
   registerTapWarsPages(dependencies);
   registerDisplayPages(dependencies);
   registerSystemPages(dependencies);
+  registerLogsPages(dependencies);
   registerAdminEventRoutes(dependencies);
   registerAdminTapWarsApi(dependencies);
   // Preserve the original mutation pass, including interleaved integration routes.
   registerSystemMutations(dependencies);
+  registerLogsMutations(dependencies);
   registerOutboundMutations(dependencies);
   registerDisplayMutations(dependencies);
   registerBeverageMutations(dependencies);

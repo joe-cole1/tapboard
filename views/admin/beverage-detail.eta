@@ -1,7 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
-  <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/beverages">← Beverages</a></nav>
   <header class="page-header">
     <div class="beverage-detail-header__title">
       <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="5" fill="<%= it.beverage.resolvedColor %>" /></svg>
