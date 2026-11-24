@@ -1,5 +1,5 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <% const data = it.tapWars || {}; const current = data.current || null; const published = data.published || null; const publicVisible = data.publicVisible || null; const eligible = data.eligible || []; const history = data.history || []; const total = (war) => Number.isFinite(war?.totalVotes) ? war.totalVotes : (war?.competitors || []).reduce((sum, side) => sum + (side.voteCount || 0), 0); const publicSide = (side) => publicVisible?.id === current?.id ? publicVisible[`side${side}`] : null; const resultLabel = (war) => { if (war?.result === "tie") return "Tie"; const side = war?.result === "side1" ? 1 : war?.result === "side2" ? 2 : null; return side ? (war.competitors || []).find((competitor) => competitor.side === side)?.adminBeverageTitle + " wins" : "Result pending"; }; %>
 <main id="main-content" class="admin-page" data-admin-tap-wars<% if (current) { %> data-current-id="<%= current.id %>" data-current-status="<%= current.status %>"<% } %><% if (published) { %> data-published-id="<%= published.id %>"<% } %>>
   <header class="page-header">

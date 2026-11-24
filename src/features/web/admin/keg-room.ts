@@ -20,7 +20,7 @@ import {
   validationFieldsFor,
 } from "./http.ts";
 import { safePublicTapCards } from "./tap-presentation.ts";
-import { renderAdmin } from "./layout.ts";
+import { adminTabs, renderAdmin } from "./layout.ts";
 import { capacityLabel, pourHistoryEntry, tareLabel } from "./presentation.ts";
 import { reportFailure } from "../../../shared/diagnostics.ts";
 import {
@@ -36,6 +36,7 @@ import type {
 } from "../contracts.ts";
 
 const POUR_HISTORY_PAGE_SIZE = 25;
+const PHYSICAL_KEGS_CRUMB = { label: "Physical Kegs", href: "/admin/keg-room/kegs" } as const;
 
 /** One page of a Fill's pours, newest first, paged by the forecast history cursor. */
 function fillPourHistory(
@@ -133,15 +134,11 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           previousHref: page.page > 1 ? adminFillPageHref(requested, page.page - 1) : null,
           nextHref: page.page < page.pageCount ? adminFillPageHref(requested, page.page + 1) : null,
         },
-        historyHref: "/admin/keg-room?state=ended",
-        inventoryHref: "/admin/keg-room/kegs",
         newFillHref: "/admin/keg-room/fills/new",
-        kegRoomNav: {
-          fillHref: "/admin/keg-room/fills/new",
-          kegsHref: "/admin/keg-room/kegs",
-          historyHref: "/admin/keg-room?state=ended",
-          current: requested.state === "ended" ? "history" : null,
-        },
+        tabs: adminTabs(
+          "keg-room",
+          requested.state === "ended" ? "/admin/keg-room?state=ended" : "/admin/keg-room",
+        ),
       },
     );
   });
@@ -217,7 +214,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       request,
       context,
       "/admin/keg-room-kegs",
-      "Kegs",
+      "Physical Kegs",
       "/admin/keg-room/kegs",
       {
         kegs,
@@ -230,12 +227,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           nextHref: page.page < page.pageCount ? adminKegPageHref(requested, page.page + 1) : null,
         },
         newKegHref: "/admin/keg-room/kegs/new",
-        kegRoomNav: {
-          fillHref: "/admin/keg-room/fills/new",
-          kegsHref: "/admin/keg-room/kegs",
-          historyHref: "/admin/keg-room?state=ended",
-          current: "kegs",
-        },
+        tabs: adminTabs("keg-room", "/admin/keg-room/kegs"),
       },
     );
   });
@@ -250,7 +242,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       "/admin/keg-room-keg-new",
       "New Keg",
       "/admin/keg-room/kegs/new",
-      {},
+      { breadcrumbParents: [PHYSICAL_KEGS_CRUMB] },
     );
   });
 
@@ -294,8 +286,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
             deletionImpacts: impact.impacts,
             fillHistory,
           },
-          roomHref: "/admin/keg-room",
-          inventoryHref: "/admin/keg-room/kegs",
+          breadcrumbParents: [PHYSICAL_KEGS_CRUMB],
         },
       );
     },
@@ -324,7 +315,6 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         kegs: activeKegs
           .filter((keg) => !occupiedKegIds.has(keg.id))
           .map((keg) => ({ id: keg.id, kegNumber: keg.kegNumber, label: keg.label })),
-        roomHref: "/admin/keg-room",
       },
     );
   });
@@ -356,7 +346,6 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           activeTap,
           availableTaps,
           pourHistory,
-          roomHref: "/admin/keg-room",
         },
       );
     },

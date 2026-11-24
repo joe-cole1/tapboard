@@ -1,8 +1,7 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <header class="page-header">
-    <p class="eyebrow"><a href="/admin/integrations">Integrations</a> / <a href="/admin/integrations/outbound">Outbound delivery</a></p>
     <h1><%= it.destination.label %></h1>
     <p><%= it.destination.transportLabel %> destination · configuration version <%= it.destination.version ? it.destination.version.versionNumber : "—" %>. Endpoint and credential values are never displayed.</p>
   </header>

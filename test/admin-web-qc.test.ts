@@ -738,7 +738,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   for (const [path, heading] of [
     ["/admin/overview", "Overview"],
     ["/admin/beverages", "Beverages"],
-    ["/admin/kegs", "Kegs"],
+    ["/admin/kegs", "Physical Kegs"],
     ["/admin/taps", "Taps"],
   ] as const) {
     const response = await fetch(`${base}${path}`, { headers: getHeaders });
@@ -1023,7 +1023,11 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.doesNotMatch(kegRoomHtml, /\/kick"/);
   assert.match(kegRoomHtml, /href="\/admin\/keg-room\/fills\/new"[^>]*>Fill a Keg<\/a>/);
   assert.match(kegRoomHtml, /href="\/admin\/keg-room\/kegs"[^>]*>Physical Kegs<\/a>/);
-  assert.match(kegRoomHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>View history<\/a>/);
+  assert.match(kegRoomHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>History<\/a>/);
+  assert.match(
+    kegRoomHtml,
+    /href="\/admin\/keg-room"[^>]*aria-current="page"[^>]*>Filled Kegs<\/a>/,
+  );
   assert.match(kegRoomHtml, /action="\/admin\/fills\/fill-on-deck-qc\/move"/);
   assert.match(kegRoomHtml, /Move up/);
   assert.match(kegRoomHtml, /Move down/);
@@ -1052,24 +1056,24 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const historyKegRoomHtml = await historyKegRoom.text();
   assert.match(
     historyKegRoomHtml,
-    /href="\/admin\/keg-room\?state=ended"[^>]*aria-current="page"[^>]*>View history<\/a>/,
+    /href="\/admin\/keg-room\?state=ended"[^>]*aria-current="page"[^>]*>History<\/a>/,
   );
   assert.match(historyKegRoomHtml, /data-fill-id="fill-qc"[\s\S]*?data-fill-percent="0"/);
 
   const physicalKegsResponse = await fetch(`${base}/admin/keg-room/kegs`, { headers: getHeaders });
   const physicalKegsHtml = await physicalKegsResponse.text();
-  assert.match(physicalKegsHtml, /href="\/admin\/keg-room\/fills\/new"[^>]*>Fill a Keg<\/a>/);
+  assert.match(physicalKegsHtml, /href="\/admin\/keg-room\/kegs\/new"[^>]*>Add a Keg<\/a>/);
   assert.match(
     physicalKegsHtml,
     /href="\/admin\/keg-room\/kegs"[^>]*aria-current="page"[^>]*>Physical Kegs<\/a>/,
   );
-  assert.match(physicalKegsHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>View history<\/a>/);
+  assert.match(physicalKegsHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>History<\/a>/);
   assert.match(physicalKegsHtml, /19\.0 L/);
   assert.match(physicalKegsHtml, /1\.20 kg/);
   assert.match(physicalKegsHtml, /class="keg-inventory__graphic"/);
 
   for (const [path, heading] of [
-    ["/admin/keg-room/kegs", "Kegs"],
+    ["/admin/keg-room/kegs", "Physical Kegs"],
     ["/admin/keg-room/kegs/new", "Add a Physical Keg"],
     ["/admin/keg-room/fills/new", "Fill a Keg"],
     [`/admin/keg-room/kegs/${KEG_ID}`, "Keg 7"],

@@ -14,6 +14,7 @@ import { ApplicationError } from "../../shared/errors.ts";
 import { adminFailureMessage, reportFailure } from "../../shared/diagnostics.ts";
 import type { Logger } from "../../shared/logging.ts";
 import type { AuthService, AuthenticatedSession, SessionMaterial } from "../auth/service.ts";
+import { adminBreadcrumbs, adminNavItems } from "../web/admin/layout.ts";
 import type { SimulationController, SimulationStatus } from "./ui-types.ts";
 
 export interface SimulationRouteDependencies {
@@ -229,13 +230,15 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
         200,
         dependencies.renderer.render("/admin/simulator", {
           page: {
-            title: "Simulator",
+            title: "Simulation",
             path: "/admin/simulator",
+            breadcrumbs: adminBreadcrumbs("/admin/simulator", "/admin/simulator", "Simulation"),
             csrfToken: context.csrfToken,
             workspace,
             notice: query.get("notice")?.slice(0, 240),
             error: query.get("error")?.slice(0, 240),
           },
+          navItems: adminNavItems(),
           workspace,
           simulation: state,
         }),
@@ -251,11 +254,17 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
         failure.status,
         dependencies.renderer.render("/admin/error", {
           page: {
-            title: "Simulator unavailable",
+            title: "Simulation unavailable",
             path: "/admin/simulator",
+            breadcrumbs: adminBreadcrumbs(
+              "/admin/simulator",
+              "/admin/simulator",
+              "Simulation unavailable",
+            ),
             csrfToken: context.csrfToken,
-            error: adminFailureMessage(failure, "The Simulator could not be loaded."),
+            error: adminFailureMessage(failure, "The Simulation page could not be loaded."),
           },
+          navItems: adminNavItems(),
         }),
       );
     }
@@ -302,7 +311,6 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
     path: "/admin/simulation/disable",
     fields: [],
     notice: "Simulation ended. Your sample workspace is saved for next time.",
-    returnPath: "/admin/system",
     handle: async (_form, context, response) => {
       replaceSession(
         dependencies,

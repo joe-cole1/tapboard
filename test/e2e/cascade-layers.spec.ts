@@ -22,10 +22,10 @@ test("Danger buttons stay red on hover", async ({ page }) => {
   expect(hovered.background).not.toBe(hovered["--accent-hover"]);
 });
 
-test("the Admin sidebar toggle keeps its accent fill on hover", async ({ page }) => {
+test("the Admin menu button keeps its accent fill on hover", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await signIn(page);
-  const toggle = page.locator(".admin-sidebar-toggle");
+  const toggle = page.getByRole("button", { name: "Admin menu", exact: true });
   await expect(toggle).toBeVisible();
   const resting = await colours(toggle, ["--surface-raised"]);
   expect(resting.background).toBe(resting["--surface-raised"]);

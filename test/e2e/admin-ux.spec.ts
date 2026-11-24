@@ -40,22 +40,22 @@ test("accent circles keep their own colour on hover and theme cards drive the pr
   expect(await page.locator("[style]").count()).toBe(0);
 });
 
-test("Hide menu removes the sidebar on desktop and Menu brings it back", async ({ page }) => {
+test("the menu button collapses the sidebar on desktop and brings it back", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page);
   const sidebar = page.locator("[data-admin-sidebar]");
-  const menu = page.locator("[data-admin-menu-toggle]");
-  await expect(menu).toBeHidden();
-  await page.getByRole("button", { name: "Hide menu" }).click();
+  const menu = page.getByRole("button", { name: "Admin menu", exact: true });
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
+  await menu.click();
   await expect(sidebar).toBeHidden();
-  await expect(menu).toBeVisible();
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
   await expect(menu).toBeFocused();
   // The choice is remembered across pages.
   await page.goto("/admin/taps");
   await expect(sidebar).toBeHidden();
   await menu.click();
   await expect(sidebar).toBeVisible();
-  await expect(menu).toBeHidden();
+  await expect(menu).toHaveAttribute("aria-expanded", "true");
 });
 
 test("label/value lists put each value beside its label, and stack on phones", async ({ page }) => {

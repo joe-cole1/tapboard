@@ -2,23 +2,26 @@ const shell = document.querySelector(".admin-shell");
 
 if (shell) {
   const menuToggle = shell.querySelector("[data-admin-menu-toggle]");
+  const header = menuToggle?.closest("header") ?? null;
   const sidebar = shell.querySelector("[data-admin-sidebar]");
-  const sidebarToggle = shell.querySelector("[data-admin-sidebar-toggle]");
-  const sidebarClose = shell.querySelector("[data-admin-sidebar-close]");
   const drawerBackdrop = shell.querySelector("[data-admin-drawer-backdrop]");
   const storageKey = "tapboard.v2.admin-sidebar.v1";
   const mobileNavigation = window.matchMedia("(max-width: 60rem)");
-  const backgroundNodes = [...shell.children].filter(
-    (node) => node !== sidebar && node !== drawerBackdrop,
-  );
+  // While the drawer is open everything but the drawer and the menu button is inert.
+  const backgroundNodes = [
+    ...[...shell.children].filter(
+      (node) => node !== sidebar && node !== drawerBackdrop && node !== header,
+    ),
+    ...[...(header?.children ?? [])].filter((node) => node !== menuToggle),
+  ];
 
   shell.classList.add("admin-shell--js");
   shell.dataset.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ? "true"
     : "false";
 
-  // The header Menu button opens the drawer on narrow screens and brings a
-  // hidden (collapsed) sidebar back on wide ones.
+  // The one menu button collapses and expands the sidebar on wide screens and
+  // opens and closes the drawer on narrow ones.
   const syncMenuToggle = () => {
     if (!menuToggle) return;
     const expanded = mobileNavigation.matches
@@ -29,13 +32,18 @@ if (shell) {
 
   const setCollapsed = (collapsed) => {
     shell.dataset.sidebarCollapsed = collapsed ? "true" : "false";
-    sidebarToggle?.setAttribute("aria-expanded", collapsed ? "false" : "true");
     syncMenuToggle();
     try {
       window.localStorage.setItem(storageKey, collapsed ? "collapsed" : "expanded");
     } catch {
       // A blocked or unavailable localStorage must not affect navigation.
     }
+  };
+
+  // The drawer opens below the header, so the menu button stays visible as its close control.
+  const placeDrawer = () => {
+    const top = Math.max(0, header?.getBoundingClientRect().bottom ?? 0);
+    shell.style.setProperty("--admin-drawer-top", `${top}px`);
   };
 
   const synchronizeDrawerAccessibility = () => {
@@ -54,20 +62,19 @@ if (shell) {
   };
 
   const setDrawerOpen = (open, restoreFocus = true) => {
+    if (open) placeDrawer();
     shell.dataset.drawerOpen = open ? "true" : "false";
     syncMenuToggle();
     if (drawerBackdrop) drawerBackdrop.hidden = !open;
     synchronizeDrawerAccessibility();
     if (open) {
-      sidebarClose?.focus();
+      sidebar?.querySelector("a")?.focus();
     } else if (restoreFocus) {
       menuToggle?.focus();
     }
   };
 
   if (menuToggle) menuToggle.hidden = false;
-  if (sidebarToggle) sidebarToggle.hidden = false;
-  if (sidebarClose) sidebarClose.hidden = false;
 
   let savedPreference = "expanded";
   try {
@@ -80,20 +87,25 @@ if (shell) {
 
   mobileNavigation.addEventListener("change", () => setDrawerOpen(false, false));
 
+  // Scrolling or a resize (a rotated phone rewraps the header) moves the header's bottom edge.
+  for (const type of ["scroll", "resize"]) {
+    window.addEventListener(
+      type,
+      () => {
+        if (shell.dataset.drawerOpen === "true") placeDrawer();
+      },
+      { passive: true },
+    );
+  }
+
   menuToggle?.addEventListener("click", () => {
     if (mobileNavigation.matches) {
       setDrawerOpen(shell.dataset.drawerOpen !== "true");
       return;
     }
-    setCollapsed(false);
-    sidebar?.querySelector("a")?.focus();
+    setCollapsed(shell.dataset.sidebarCollapsed !== "true");
   });
-  sidebarClose?.addEventListener("click", () => setDrawerOpen(false));
   drawerBackdrop?.addEventListener("click", () => setDrawerOpen(false));
-  sidebarToggle?.addEventListener("click", () => {
-    setCollapsed(true);
-    menuToggle?.focus();
-  });
   sidebar?.querySelectorAll("a").forEach((link) => {
     link.addEventListener("click", () => {
       if (mobileNavigation.matches) setDrawerOpen(false);
@@ -121,6 +133,7 @@ if (shell) {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Tab" && shell.dataset.drawerOpen === "true" && mobileNavigation.matches) {
       const focusable = [
+        ...(menuToggle ? [menuToggle] : []),
         ...(sidebar?.querySelectorAll(
           'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
         ) ?? []),

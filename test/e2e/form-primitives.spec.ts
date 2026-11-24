@@ -23,6 +23,9 @@ const PAGES = [
   "/admin/tap-wars",
   "/admin/simulator",
   "/admin/system",
+  "/admin/logs",
+  "/admin/logs/sessions",
+  "/admin/logs/retention",
 ];
 
 const DETAILS: readonly [string, RegExp][] = [
@@ -209,14 +212,14 @@ test("both switch hosts submit without JavaScript", async ({ browser }) => {
     await expect(srm).toBeChecked({ checked: wasShown });
 
     // A button switch submits its own form.
-    await page.goto("/admin/system");
+    await page.goto("/admin/simulator");
     const simulation = page.getByRole("switch", { name: "Enable simulation" });
     await expect(simulation).toHaveAttribute("aria-checked", "false");
     await simulation.click();
-    await page.goto("/admin/system");
+    await page.goto("/admin/simulator");
     await expect(simulation).toHaveAttribute("aria-checked", "true");
     await simulation.click();
-    await page.goto("/admin/system");
+    await page.goto("/admin/simulator");
     await expect(simulation).toHaveAttribute("aria-checked", "false");
   } finally {
     await context.close();

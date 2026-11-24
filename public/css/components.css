@@ -88,8 +88,57 @@
     padding: var(--space-1-5) var(--space-2-5);
     font-size: var(--text-compact);
   }
+  /* A square icon button: an inline SVG plus an accessible name on the button. */
+  .button--icon {
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    padding: 0;
+  }
+  .button--icon svg {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
   summary.button::-webkit-details-marker {
     display: none;
+  }
+  /*
+   * Link tabs between a section's sibling pages: a <nav> of real URLs, the current one marked
+   * with aria-current. Its bar and weight show the selection, not colour alone.
+   */
+  .tabs {
+    margin-bottom: var(--space-6);
+  }
+  .tabs__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--space-4);
+    margin: 0;
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    list-style: none;
+  }
+  .tabs__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    margin-bottom: -1px;
+    border-bottom: 3px solid transparent;
+    color: var(--muted);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
+  }
+  .tabs__link:hover {
+    border-bottom-color: var(--border);
+    color: var(--text);
+  }
+  .tabs__link[aria-current="page"] {
+    border-bottom-color: var(--accent-strong);
+    color: var(--text);
+    font-weight: var(--weight-strong);
   }
   /*
    * The one visually hidden definition. The PIN field shares it once the keypad script runs;

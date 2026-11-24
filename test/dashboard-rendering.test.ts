@@ -7,6 +7,7 @@ import type { PublicDashboardView, PublicTapCardView } from "../src/features/das
 import { tapWarPercentages } from "../src/features/tap-wars/service.ts";
 import type { PublicTapWarView } from "../src/features/tap-wars/types.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
+import { adminBreadcrumbs, adminNavItems } from "../src/features/web/admin/layout.ts";
 
 const hostile = '<script>alert(1)</script>" onmouseover="alert(2)';
 
@@ -346,18 +347,13 @@ void test("live header patches preserve the public brand while updating nested c
 
 void test("Admin shell exposes all independently reachable navigation seams", () => {
   const html = createRenderer().render("/admin/overview", {
-    page: { title: "Overview", path: "/admin/overview", csrfToken: "safe" },
-    navItems: [
-      "overview",
-      "integrations",
-      "beverages",
-      "kegs",
-      "fills",
-      "taps",
-      "tap-wars",
-      "display",
-      "system",
-    ].map((name) => ({ label: name, href: `/admin/${name}` })),
+    page: {
+      title: "Overview",
+      path: "/admin/overview",
+      breadcrumbs: adminBreadcrumbs("/admin/overview", "/admin/overview", "Overview"),
+      csrfToken: "safe",
+    },
+    navItems: adminNavItems(),
     metrics: [],
     taps: [],
     health: [],
@@ -370,18 +366,8 @@ void test("Admin shell exposes all independently reachable navigation seams", ()
       brewfatherLinkedBeverages: 0,
     },
   });
-  for (const route of [
-    "overview",
-    "integrations",
-    "beverages",
-    "kegs",
-    "fills",
-    "taps",
-    "tap-wars",
-    "display",
-    "system",
-  ]) {
-    assert.match(html, new RegExp(`href="/admin/${route}"`, "u"));
+  for (const item of adminNavItems()) {
+    assert.match(html, new RegExp(`href="${item.href}"`, "u"));
   }
   assert.match(html, /aria-current="page"/u);
   assert.match(html, /Skip to content/u);
@@ -494,8 +480,13 @@ void test("Admin Tap Wars meters carry each side's share in SVG geometry, not in
   for (const { votes, widths } of SPLITS) {
     const split = tapWarPercentages(votes[0], votes[1]);
     const html = createRenderer().render("/admin/tap-wars", {
-      page: { title: "Tap Wars", path: "/admin/tap-wars", csrfToken: "safe" },
-      navItems: [],
+      page: {
+        title: "Tap Wars",
+        path: "/admin/tap-wars",
+        breadcrumbs: adminBreadcrumbs("/admin/tap-wars", "/admin/tap-wars", "Tap Wars"),
+        csrfToken: "safe",
+      },
+      navItems: adminNavItems(),
       tapWars: {
         current: {
           id: "00000000-0000-4000-8000-000000000175",

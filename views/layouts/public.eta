@@ -14,7 +14,7 @@
     <a class="skip-link" href="#main-content">Skip to content</a>
     <% if (it.workspace?.enabled) { %>
       <div class="workspace-banner" role="note" aria-label="Simulation mode">
-        <strong>SIMULATION</strong><span>Sample workspace · saved separately</span><a href="/admin/simulator">Simulator controls</a>
+        <strong>SIMULATION</strong><span>Sample workspace · saved separately</span><a href="/admin/simulator">Simulation controls</a>
       </div>
     <% } %>
     <%~ it.body %>

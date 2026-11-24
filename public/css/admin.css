@@ -230,11 +230,13 @@
     color: var(--text);
     font-size: var(--text-body);
   }
-  .admin-menu-toggle {
+  /* The menu button shows a hamburger, and ✕ while the narrow-screen drawer is open. */
+  .admin-menu-icon[data-menu-icon="close"],
+  .admin-shell[data-drawer-open="true"] .admin-menu-icon[data-menu-icon="open"] {
     display: none;
   }
-  .admin-sidebar-close {
-    display: none;
+  .admin-shell[data-drawer-open="true"] .admin-menu-icon[data-menu-icon="close"] {
+    display: block;
   }
   .admin-exit {
     white-space: nowrap;
@@ -252,12 +254,6 @@
     padding: var(--space-4) var(--space-3);
     background: var(--surface);
     border-right: 1px solid var(--border);
-  }
-  .admin-sidebar__controls {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-1-5);
-    margin-bottom: var(--space-3);
   }
   .admin-sidebar nav {
     display: grid;
@@ -307,6 +303,8 @@
     align-self: start;
     display: flex;
     gap: var(--space-2);
+    /* As wide as the page content, so the trail starts at the page's left edge. */
+    width: 100%;
     max-width: 78rem;
     margin: 0 auto;
     padding: var(--space-3) clamp(1rem, 4vw, 4rem) var(--space-1-5);
@@ -317,14 +315,35 @@
     color: var(--text);
     font-weight: var(--weight-semibold);
   }
+  /* Each level is a 24px target; phones show only the link to the parent. */
+  .admin-breadcrumbs__trail a,
+  .admin-breadcrumbs__back {
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 1.5rem;
+  }
+  .admin-breadcrumbs__trail a {
+    display: inline-flex;
+  }
   .admin-breadcrumbs__back {
     display: none;
   }
-  .admin-breadcrumbs__wide {
-    display: inline-flex;
+  .admin-breadcrumbs__trail {
+    display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-1-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .admin-breadcrumbs__trail li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1-5);
+  }
+  .admin-breadcrumbs__trail li + li::before {
+    content: "/" / "";
   }
   .admin-shell > .admin-sidebar ~ main {
     grid-column: 2;
@@ -546,9 +565,14 @@
     .admin-shell {
       display: block;
     }
+    /* The drawer and its backdrop start below the header, which keeps the menu button on top. */
+    .admin-shell.admin-shell--js > .admin-header {
+      position: relative;
+      z-index: var(--z-drawer);
+    }
     .admin-sidebar {
       position: fixed;
-      inset: 0 auto 0 0;
+      inset: var(--admin-drawer-top, 0) auto 0 0;
       z-index: var(--z-drawer);
       width: min(19rem, 86vw);
       overflow-y: auto;
@@ -575,11 +599,11 @@
     }
     .admin-shell.admin-shell--js .admin-drawer-backdrop:not([hidden]) {
       position: fixed;
-      inset: 0;
+      inset: var(--admin-drawer-top, 0) 0 0;
       z-index: var(--z-drawer-backdrop);
       display: block;
       width: 100%;
-      height: 100%;
+      height: calc(100% - var(--admin-drawer-top, 0px));
       padding: 0;
       border: 0;
       border-radius: 0;
@@ -592,35 +616,19 @@
     .admin-breadcrumbs {
       padding-block: var(--space-3) var(--space-1-5);
     }
-    .admin-breadcrumbs__wide {
+    .admin-breadcrumbs__trail {
       display: none;
     }
     .admin-breadcrumbs__back {
-      display: inline;
-    }
-    .admin-menu-toggle:not([hidden]),
-    .admin-sidebar-close:not([hidden]) {
-      display: block;
-    }
-    .admin-sidebar-toggle:not([hidden]) {
-      display: none;
+      display: inline-flex;
     }
   }
   @media (min-width: 60.0625rem) {
-    /* Collapsed hides the whole sidebar; the header Menu button brings it back. */
+    /* Collapsed hides the whole sidebar; the menu button brings it back. */
     .admin-shell[data-sidebar-collapsed="true"] {
       grid-template-columns: 0 minmax(0, 1fr);
     }
     .admin-shell[data-sidebar-collapsed="true"] .admin-sidebar {
-      display: none;
-    }
-    .admin-shell[data-sidebar-collapsed="true"] .admin-menu-toggle:not([hidden]) {
-      display: block;
-    }
-    .admin-menu-toggle[hidden] {
-      display: none;
-    }
-    .admin-sidebar-close[hidden] {
       display: none;
     }
   }
@@ -652,32 +660,8 @@
   .admin-shell[data-workspace-enabled="true"] > .admin-sidebar ~ main {
     grid-row: 4;
   }
-  .simulation-settings {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(15rem, 1fr);
-    gap: var(--space-6);
-  }
-  .simulation-settings__intro h2,
-  .simulation-settings__intro .eyebrow {
-    margin-top: 0;
-  }
-  .simulation-settings__intro p:last-child {
-    margin-bottom: 0;
-  }
-  .simulation-settings form p {
-    margin: 0;
-  }
   .simulator-header > div:first-child {
     max-width: 43rem;
-  }
-  .simulator-header .page-actions {
-    margin-bottom: var(--space-5);
-  }
-  .simulator-header .button {
-    gap: var(--space-2-5);
-  }
-  .simulator-intro {
-    max-width: 48rem;
   }
   .simulator-note {
     padding: var(--space-3) var(--space-4);
@@ -855,7 +839,6 @@
       align-items: flex-start;
       gap: 0.1rem;
     }
-    .simulation-settings,
     .simulator-reset {
       grid-template-columns: 1fr;
     }
@@ -873,8 +856,7 @@
   }
   .admin-search__controls,
   .form-actions,
-  .pagination,
-  .admin-back-link {
+  .pagination {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -883,16 +865,6 @@
   .admin-search__controls input {
     flex: 1 1 16rem;
     min-width: 0;
-  }
-  .admin-back-link {
-    margin-bottom: var(--space-4);
-  }
-  .admin-library-nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2-5);
-    margin-block: var(--space-4);
   }
   .keg-inventory__graphic {
     width: 100%;

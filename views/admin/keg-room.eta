@@ -1,13 +1,14 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <div class="page-header">
     <p class="eyebrow">Service flow</p>
     <h1>Keg Room</h1>
     <p class="muted">Keep Filled Kegs moving from available to On Deck to On Tap.</p>
   </div>
+  <div class="cluster page-actions"><a class="button button--primary button--small" href="<%= it.newFillHref %>">Fill a Keg</a></div>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <%~ include("/partials/keg-room-nav", { kegRoomNav: it.kegRoomNav }) %>
   <section aria-labelledby="keg-room-filters">
     <div class="header-row"><div><h2 id="keg-room-filters">Find a Filled Keg</h2><p class="muted"><%= it.pagination.total %> result<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
     <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">

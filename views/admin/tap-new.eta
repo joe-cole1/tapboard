@@ -1,9 +1,7 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
-  <nav class="admin-back-link" aria-label="Breadcrumb"><a href="/admin/taps">← Taps</a></nav>
   <header class="page-header">
-    <p class="eyebrow">Manage · Taps</p>
     <h1>New Tap</h1>
     <p class="muted">Create a serving position first; assignment and operational controls are available after it exists.</p>
   </header>

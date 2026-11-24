@@ -26,6 +26,9 @@ const PAGES = [
   "/admin/display/shared",
   "/admin/tap-wars",
   "/admin/system",
+  "/admin/logs",
+  "/admin/logs/sessions",
+  "/admin/logs/retention",
   "/admin/simulator",
 ];
 const DETAILS: readonly [string, RegExp][] = [
@@ -252,8 +255,8 @@ test("Taps, Kegs and Keg Room stack below 60rem, and also beside the sidebar on 
     expect(await stacked(path, 1024), `${path} at 1024px beside the sidebar`).not.toContain(false);
   }
   // A narrower table stays a table on a tablet.
-  expect(await stacked("/admin/system", 767)).toEqual([false]);
-  expect(await stacked("/admin/system", 639)).toEqual([true]);
+  expect(await stacked("/admin/logs", 767)).toEqual([false]);
+  expect(await stacked("/admin/logs", 639)).toEqual([true]);
 });
 
 test("the On Deck drag handle appears only when the script that drives it runs", async ({

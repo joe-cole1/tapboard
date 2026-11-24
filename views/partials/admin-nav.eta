@@ -1,29 +1,16 @@
 <header class="admin-header">
+  <button class="button button--icon" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="true" aria-label="Admin menu">
+    <svg class="admin-menu-icon" data-menu-icon="open" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+    <svg class="admin-menu-icon" data-menu-icon="close" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18" /></svg>
+  </button>
   <div class="admin-header__identity">
     <a class="admin-brand" href="/"><%= it.page.siteName || "Tapboard" %></a>
     <span class="admin-header__context">Admin</span>
   </div>
-  <button class="button admin-menu-toggle" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="false">Menu</button>
 </header>
 <aside id="admin-sidebar" class="admin-sidebar" data-admin-sidebar>
-  <div class="admin-sidebar__controls">
-    <button class="button admin-sidebar-toggle" type="button" data-admin-sidebar-toggle hidden aria-controls="admin-sidebar" aria-expanded="true">Hide menu</button>
-    <button class="button admin-sidebar-close" type="button" data-admin-sidebar-close hidden>Close menu</button>
-  </div>
   <nav aria-label="Admin">
-    <% const sourceItems = it.items?.length ? it.items : [
-      { label: "Overview", href: "/admin/overview", group: "Overview" },
-      { label: "Keg Room", href: "/admin/keg-room", group: "Manage", activePaths: ["/admin/fills", "/admin/kegs", "/admin/keg-room"] },
-      { label: "Taps", href: "/admin/taps", group: "Manage" },
-      { label: "Beverages", href: "/admin/beverages", group: "Manage" },
-      { label: "Integrations", href: "/admin/integrations", group: "Configure" },
-      { label: "Display", href: "/admin/display", group: "Configure" },
-      { label: "Tap Wars", href: "/admin/tap-wars", group: "Manage" },
-      { label: "System", href: "/admin/system", group: "Configure" },
-    ];
-    const navItems = sourceItems.map((item) => ({ ...item, group: item.group || (item.href === "/admin/overview" ? "Overview" : "Manage"), activePaths: item.activePaths || [item.href] }));
-    if (it.page.workspace?.enabled && !navItems.some((item) => item.href === "/admin/simulator")) navItems.push({ label: "Simulator", href: "/admin/simulator", group: "Configure", activePaths: ["/admin/simulator"] }); %>
-    <% for (const group of ["Overview", "Manage", "Configure"]) { const groupItems = navItems.filter((item) => item.group === group); if (groupItems.length > 0) { %>
+    <% for (const group of ["Overview", "Manage", "Configure"]) { const groupItems = it.items.filter((item) => item.group === group); if (groupItems.length > 0) { %>
       <section class="admin-nav-group" aria-labelledby="admin-nav-<%= group.toLocaleLowerCase() %>">
         <h2 id="admin-nav-<%= group.toLocaleLowerCase() %>"><%= group %></h2>
         <ul>
@@ -43,7 +30,10 @@
   </div>
 </aside>
 <button class="admin-drawer-backdrop" type="button" data-admin-drawer-backdrop hidden aria-label="Close Admin menu"></button>
+<% const crumbs = it.page.breadcrumbs; const parent = crumbs.at(-2); %>
 <nav class="admin-breadcrumbs" aria-label="Breadcrumb">
-  <% if (it.page.path !== "/admin/overview") { %><a class="admin-breadcrumbs__back" href="/admin/overview">Back to Overview</a><% } %>
-  <span class="admin-breadcrumbs__wide"><a href="/admin/overview">Admin</a><span aria-hidden="true">/</span><span aria-current="page"><%= it.page.title %></span></span>
+  <% if (parent && it.page.path !== "/admin/overview") { %><a class="admin-breadcrumbs__back" href="<%= parent.href %>"><span aria-hidden="true">←</span><span class="sr-only">Back to </span><%= parent.label %></a><% } %>
+  <ol class="admin-breadcrumbs__trail">
+    <% for (const crumb of crumbs) { %><li><% if (crumb.href) { %><a href="<%= crumb.href %>"><%= crumb.label %></a><% } else { %><span aria-current="page"><%= crumb.label %></span><% } %></li><% } %>
+  </ol>
 </nav>

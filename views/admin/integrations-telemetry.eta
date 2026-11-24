@@ -1,11 +1,11 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <header class="page-header">
-    <p class="eyebrow"><a href="/admin/integrations">Integrations</a> / Measurement sources</p>
     <h1>Telemetry</h1>
     <p>Manage the machine keys used by devices that report Tap measurements. A source must be assigned to a Tap before it can report.</p>
   </header>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="telemetry-usage-heading">
     <h2 id="telemetry-usage-heading">Connect a telemetry device</h2>

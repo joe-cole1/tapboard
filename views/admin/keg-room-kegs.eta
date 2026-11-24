@@ -1,10 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
-  <div class="page-header"><p class="eyebrow">Keg Room · Inventory</p><h1>Kegs</h1><p class="muted">Physical Kegs are the inventory layer behind each Filled Keg.</p></div>
-  <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <%~ include("/partials/keg-room-nav", { kegRoomNav: it.kegRoomNav }) %>
+  <div class="page-header"><h1>Physical Kegs</h1><p class="muted">Physical Kegs are the inventory layer behind each Filled Keg.</p></div>
   <div class="cluster page-actions"><a class="button button--primary button--small" href="<%= it.newKegHref %>">Add a Keg</a></div>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
+  <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="physical-keg-filters">
     <div class="header-row"><div><h2 id="physical-keg-filters">Physical inventory</h2><p class="muted"><%= it.pagination.total %> Keg<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
     <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room/kegs" role="search">

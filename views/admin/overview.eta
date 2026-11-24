@@ -1,8 +1,7 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems || [] }) %>
+<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
 <main id="main-content" class="admin-page">
   <header class="page-header">
-    <p class="eyebrow">Admin / Overview</p>
     <h1>Overview</h1>
     <p>Current service health and the next useful actions.</p>
   </header>

@@ -16,7 +16,7 @@ import {
   requiredAutosaveField,
   validationFieldsFor,
 } from "./http.ts";
-import { renderAdmin } from "./layout.ts";
+import { adminTabs, renderAdmin } from "./layout.ts";
 import { previewSampleCard } from "./tap-presentation.ts";
 import { actor } from "./context.ts";
 import type {
@@ -36,6 +36,7 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "Display",
       "/admin/display",
       {
+        tabs: adminTabs("display", "/admin/display"),
         sharedDisplay,
         defaultThemeSummary: {
           theme: displayThemeLabel(sharedDisplay.theme),
@@ -68,6 +69,7 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "Default theme",
       "/admin/display/shared",
       {
+        tabs: adminTabs("display", "/admin/display/shared"),
         sharedDisplay,
         themeOptions: displayThemeOptions(),
         fontOptions: displayFontOptions(),
@@ -101,6 +103,7 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
       "This display",
       "/admin/display/this-display",
       {
+        tabs: adminTabs("display", "/admin/display/this-display"),
         themeOptions: displayThemeOptions(),
         fontOptions: displayFontOptions(),
         accentOptions: displayAccentOptions(),
