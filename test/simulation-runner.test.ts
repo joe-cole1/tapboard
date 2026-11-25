@@ -171,7 +171,7 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
     assert.ok(glasses.every((glass) => VESSEL_IDS.some((known) => known === glass)));
     assert.deepEqual(h.seed(), first);
     assert.equal(count(h.database, "taps"), 5);
-    assert.equal(count(h.database, "beverages"), 7);
+    assert.equal(count(h.database, "beverages"), 8);
     assert.equal(count(h.database, "pours"), 0);
     assert.equal(count(h.database, "telemetry_measurements"), 0);
     assert.equal(readSettings(h.database).seeded, true);
@@ -424,7 +424,7 @@ void test("pause, stop and a real-file restart retain hardware state and never r
     h.advance(15_000);
     assert.equal(count(h.database, "pours"), 1);
     assert.equal(count(h.database, "taps"), 5);
-    assert.equal(count(h.database, "beverages"), 7);
+    assert.equal(count(h.database, "beverages"), 8);
     assert.equal(readSensor(h.database, offline!.tapId)!.sequence, sequence);
     assert.equal(readSensor(h.database, offline!.tapId)!.noiseEnabled, true);
     assert.equal(readSensor(h.database, offline!.tapId)!.temperatureC, 8);
@@ -837,7 +837,8 @@ void test("history snapshots retain selected batch values and real brewing/barre
       .map(({ beverage }) => h.beverageService.getBeverage(beverage.id));
     assert.deepEqual(
       new Set(details.map((d) => d.effectivePresentation.name)),
-      new Set(HISTORY_BEERS.map((b) => b.profile.name)),
+      // Plus the cider nobody pours yet, which has a custom recipe instead of a snapshot.
+      new Set([...HISTORY_BEERS.map((b) => b.profile.name), "Sample Orchard Cider"]),
     );
     for (const beer of HISTORY_BEERS) {
       const detail = details.find((d) => d.effectivePresentation.name === beer.profile.name)!;

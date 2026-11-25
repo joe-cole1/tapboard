@@ -13,6 +13,7 @@ test("Danger buttons stay red on hover", async ({ page }) => {
   await signIn(page);
   await page.goto("/admin/beverages");
   await page.locator("tbody tr").first().getByRole("link").first().click();
+  await page.getByRole("link", { name: "Delete", exact: true }).click();
   const remove = page.getByRole("button", { name: "Permanently delete beverage" });
   await expect(remove).toBeEnabled();
   await remove.hover();

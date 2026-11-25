@@ -365,17 +365,19 @@ function hideFallbacks(form) {
 function initializeSubmit(form) {
   if (form.dataset.autosaveInitialized === "true") return;
   form.dataset.autosaveInitialized = "true";
+  hideFallbacks(form);
   const state = { form, resourceKey: "", running: false };
   registerResourceState(form, state);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (state.running) return;
-    state.running = true;
-    const values = {};
-    for (const field of fieldNames(form)) {
-      const control = controlsFor(form, field)[0];
-      if (control && "value" in control) values[field] = control.value;
+    // A choice made while a save runs (a second swatch) saves once that one lands.
+    if (state.running) {
+      state.again = true;
+      return;
     }
+    state.running = true;
+    // The form's fields as a post would send them (a radio group sends its checked value).
+    const values = snapshot(form);
     values[revisionField(form)] = readRevision(form);
     setStatus(form, "Saving…", "saving");
     try {
@@ -389,6 +391,10 @@ function initializeSubmit(form) {
       } else setStatus(form, error.message || "Could not save", "error");
     } finally {
       state.running = false;
+      if (state.again) {
+        state.again = false;
+        form.requestSubmit();
+      }
     }
   });
 }

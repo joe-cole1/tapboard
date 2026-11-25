@@ -159,7 +159,7 @@ const count = (f: Fixture, table: string) =>
 void test("Admin imports a BeerXML file with no Brewfather account; Story shows the recipe sheet and flavor guidance", async (context) => {
   const f = await fixture(context);
   const browser = await login(f);
-  const before = await page(f, `/admin/beverages/${f.beverageId}`, browser.cookie);
+  const before = await page(f, `/admin/beverages/${f.beverageId}/recipe`, browser.cookie);
   assert.ok(before.includes(`/admin/beverages/${f.beverageId}/recipe-import`));
   assert.deepEqual((await story(f)).recipes, { custom: null, sources: [] });
 
@@ -194,7 +194,7 @@ void test("Admin imports a BeerXML file with no Brewfather account; Story shows 
 
   const response = await postImport(f, browser, BEERXML);
   const location = new URL(response.headers.get("location") ?? "", ORIGIN);
-  assert.equal(location.pathname, `/admin/beverages/${f.beverageId}`);
+  assert.equal(location.pathname, `/admin/beverages/${f.beverageId}/recipe`);
   assert.equal(redirectMessage(response, "notice"), "Recipe imported (BeerXML).");
   assert.ok(
     await waitFor(`event: fill.updated\ndata: {"tapId":"${f.tapId}"}`, Date.now() + 5_000),
@@ -202,7 +202,7 @@ void test("Admin imports a BeerXML file with no Brewfather account; Story shows 
   );
   events.abort();
 
-  const after = await page(f, `/admin/beverages/${f.beverageId}`, browser.cookie);
+  const after = await page(f, `/admin/beverages/${f.beverageId}/recipe`, browser.cookie);
   assert.ok(after.includes("Imported BeerXML recipe"));
   assert.ok(after.includes("Centennial"));
   assert.ok(

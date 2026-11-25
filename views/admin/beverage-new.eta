@@ -24,10 +24,9 @@
         <label class="field">IBU <input name="ibu" type="number" min="0" max="2000" step="0.1" /></label>
         <label class="field">Original gravity <input name="og" type="number" min="0.5" max="2" step="0.001" /></label>
         <label class="field">Final gravity <input name="fg" type="number" min="0.5" max="2" step="0.001" /></label>
-        <label class="field">SRM <input name="srm" type="number" min="0" max="100" step="0.1" /></label>
         <label class="field">Manual density override <input name="manualDensityOverride" type="number" min="0.5" max="2" step="0.001" /></label>
-        <label class="field">Display color <input name="displayColor" pattern="#[0-9A-Fa-f]{6}" placeholder="#D97706" /></label>
       </div>
+      <%~ include("/partials/display-colour-picker", { picker: it.colourPicker, mode: "create", id: "new-beverage-colour" }) %>
       <%~ include("/partials/fill-glass-picker", { label: "Fill Glass", name: "fillGlass", id: "new-fill-glass", selected: "", options: it.fillGlassOptions || [] }) %>
       <label class="field">Description <textarea name="description" maxlength="4000" rows="4"></textarea></label>
     </details>

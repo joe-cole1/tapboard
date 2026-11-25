@@ -1,0 +1,54 @@
+<%
+  /*
+   * The display colour picker: SRM swatches for a beer, then the display colour, which
+   * matches SRM (or Brewfather) until someone picks one. it.picker comes from
+   * displayColourPicker(). On a Beverage page ("live") each part is its own one-click form
+   * that saves at once; inside the New Beverage form ("create") it adds plain fields.
+   */
+  const picker = it.picker;
+  const live = it.mode === "live";
+  const prefix = String(it.id || "colour").replace(/[^a-zA-Z0-9_-]/gu, "-");
+  const statusId = `${prefix}-status`;
+  const formAttributes = (fields) => `action="${it.action}" method="post" data-autosave="submit" data-autosave-fields="${fields}" data-autosave-resource="${it.resource}" data-autosave-revision="updatedAt" data-autosave-status-id="${statusId}"`;
+  const hiddenFields = live ? `<input type="hidden" name="_csrf" value="${it.csrfToken}" /><input type="hidden" name="updatedAt" value="${it.revision}" />` : "";
+  const resetIcon = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4v5h5" /><path d="M5.6 15a7.5 7.5 0 1 0 .8-7.4L4 9" /></svg>`;
+%>
+<div class="stack" data-colour-picker<% if (live) { %> data-colour-picker-live<% } %>>
+  <% if (picker.showSrm || !live) { %>
+    <% if (live) { %><form class="form" <%~ formAttributes("srm,srmExact") %> data-srm-form><%~ hiddenFields %><% } %>
+      <fieldset class="fieldset">
+        <legend>SRM<% if (!live) { %> <small>(beer only)</small><% } %><% if (picker.linked) { %> <small data-srm-source data-label-inherited="<%= picker.srmLabels.inherited %>" data-label-overridden="<%= picker.srmLabels.overridden %>"><%= picker.srmOverridden ? picker.srmLabels.overridden : picker.srmLabels.inherited %></small><% } %></legend>
+        <div class="srm-swatches">
+          <% for (const swatch of picker.swatches) { %><label class="srm-swatch"><input class="sr-only" type="radio" name="srm" value="<%= swatch.value %>"<% if (swatch.selected) { %> checked<% } %> /><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="1" y="1" width="22" height="22" rx="4" fill="<%= swatch.color %>" /></svg><span><%= swatch.value %></span></label><% } %>
+        </div>
+        <div class="cluster">
+          <label class="cluster"><input type="radio" name="srm" value="exact"<% if (picker.exactSelected) { %> checked<% } %> /> Exact value</label>
+          <label class="field">Exact SRM <input name="srmExact" type="number" min="0" max="100" step="0.1" value="<%= picker.srmExact %>" /></label>
+        </div>
+      </fieldset>
+    <% if (live) { %>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save SRM</button></div>
+    </form>
+    <% } %>
+    <% if (live && picker.linked) { %>
+      <form <%~ formAttributes("srmMode") %> data-srm-reset<% if (!picker.srmOverridden) { %> hidden<% } %>><%~ hiddenFields %><input type="hidden" name="srmMode" value="inherit" /><button type="submit" class="button button--secondary button--icon" aria-label="Reset SRM to the Brewfather value" title="Reset SRM to the Brewfather value"><%~ resetIcon %></button></form>
+    <% } %>
+  <% } %>
+
+  <div class="cluster">
+    <% if (live) { %>
+      <form class="cluster" <%~ formAttributes("displayColor") %> data-colour-form><%~ hiddenFields %>
+        <label class="field">Display colour <input type="color" name="displayColor" value="<%= picker.colour %>" /></label>
+        <small class="muted" data-colour-source data-label-inherited="<%= picker.colourLabels.inherited %>" data-label-overridden="<%= picker.colourLabels.overridden %>"><%= picker.colourOverridden ? picker.colourLabels.overridden : picker.colourLabels.inherited %></small>
+        <button class="button button--primary button--small" type="submit" data-autosave-fallback>Save colour</button>
+      </form>
+      <form <%~ formAttributes(picker.linked ? "displayColorMode" : "displayColor") %> data-colour-reset<% if (!picker.colourOverridden) { %> hidden<% } %>><%~ hiddenFields %><% if (picker.linked) { %><input type="hidden" name="displayColorMode" value="inherit" /><% } else { %><input type="hidden" name="displayColor" value="" /><% } %><button type="submit" class="button button--secondary button--icon" aria-label="<%= picker.colourResetLabel %>" title="<%= picker.colourResetLabel %>"><%~ resetIcon %></button></form>
+    <% } else { %>
+      <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="displayColorCustom" value="true" data-colour-custom /> Pick a display colour</label>
+      <label class="field">Display colour <input type="color" name="displayColor" value="<%= picker.colour %>" /></label>
+      <small class="muted">Off, a beer's colour matches its SRM.</small>
+    <% } %>
+  </div>
+  <% if (live) { %><output id="<%= statusId %>" class="autosave-status" data-autosave-status aria-live="polite"></output><% } %>
+</div>
+<script type="module" src="/assets/js/admin-colour-picker.js"></script>

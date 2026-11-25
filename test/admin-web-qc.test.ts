@@ -1119,13 +1119,18 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(physicalKegsHtml, /href="\/admin\/keg-room\?state=ended"[^>]*>History<\/a>/);
   assert.match(physicalKegsHtml, /19\.0 L/);
   assert.match(physicalKegsHtml, /1\.20 kg/);
-  assert.match(physicalKegsHtml, /class="keg-inventory__graphic"/);
+  // The row icon is the shared corny keg vessel, decorative because the row names the keg.
+  assert.match(
+    physicalKegsHtml,
+    /class="library-cell__preview" aria-hidden="true"><svg class="tap-graphic"[^>]*data-graphic-id="corny_keg"/u,
+  );
+  assert.doesNotMatch(physicalKegsHtml, /keg-inventory__/u);
 
   for (const [path, heading] of [
     ["/admin/keg-room/kegs", "Physical Kegs"],
     ["/admin/keg-room/kegs/new", "Add a Physical Keg"],
     ["/admin/keg-room/fills/new", "Fill a Keg"],
-    [`/admin/keg-room/kegs/${KEG_ID}`, "Keg 7"],
+    [`/admin/keg-room/kegs/${KEG_ID}`, "Keg 7 — QC Keg"],
     [`/admin/keg-room/fills/${FILL_ID}`, "Filled Keg"],
   ] as const) {
     const response = await fetch(`${base}${path}`, { headers: getHeaders });
@@ -1161,24 +1166,34 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(newBeverageHtml, /<h1>New beverage<\/h1>/);
   assert.match(newBeverageHtml, /action="\/admin\/beverages\/create"/);
 
-  const detailResponse = await fetch(`${base}/admin/beverages/${LINKED_BEVERAGE_ID}`, {
-    headers: getHeaders,
-  });
-  assert.equal(detailResponse.status, 200);
-  const detailHtml = await detailResponse.text();
-  assert.match(detailHtml, /Brewfather presentation/);
-  assert.match(detailHtml, /Source:<\/strong> Source Style/);
-  assert.match(detailHtml, /Reset to inherited/);
-  assert.match(detailHtml, /Override/);
-  assert.match(detailHtml, /Source:<\/strong> 5\.4%/);
-  assert.match(detailHtml, /Source:<\/strong> #123456/);
-  assert.match(detailHtml, /name="confirmationName"/);
-  assert.match(detailHtml, /name="updatedAt"/);
-  assert.match(detailHtml, /data-beverage-updated-at=/);
-  assert.match(detailHtml, /&lt;script&gt;/);
-  assert.doesNotMatch(detailHtml, /<script>/);
-  for (const secret of [rawSourceSecret, recipeSecret, sensorySecret, "secret-fill-glass"])
-    assert.doesNotMatch(detailHtml, new RegExp(secret));
+  // The linked Beverage's tabs: Info, Presentation (the overrides and the colour), Delete.
+  const beverageTab = async (tab: string) => {
+    const response = await fetch(`${base}/admin/beverages/${LINKED_BEVERAGE_ID}${tab}`, {
+      headers: getHeaders,
+    });
+    assert.equal(response.status, 200, tab);
+    return response.text();
+  };
+  const infoHtml = await beverageTab("");
+  assert.match(infoHtml, /Brewfather link/);
+  assert.match(infoHtml, /data-beverage-updated-at=/);
+  const presentationHtml = await beverageTab("/presentation");
+  assert.match(presentationHtml, /Source:<\/strong> Source Style/);
+  assert.match(presentationHtml, /Reset to inherited/);
+  assert.match(presentationHtml, /Override/);
+  assert.match(presentationHtml, /Source:<\/strong> 5\.4%/);
+  // The colour shows its effective value, which follows Brewfather until overridden.
+  assert.match(presentationHtml, /type="color" name="displayColor" value="#D97706"/);
+  assert.match(presentationHtml, /data-colour-source[^>]*>From Brewfather</);
+  assert.match(presentationHtml, /name="updatedAt"/);
+  const deleteHtml = await beverageTab("/delete");
+  assert.match(deleteHtml, /name="confirmationName"/);
+  for (const detailHtml of [infoHtml, presentationHtml, deleteHtml]) {
+    assert.match(detailHtml, /&lt;script&gt;/);
+    assert.doesNotMatch(detailHtml, /<script>/);
+    for (const secret of [rawSourceSecret, recipeSecret, sensorySecret, "secret-fill-glass"])
+      assert.doesNotMatch(detailHtml, new RegExp(secret));
+  }
 
   const kegDetailHtml = await (
     await fetch(`${base}/admin/keg-room/kegs/${KEG_ID}`, { headers: getHeaders })
@@ -1372,8 +1387,9 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(presentationResponse.status, 303);
   assert.match(
     presentationResponse.headers.get("location") ?? "",
-    new RegExp(`^/admin/beverages/${LINKED_BEVERAGE_ID}\\?notice=`),
+    new RegExp(`^/admin/beverages/${LINKED_BEVERAGE_ID}/presentation\\?notice=`),
   );
+  // A form without the Fill Glass leaves its override alone.
   assert.deepEqual(presentationCalls.at(-1), {
     input: {
       name: { value: "Local Name" },
@@ -1382,7 +1398,6 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
       abv: { value: 6.4 },
       displayColor: { inherit: true },
       description: { value: "Local description" },
-      fillGlass: { value: "" },
     },
     actor: { actorType: "admin", sessionId: SESSION_ID },
   });
@@ -1393,7 +1408,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(recipeResponse.status, 303);
   assert.match(
     recipeResponse.headers.get("location") ?? "",
-    new RegExp(`^/admin/beverages/${CUSTOM_BEVERAGE_ID}\\?notice=`),
+    new RegExp(`^/admin/beverages/${CUSTOM_BEVERAGE_ID}/recipe\\?notice=`),
   );
   assert.deepEqual(recipeCalls.at(-1), {
     id: CUSTOM_BEVERAGE_ID,

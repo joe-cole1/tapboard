@@ -1,6 +1,8 @@
 /// <reference lib="dom" />
 import { readFileSync, mkdirSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+
+import { saveLive } from "./helpers.ts";
 async function noOverflow(page: Page) {
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1),
@@ -111,12 +113,11 @@ test("isolated corpus preview displays privacy-safe fixture guidance and capture
   await page.goto(`/admin/beverages/${manifest.taps[0]!.beverageId}`);
   await page.getByRole("textbox", { name: "Admin PIN" }).fill("1234");
   await expect(page).toHaveURL(/\/admin\/overview$/u);
-  await page.goto(`/admin/beverages/${manifest.taps[0]!.beverageId}`);
-  await page.getByText("Edit sensory overrides", { exact: true }).click();
+  // The Sensory tab shows the overrides and why the estimates are what they are, all open.
+  await page.goto(`/admin/beverages/${manifest.taps[0]!.beverageId}/sensory`);
   await expect(page.getByRole("spinbutton", { name: "Malt character", exact: true })).toHaveCount(
     1,
   );
-  await page.getByText("Why these estimates?", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Selected brewing inputs" })).toBeVisible();
   await page.screenshot({
     path: "/tmp/tapboard-sensory-preview/screenshots/admin-diagnostics.png",
@@ -126,11 +127,11 @@ test("isolated corpus preview displays privacy-safe fixture guidance and capture
   const before = (await (await page.request.get(apiPath)).json()) as {
     sensory: Record<string, { value: number | null }>;
   };
+  const overrides = page.locator('form[action$="/sensory"]');
   await page.getByRole("spinbutton", { name: "Body", exact: true }).fill("8");
-  await page.getByRole("button", { name: "Save sensory overrides", exact: true }).click();
-  await page.getByText("Edit sensory overrides", { exact: true }).click();
+  await saveLive(overrides, "Save sensory overrides");
   await page.getByRole("spinbutton", { name: "Malt character", exact: true }).fill("0");
-  await page.getByRole("button", { name: "Save sensory overrides", exact: true }).click();
+  await saveLive(overrides, "Save sensory overrides");
   const manual = (await (await page.request.get(apiPath)).json()) as {
     sensory: Record<string, { value: number | null }>;
   };
@@ -138,17 +139,15 @@ test("isolated corpus preview displays privacy-safe fixture guidance and capture
   expect(manual.sensory.body?.value).toBe(4);
   for (const axis of ["hops", "bitterness", "sweetness", "roast", "tartness", "alcohol"])
     expect(manual.sensory[axis]?.value).toBe(before.sensory[axis]?.value);
-  await page.getByText("Edit sensory overrides", { exact: true }).click();
   await page.getByRole("spinbutton", { name: "Malt character", exact: true }).fill("");
-  await page.getByRole("button", { name: "Save sensory overrides", exact: true }).click();
+  await saveLive(overrides, "Save sensory overrides");
   const cleared = (await (await page.request.get(apiPath)).json()) as {
     sensory: Record<string, { value: number | null }>;
   };
   expect(cleared.sensory.malt?.value).toBe(before.sensory.malt?.value);
   expect(cleared.sensory.body?.value).toBe(4);
-  await page.getByText("Edit sensory overrides", { exact: true }).click();
   await page.getByRole("spinbutton", { name: "Body", exact: true }).fill("");
-  await page.getByRole("button", { name: "Save sensory overrides", exact: true }).click();
+  await saveLive(overrides, "Save sensory overrides");
   const noJsContext = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 390, height: 900 },

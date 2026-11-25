@@ -52,7 +52,6 @@ async function renameCompetitor(page: Page, from: string, to: string): Promise<v
     .filter({ hasText: from })
     .getByRole("link", { name: from })
     .click();
-  await page.getByText("Edit presentation", { exact: true }).click();
   const form = page.locator('form[action$="/update"][data-autosave="blur"]');
   await expect(form).toHaveAttribute("data-autosave-initialized", "true");
   await form.getByLabel("Name").fill(to);

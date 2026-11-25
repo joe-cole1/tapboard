@@ -1,12 +1,71 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%
+  const keg = it.keg;
+  const revisionFields = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" /><input type="hidden" name="updatedAt" value="${keg.updatedAt}" />`;
+  const liveForm = (fields) => `action="/admin/kegs/${keg.id}/update" method="post" data-autosave="blur" data-autosave-resource="keg:${keg.id}" data-autosave-revision="updatedAt" data-autosave-fields="${fields}"`;
+%>
 <main id="main-content" class="admin-page">
-  <div class="page-header"><h1>Keg <%= it.keg.kegNumber %></h1><p class="muted"><%= it.keg.label || "Physical Keg" %> · <%= it.keg.isActive ? "Active" : "Inactive" %></p></div>
+  <header class="page-header">
+    <div><h1>Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></h1></div>
+    <span class="badge<%= keg.isActive ? " badge--active" : "" %>"><%= keg.isActive ? "Active" : "Inactive" %></span>
+  </header>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section aria-labelledby="keg-overview"><div class="header-row"><div><h2 id="keg-overview">Read-first overview</h2><p class="muted">Current identity is used for future compare-and-save operations.</p></div><span class="badge"><%= it.keg.isActive ? "Active" : "Inactive" %></span></div><dl class="key-value-list"><div><dt>Visible identity</dt><dd>Keg <%= it.keg.kegNumber %><% if (it.keg.label) { %> — <%= it.keg.label %><% } %></dd></div><div><dt>Capacity</dt><dd><%= it.keg.capacityMl %> mL</dd></div><div><dt>Current tare</dt><dd><%= it.keg.currentTareG %> g</dd></div><div><dt>Updated</dt><dd><time datetime="<%= it.keg.updatedAt %>"><%= it.keg.updatedAt %></time></dd></div></dl></section>
-  <section aria-labelledby="keg-label-heading"><div class="header-row"><div><h2 id="keg-label-heading">Keg label</h2><p class="muted">Human-facing inventory metadata.</p></div></div><p><strong>Current label:</strong> <%= it.keg.label || "No label" %></p><details class="disclosure"><summary><span><strong>Edit label</strong><small>Changes save safely when you leave the field.</small></span></summary><form class="form" action="/admin/kegs/<%= it.keg.id %>/update" method="post" data-autosave="blur" data-autosave-resource="keg:<%= it.keg.id %>" data-autosave-revision="updatedAt" data-autosave-fields="label"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.keg.updatedAt %>" /><label class="field">Label <input name="label" maxlength="120" value="<%= it.keg.label || "" %>" /></label><div class="form-actions"><button class="button button--primary button--small" type="submit">Save label</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form></details></section>
-  <section aria-labelledby="keg-fill-history"><h2 id="keg-fill-history">Fill history</h2><% if (it.keg.fillHistory.length === 0) { %><p class="muted">No Filled Kegs recorded.</p><% } else { %><table class="table"><thead><tr><th scope="col">Beverage</th><th scope="col">Fill date</th><th scope="col">State</th><th scope="col">Ended</th></tr></thead><tbody><% for (const fill of it.keg.fillHistory) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a></th><td data-label="Fill date"><%= fill.fillDate %></td><td data-label="State"><%= fill.state %></td><td data-label="Ended"><%= fill.endedAt || "—" %></td></tr><% } %></tbody></table><% } %></section>
-  <section aria-labelledby="keg-history"><h2 id="keg-history">Audit and maintenance history</h2><p><%= it.keg.tareHistory.length %> tare correction(s); <%= it.keg.maintenanceHistory.length %> maintenance record(s).</p><details class="disclosure"><summary>Show tare corrections</summary><% if (it.keg.tareHistory.length === 0) { %><p class="muted">No tare corrections recorded.</p><% } else { %><ul><% for (const item of it.keg.tareHistory) { %><li><%= item.previousTareG === null ? "Initial" : `${item.previousTareG} g` %> → <%= item.newTareG %> g · <time datetime="<%= item.recordedAt %>"><%= item.recordedAt %></time><% if (item.reason) { %> · <%= item.reason %><% } %></li><% } %></ul><% } %></details><details class="disclosure"><summary>Show maintenance records</summary><% if (it.keg.maintenanceHistory.length === 0) { %><p class="muted">No maintenance records recorded.</p><% } else { %><ul><% for (const item of it.keg.maintenanceHistory) { %><li><%= item.maintenanceType %> · <time datetime="<%= item.recordedAt %>"><%= item.recordedAt %></time></li><% } %></ul><% } %></details></section>
-  <section aria-labelledby="keg-advanced"><h2 id="keg-advanced">Advanced physical controls</h2><p class="muted">Editing hardware/tare values is intentionally collapsed and remains on the existing domain action paths.</p><details class="disclosure"><summary>Edit Keg</summary><form class="form" action="/admin/kegs/<%= it.keg.id %>/update" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Number <input name="kegNumber" type="number" min="1" value="<%= it.keg.kegNumber %>" required /></label><label class="field">Capacity (mL) <input name="capacityMl" type="number" min="1" value="<%= it.keg.capacityMl %>" required /></label><label class="field">Tare (g) <input name="currentTareG" type="number" min="0" step="1" value="<%= it.keg.currentTareG %>" required /></label><label class="field">Status <select name="isActive"><option value="true"<% if (it.keg.isActive) { %> selected<% } %>>Active</option><option value="false"<% if (!it.keg.isActive) { %> selected<% } %>>Inactive</option></select></label><label class="field">Correction reason <input name="reason" maxlength="255" /></label><button class="button button--secondary button--small" type="submit">Save Keg</button></form></details><details class="disclosure"><summary>Record maintenance</summary><form class="form" action="/admin/kegs/<%= it.keg.id %>/maintenance" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Type <input name="maintenanceType" maxlength="80" required /></label><label class="field">Notes <textarea name="notes" maxlength="2048"></textarea></label><button class="button button--secondary button--small" type="submit">Record maintenance</button></form></details></section>
-  <section class="card card--danger" aria-labelledby="delete-keg"><h2 id="delete-keg">Permanent deletion</h2><p>Deletion removes this Keg and its tare/maintenance records.</p><div class="field confirmation-copy" data-copy-group><label for="keg-confirmation-value-<%= it.keg.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="keg-confirmation-value-<%= it.keg.id %>" readonly value="<%= it.keg.confirmationLabel %>" /><button class="button button--secondary button--small" type="button" data-copy-target="keg-confirmation-value-<%= it.keg.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><details class="disclosure"><summary>Delete Keg permanently</summary><form class="form" action="/admin/kegs/<%= it.keg.id %>/delete" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Type the exact value above to confirm <input name="confirmation" required autocomplete="off" /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><p class="muted"><% for (const impact of it.keg.deletionImpacts) { %><%= impact.code %>: <%= impact.count %> · <% } %></p><button class="button button--danger button--small" type="submit">Permanently delete Keg</button></form></details></section>
+
+  <section aria-labelledby="keg-details-heading">
+    <div class="header-row"><div><h2 id="keg-details-heading">Details</h2></div></div>
+    <dl class="key-value-list">
+      <div><dt>Current fill</dt><dd><% if (keg.currentFill) { %><a href="/admin/keg-room/fills/<%= keg.currentFill.id %>"><%= keg.currentFill.beverageName %></a> · <%= keg.currentFill.stateLabel %><% } else { %>Empty<% } %></dd></div>
+      <div><dt>Last updated</dt><dd><time datetime="<%= keg.updatedAt %>"><%= keg.updatedAtLabel %></time></dd></div>
+    </dl>
+    <form class="form" <%~ liveForm("label") %>>
+      <%~ revisionFields %>
+      <label class="field">Label <input name="label" maxlength="120" value="<%= keg.label || "" %>" /></label>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save label</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+    </form>
+    <form class="form" <%~ liveForm("kegNumber,capacityMl,isActive") %>>
+      <%~ revisionFields %>
+      <div class="auto-grid auto-grid--sm">
+        <label class="field">Keg number <input name="kegNumber" type="number" min="1" value="<%= keg.kegNumber %>" required /></label>
+        <label class="field">Capacity (mL) <input name="capacityMl" type="number" min="1" value="<%= keg.capacityMl %>" required /></label>
+        <label class="field">Status <select name="isActive"><option value="true"<% if (keg.isActive) { %> selected<% } %>>Active</option><option value="false"<% if (!keg.isActive) { %> selected<% } %>>Inactive</option></select></label>
+      </div>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save details</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+    </form>
+  </section>
+
+  <section aria-labelledby="keg-fill-history">
+    <div class="header-row"><div><h2 id="keg-fill-history">Fill history</h2></div></div>
+    <% if (keg.fillHistory.length === 0) { %><p class="muted">No Filled Kegs recorded.</p><% } else { %>
+      <table class="table"><caption class="sr-only">Filled Kegs in this Keg, newest first</caption><thead><tr><th scope="col">Beverage</th><th scope="col">Fill date</th><th scope="col">State</th><th scope="col">Ended</th></tr></thead><tbody><% for (const fill of keg.fillHistory) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a></th><td data-label="Fill date"><%= fill.fillDate %></td><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.stateLabel %></span></td><td data-label="Ended"><% if (fill.endedAt) { %><time datetime="<%= fill.endedAt %>"><%= fill.endedAtLabel %></time><% } else { %>—<% } %></td></tr><% } %></tbody></table>
+    <% } %>
+  </section>
+
+  <section aria-labelledby="keg-maintenance-heading">
+    <div class="header-row"><div><h2 id="keg-maintenance-heading">Maintenance</h2></div></div>
+    <% if (keg.maintenanceHistory.length === 0) { %><p class="muted">No maintenance recorded yet.</p><% } else { %>
+      <ul class="compact-list"><% for (const item of keg.maintenanceHistory) { %><li><%= item.maintenanceType %> · <time datetime="<%= item.recordedAt %>"><%= item.recordedAtLabel %></time></li><% } %></ul>
+    <% } %>
+    <form class="form" action="/admin/kegs/<%= keg.id %>/maintenance" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><div class="auto-grid auto-grid--sm"><label class="field">Type <input name="maintenanceType" maxlength="80" required /></label><label class="field">Notes <textarea name="notes" maxlength="2048" rows="2"></textarea></label></div><button class="button button--secondary button--small" type="submit">Record maintenance</button></form>
+  </section>
+
+  <section aria-labelledby="keg-advanced-heading">
+    <details class="disclosure">
+      <summary id="keg-advanced-heading">Advanced settings<small>Tare weight and its corrections.</small></summary>
+      <form class="form" <%~ liveForm("currentTareG,reason") %>>
+        <%~ revisionFields %>
+        <div class="auto-grid auto-grid--sm">
+          <label class="field">Tare (g) <input name="currentTareG" type="number" min="0" step="1" value="<%= keg.currentTareG %>" required /></label>
+          <label class="field" for="keg-tare-reason"><span>Correction reason</span><input id="keg-tare-reason" name="reason" maxlength="255" aria-describedby="keg-tare-reason-help" /><small id="keg-tare-reason-help" class="field__help">Recorded with the next tare change.</small></label>
+        </div>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save tare</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      </form>
+      <h3>Tare corrections</h3>
+      <% if (keg.tareHistory.length === 0) { %><p class="muted">No tare corrections recorded.</p><% } else { %>
+        <ul class="compact-list"><% for (const item of keg.tareHistory) { %><li><%= item.previousTareG === null ? "Initial" : `${item.previousTareG} g` %> → <%= item.newTareG %> g · <time datetime="<%= item.recordedAt %>"><%= item.recordedAtLabel %></time><% if (item.reason) { %> · <%= item.reason %><% } %></li><% } %></ul>
+      <% } %>
+    </details>
+  </section>
+
+  <section class="card card--danger" aria-labelledby="delete-keg"><div class="header-row"><div><h2 id="delete-keg">Permanent deletion</h2><p class="muted">Deletion removes this Keg and its tare and maintenance records.</p></div></div><div class="field confirmation-copy" data-copy-group><label for="keg-confirmation-value-<%= keg.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="keg-confirmation-value-<%= keg.id %>" readonly value="<%= keg.confirmationLabel %>" /><button class="button button--secondary button--small" type="button" data-copy-target="keg-confirmation-value-<%= keg.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><details class="disclosure"><summary>Delete Keg permanently</summary><form class="form" action="/admin/kegs/<%= keg.id %>/delete" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Type the exact value above to confirm <input name="confirmation" required autocomplete="off" /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><p class="muted"><% for (const impact of keg.deletionImpacts) { %><%= impact.code %>: <%= impact.count %> · <% } %></p><button class="button button--danger button--small" type="submit">Permanently delete Keg</button></form></details></section>
 </main>

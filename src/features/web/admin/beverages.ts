@@ -1,30 +1,45 @@
 import type { IncomingMessage } from "node:http";
-import type { BeverageService } from "../../beverages/service.ts";
-import { BEVERAGE_TYPES, type UpdateCustomBeverageInput } from "../../beverages/types.ts";
+import {
+  BEVERAGE_SENSORY_AXES,
+  BEVERAGE_TYPES,
+  type UpdateCustomBeverageInput,
+} from "../../beverages/types.ts";
 import type { BeverageDetailResult } from "../../beverages/service.ts";
+import { SAFE_DISPLAY_COLOR } from "../../story/vessels.ts";
+import { MAX_BATCH_JSON_BODY_BYTES } from "../../../infrastructure/http/security/body.ts";
 import {
   registerAdminGet,
   registerAdminAction,
   autosaveFieldStrings,
   requiredAutosaveField,
   validationFieldsFor,
+  type AdminAutosaveSpec,
 } from "./http.ts";
 import { renderAdmin } from "./layout.ts";
 import {
   adminBeverageListItem,
   adminBrewfatherCandidate,
+  colourPickerResource,
+  displayColourPicker,
   fillGlassOptions,
-  adminBeverageDetailDto,
   sensoryOverridesFromForm,
   vesselFromForm,
   recipeFromForm,
+  withPickedSrm,
 } from "./beverage-presentation.ts";
+import {
+  BEVERAGE_TABS,
+  PRESENTATION_TAB_FIELDS,
+  beveragePagePath,
+  renderBeverageDetail,
+  type BeverageTab,
+} from "./beverage-detail.ts";
 import { presentationOverridesFromForm } from "./presentation-overrides.ts";
 import {
   MAX_RECIPE_FILE_BYTES,
   RECIPE_FILE_FORMAT_NAMES,
 } from "../../beverages/recipe-files/import.ts";
-import { actor, requestUrl } from "./context.ts";
+import { actor, requestUrl, type AdminContext } from "./context.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
 import type {
   RegisterBeveragePagesDependencies,
@@ -74,77 +89,100 @@ export function registerBeveragePages(dependencies: RegisterBeveragePagesDepende
       "/admin/beverage-new",
       "New Beverage",
       "/admin/beverages/new",
-      { beverageTypes: BEVERAGE_TYPES, fillGlassOptions: fillGlassOptions() },
-    );
-  });
-
-  registerAdminGet(dependencies, "/admin/beverages/:id", (request, response, context, params) => {
-    const id = params.id ?? "";
-    const detail = dependencies.beverageService.getBeverage(id);
-    const serviceWithUsage = dependencies.beverageService as BeverageService & {
-      readonly getBeverageUsage?: (beverageId: string) => {
-        readonly current: number;
-        readonly total: number;
-      };
-      readonly listCurrentFills?: (
-        beverageId: string,
-        limit?: number,
-      ) => readonly Record<string, unknown>[];
-    };
-    const usage =
-      typeof serviceWithUsage.getBeverageUsage === "function"
-        ? serviceWithUsage.getBeverageUsage(id)
-        : { current: 0, total: 0 };
-    const currentFills =
-      typeof serviceWithUsage.listCurrentFills === "function"
-        ? serviceWithUsage.listCurrentFills(id, 25)
-        : [];
-    const impact = dependencies.beverageService.getDeletionImpact(id);
-    const guidance =
-      typeof dependencies.storyService?.getAdminBeverageGuidance === "function"
-        ? dependencies.storyService.getAdminBeverageGuidance(id)
-        : undefined;
-    const availableKegs = dependencies.kegService
-      .listKegs({ isActive: true })
-      .filter(
-        (keg) =>
-          !dependencies.fillService
-            .listFills({ kegId: keg.id })
-            .some((fill) => fill.state !== "ended"),
-      )
-      .map((keg) => ({ id: keg.id, kegNumber: keg.kegNumber, label: keg.label }));
-    renderAdmin(
-      dependencies,
-      response,
-      request,
-      context,
-      "/admin/beverage-detail",
-      detail.effectivePresentation.name,
-      "/admin/beverages",
       {
-        beverage: {
-          ...adminBeverageDetailDto(detail, usage, impact.impacts, guidance),
-          currentFills,
-        },
         beverageTypes: BEVERAGE_TYPES,
         fillGlassOptions: fillGlassOptions(),
-        availableKegs,
+        // SRM and colour start unset: a new beer's colour matches its SRM.
+        colourPicker: displayColourPicker({
+          beverageType: "beer",
+          srm: null,
+          resolvedColor: SAFE_DISPLAY_COLOR,
+          colourOverridden: false,
+          linked: false,
+          srmOverridden: false,
+        }),
       },
     );
   });
+
+  for (const tab of BEVERAGE_TABS) {
+    registerAdminGet(
+      dependencies,
+      `/admin/beverages/:id${tab.path}`,
+      (request, response, context, params) => {
+        renderBeverageDetail(dependencies, request, response, context, params, tab.id);
+      },
+    );
+  }
+}
+
+/**
+ * The picker posts SRM and colour without a mode: a value overrides Brewfather's, and an empty
+ * SRM clears it. Its reset buttons post the mode ("inherit") alone.
+ */
+function withPickerModes(form: Readonly<Record<string, string>>): Record<string, string> {
+  const fields = withPickedSrm(form);
+  for (const field of ["srm", "displayColor"]) {
+    if (fields[field] !== undefined && fields[`${field}Mode`] === undefined)
+      fields[`${field}Mode`] = fields[field] === "" ? "clear" : "value";
+  }
+  return fields;
 }
 
 export function registerBeverageMutations(
   dependencies: RegisterBeverageMutationsDependencies,
 ): void {
+  type BeverageForm = Readonly<Record<string, string>>;
+  type BeverageParams = Readonly<Record<string, string>>;
+  const tabPath = (tab: BeverageTab) => (params: BeverageParams) =>
+    beveragePagePath(params.id ?? "", tab);
+  /**
+   * Live save for a Beverage form whose service checks no revision: runs the form post's own
+   * `save` on the posted fields, then answers with the Beverage's current revision, so every
+   * live form on the page keeps the newest one.
+   */
+  const beverageAutosave = (
+    fields: readonly string[],
+    save: (form: BeverageForm, context: AdminContext, params: BeverageParams) => void,
+    maxBytes?: number,
+  ): AdminAutosaveSpec => ({
+    handle: (body, context, params) => {
+      save(autosaveFieldStrings(body, fields), context, params);
+      return {
+        resource: {},
+        revision: dependencies.beverageService.getBeverage(params.id!).beverage.updatedAt,
+      };
+    },
+    current: (params) => {
+      const detail = dependencies.beverageService.getBeverage(params.id!);
+      return { current: safeBeverageCurrent(detail), revision: detail.beverage.updatedAt };
+    },
+    validationFields: validationFieldsFor(fields),
+    ...(maxBytes === undefined ? {} : { maxBytes }),
+  });
+  const saveSensory = (form: BeverageForm, context: AdminContext, params: BeverageParams) => {
+    dependencies.beverageService.updateSensoryOverrides(
+      params.id!,
+      sensoryOverridesFromForm(form) ?? {},
+      actor(context),
+    );
+  };
+  const saveRecipe = (form: BeverageForm, context: AdminContext, params: BeverageParams) => {
+    dependencies.beverageService.updateCustomBeverage(
+      params.id!,
+      { recipe: recipeFromForm(form) },
+      actor(context),
+    );
+  };
+
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/presentation",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
+    tabPath("presentation"),
     (form, context, params) => {
       dependencies.beverageService.updatePresentationOverrides(
         params.id!,
-        presentationOverridesFromForm(form),
+        presentationOverridesFromForm(withPickerModes(form)),
         actor(context),
       );
     },
@@ -152,7 +190,9 @@ export function registerBeverageMutations(
     {},
     {
       handle: (body, context, params) => {
-        const fields = autosaveFieldStrings(body, AUTOSAVE_OVERRIDE_FIELDS);
+        const fields = withPickerModes(
+          autosaveFieldStrings(body, [...AUTOSAVE_OVERRIDE_FIELDS, "srmExact"]),
+        );
         const updated = dependencies.beverageService.autosavePresentationOverrides(
           params.id!,
           requiredAutosaveField(fields, "updatedAt"),
@@ -160,7 +200,7 @@ export function registerBeverageMutations(
           actor(context),
         );
         return {
-          resource: safeBrewfatherResource(updated),
+          resource: { ...safeBrewfatherResource(updated), ...colourPickerResource(updated) },
           revision: updated.beverage.updatedAt,
         };
       },
@@ -176,7 +216,8 @@ export function registerBeverageMutations(
     dependencies,
     "/admin/beverages/create",
     "/admin/beverages",
-    (form, context) => {
+    (posted, context) => {
+      const form = withPickedSrm(posted);
       const sensoryOverrides = sensoryOverridesFromForm(form);
       const created = dependencies.beverageService.createCustomBeverage(
         {
@@ -188,7 +229,9 @@ export function registerBeverageMutations(
           og: optionalNumber(form.og),
           fg: optionalNumber(form.fg),
           srm: optionalNumber(form.srm),
-          displayColor: nullable(form.displayColor),
+          // A colour input always has a value, so it counts only once its switch is on.
+          displayColor:
+            form.displayColorCustom === "true" ? nullable(form.displayColor) : undefined,
           description: nullable(form.description),
           fillGlass: vesselFromForm(form.fillGlass),
           manualDensityOverride: optionalNumber(form.manualDensityOverride),
@@ -204,7 +247,7 @@ export function registerBeverageMutations(
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/create-fill",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
+    tabPath("usage"),
     (form, context, params) => {
       dependencies.fillService.createFill(
         {
@@ -220,24 +263,22 @@ export function registerBeverageMutations(
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/update",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
-    (form, context, params) => {
+    // Info and Presentation both post here; each form returns to its own tab.
+    (params, form) =>
+      beveragePagePath(
+        params.id ?? "",
+        PRESENTATION_TAB_FIELDS.some((field) => form[field] !== undefined)
+          ? "presentation"
+          : "info",
+      ),
+    (posted, context, params) => {
+      // Each form posts only its own fields; the rest of the Beverage stays as it is.
+      const form = withPickedSrm(posted);
       const sensoryOverrides = sensoryOverridesFromForm(form);
       dependencies.beverageService.updateCustomBeverage(
         params.id!,
         {
-          name: form.name,
-          beverageType: form.beverageType,
-          style: nullable(form.style),
-          abv: optionalNumber(form.abv),
-          ibu: optionalNumber(form.ibu),
-          og: optionalNumber(form.og),
-          fg: optionalNumber(form.fg),
-          srm: optionalNumber(form.srm),
-          displayColor: nullable(form.displayColor),
-          description: nullable(form.description),
-          fillGlass: vesselFromForm(form.fillGlass),
-          manualDensityOverride: optionalNumber(form.manualDensityOverride),
+          ...customBeverageAutosaveInput(form),
           ...(form.recipeJson !== undefined ? { recipe: recipeFromForm(form) } : {}),
           ...(sensoryOverrides !== undefined ? { sensoryOverrides } : {}),
         },
@@ -248,7 +289,9 @@ export function registerBeverageMutations(
     {},
     {
       handle: (body, context, params) => {
-        const fields = autosaveFieldStrings(body, ["updatedAt", ...AUTOSAVE_BEVERAGE_FIELDS]);
+        const fields = withPickedSrm(
+          autosaveFieldStrings(body, ["updatedAt", ...AUTOSAVE_BEVERAGE_FIELDS, "srmExact"]),
+        );
         const updated = dependencies.beverageService.autosaveCustomPresentation(
           params.id!,
           requiredAutosaveField(fields, "updatedAt"),
@@ -256,7 +299,7 @@ export function registerBeverageMutations(
           actor(context),
         );
         return {
-          resource: safeCustomBeverageResource(updated),
+          resource: { ...safeCustomBeverageResource(updated), ...colourPickerResource(updated) },
           revision: updated.beverage.updatedAt,
         };
       },
@@ -264,13 +307,14 @@ export function registerBeverageMutations(
         const detail = dependencies.beverageService.getBeverage(params.id!);
         return { current: safeBeverageCurrent(detail), revision: detail.beverage.updatedAt };
       },
-      validationFields: validationFieldsFor(["updatedAt", ...AUTOSAVE_BEVERAGE_FIELDS]),
+      validationFields: validationFieldsFor(["updatedAt", ...AUTOSAVE_BEVERAGE_FIELDS, "srmExact"]),
     },
   );
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/delete",
-    "/admin/beverages",
+    // A refused deletion stays on the Delete tab; a deleted Beverage returns to the list.
+    tabPath("delete"),
     (form, context, params) => {
       if (form.confirmationName === undefined || form.confirmationName.trim() === "") {
         invalidForm("Type the exact current beverage name to confirm permanent deletion.");
@@ -284,42 +328,34 @@ export function registerBeverageMutations(
         },
         actor(context),
       );
+      return "/admin/beverages";
     },
     "Beverage deleted.",
   );
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/sensory",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
-    (form, context, params) => {
-      const sensory = sensoryOverridesFromForm(form);
-      dependencies.beverageService.updateSensoryOverrides(
-        params.id!,
-        sensory ?? {},
-        actor(context),
-      );
-    },
+    tabPath("sensory"),
+    saveSensory,
     "Sensory guidance saved.",
+    {},
+    beverageAutosave(BEVERAGE_SENSORY_AXES, saveSensory),
   );
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/recipe",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
-    (form, context, params) => {
-      dependencies.beverageService.updateCustomBeverage(
-        params.id!,
-        { recipe: recipeFromForm(form) },
-        actor(context),
-      );
-    },
+    tabPath("recipe"),
+    saveRecipe,
     "Custom recipe saved.",
     { maxFields: 3, maxBytes: 3_000_000 },
+    // JSON escaping grows the recipe text, so its live save takes the largest JSON body.
+    beverageAutosave(["recipeJson"], saveRecipe, MAX_BATCH_JSON_BODY_BYTES),
   );
   // URL-encoding can triple the file text, so the body allows 3 × 1 MiB plus the CSRF field.
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/recipe-import",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
+    tabPath("recipe"),
     (form, context, params) => {
       const { format } = dependencies.beverageService.importRecipeFile(
         params.id!,
@@ -334,7 +370,7 @@ export function registerBeverageMutations(
   registerAdminAction(
     dependencies,
     "/admin/beverages/:id/unlink",
-    (params) => `/admin/beverages/${params.id ?? ""}`,
+    tabPath("info"),
     (_form, context, params) => {
       dependencies.beverageService.unlinkBeverage(params.id!, actor(context));
     },

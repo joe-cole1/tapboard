@@ -980,6 +980,7 @@ class FoundationApplication implements Application {
           { kind: "js", file: "admin-display.js", path: "js/admin-display.js" },
           { kind: "js", file: "admin-shell.js", path: "js/admin-shell.js" },
           { kind: "js", file: "admin-autosave.js", path: "js/admin-autosave.js" },
+          { kind: "js", file: "admin-colour-picker.js", path: "js/admin-colour-picker.js" },
           { kind: "js", file: "admin-tap-wars.js", path: "js/admin-tap-wars.js" },
           { kind: "js", file: "simulator.js", path: "js/simulator.js" },
           { kind: "js", file: "workspace.js", path: "js/workspace.js" },

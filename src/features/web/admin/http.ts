@@ -84,6 +84,8 @@ export interface AdminAutosaveSpec {
   };
   /** Maps service validation failures to safe, form-linked field names. */
   readonly validationFields?: AutosaveValidationFields;
+  /** A larger JSON body limit for a form that holds a document, such as a custom recipe. */
+  readonly maxBytes?: number;
 }
 
 export function oneRequestHeader(value: string | string[] | undefined): string | undefined {
@@ -195,7 +197,9 @@ export async function runAdminAutosave(
     return;
   }
   try {
-    const body = autosaveBodyRecord(await readJsonBody(request));
+    const body = autosaveBodyRecord(
+      await readJsonBody(request, spec.maxBytes === undefined ? {} : { maxBytes: spec.maxBytes }),
+    );
     const authorized = dependencies.authService.authorizeCookieMutation({
       cookieHeader: request.headers.cookie,
       originHeader: request.headers.origin,
@@ -249,7 +253,13 @@ export async function runAdminAutosave(
 export function registerAdminAction(
   dependencies: RegisterAdminActionDependencies,
   path: string,
-  returnPath: string | ((params: Readonly<Record<string, string>>) => string),
+  /** Where the form post lands; a function may pick a tab from the posted fields. */
+  returnPath:
+    | string
+    | ((
+        params: Readonly<Record<string, string>>,
+        form: Readonly<Record<string, string>>,
+      ) => string),
   handler: (
     form: Readonly<Record<string, string>>,
     context: AdminContext,
@@ -265,6 +275,10 @@ export function registerAdminAction(
 ): void {
   dependencies.router.post(path, async (request, response, params) => {
     const context = adminContext(request, dependencies.authService);
+    // Empty until the body is read, so an unreadable form returns to the default place.
+    let form: Readonly<Record<string, string>> = {};
+    const destinationFor = () =>
+      typeof returnPath === "function" ? returnPath(params, form) : returnPath;
     try {
       if (autosave !== undefined && isAutosaveRequest(request)) {
         await runAdminAutosave(dependencies, request, response, params, autosave);
@@ -276,7 +290,7 @@ export function registerAdminAction(
           code: "auth.mutation_forbidden",
           clientMessage: "The form could not be authorized. Reload and try again.",
         });
-      const form = await readFormBody(request, readFormOptions);
+      form = await readFormBody(request, readFormOptions);
       const authorized = dependencies.authService.authorizeCookieMutation({
         cookieHeader: request.headers.cookie,
         originHeader: request.headers.origin,
@@ -295,8 +309,7 @@ export function registerAdminAction(
         });
       }
       const handlerResult = await handler(form, context, params);
-      const resolvedReturnPath = typeof returnPath === "function" ? returnPath(params) : returnPath;
-      const destination = typeof handlerResult === "string" ? handlerResult : resolvedReturnPath;
+      const destination = typeof handlerResult === "string" ? handlerResult : destinationFor();
       redirect(
         response,
         messageLocation(
@@ -315,8 +328,7 @@ export function registerAdminAction(
         context === undefined
           ? "The form could not be authorized. Reload and try again."
           : adminFailureMessage(failure, "The change could not be completed.");
-      const errorPath = typeof returnPath === "function" ? returnPath(params) : returnPath;
-      redirect(response, messageLocation(errorPath, "error", message));
+      redirect(response, messageLocation(destinationFor(), "error", message));
     }
   });
 }
