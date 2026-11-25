@@ -3,7 +3,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // Admin UX pass (#192 PR): accent circles, theme cards, the hideable sidebar and the
-// label/value lists. Nothing here saves settings, so other specs see unchanged state.
+// label/value lists. Default theme choices save live, so the theme test puts them back.
 
 async function signIn(page: Page): Promise<void> {
   await page.goto("/admin/login");
@@ -16,28 +16,45 @@ test("accent circles keep their own colour on hover and theme cards drive the pr
 }) => {
   await signIn(page);
   await page.goto("/admin/display/shared");
+  const form = page.locator("form[data-shared-display-form]");
+  const checked = (name: string) =>
+    form.locator(`input[name="${name}"]:checked`).getAttribute("value");
+  const original = { theme: await checked("theme"), accent: await checked("accent") };
   const rose = page.locator(".display-accent-swatch--rose");
   const before = await rose.evaluate((node) => getComputedStyle(node).backgroundColor);
   await rose.hover();
   // The circles once took the accent hover colour from the generic button rule.
   expect(await rose.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(before);
 
-  await page.getByText("Cyberpunk", { exact: true }).click();
-  await expect(page.locator("[data-display-preview]")).toHaveAttribute(
-    "data-preview-theme",
-    "cyberpunk",
-  );
-  await expect(page.locator("[data-display-stylesheet]")).toHaveAttribute(
-    "href",
-    /theme=cyberpunk/u,
-  );
+  try {
+    await page.getByText("Cyberpunk", { exact: true }).click();
+    await expect(page.locator("[data-display-preview]")).toHaveAttribute(
+      "data-preview-theme",
+      "cyberpunk",
+    );
+    await expect(page.locator("[data-display-stylesheet]")).toHaveAttribute(
+      "href",
+      /theme=cyberpunk/u,
+    );
 
-  // The custom colour input appears only while Custom is chosen.
-  const customColor = page.locator("[data-accent-custom-color]");
-  await expect(customColor).toBeHidden();
-  await page.getByText("Custom", { exact: true }).click();
-  await expect(customColor).toBeVisible();
-  expect(await page.locator("[style]").count()).toBe(0);
+    // The custom colour input appears only while Custom is chosen.
+    const customColor = page.locator("[data-accent-custom-color]");
+    await expect(customColor).toBeHidden();
+    await page.getByText("Custom", { exact: true }).click();
+    await expect(customColor).toBeVisible();
+    await expect(form.getByRole("status")).toHaveText("Saved");
+    expect(await page.locator("[style]").count()).toBe(0);
+  } finally {
+    await page.goto("/admin/display/shared");
+    for (const [name, value] of Object.entries(original)) {
+      if (value === null || (await checked(name)) === value) continue;
+      await form.locator(`label:has(input[name="${name}"][value="${value}"])`).click();
+      await expect(form.getByRole("status")).toHaveText("Saved");
+    }
+    await page.reload();
+    expect(await checked("theme")).toBe(original.theme);
+    expect(await checked("accent")).toBe(original.accent);
+  }
 });
 
 test("the menu button collapses the sidebar on desktop and brings it back", async ({ page }) => {

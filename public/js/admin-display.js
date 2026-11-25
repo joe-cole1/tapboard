@@ -11,8 +11,12 @@ import {
 const form = document.querySelector("[data-display-preferences]");
 const status = document.querySelector("[data-display-preference-status]");
 const sharedForm = document.querySelector("[data-shared-display-form]");
-const preview = document.querySelector("[data-display-preview], .display-preview");
 const CUSTOM_ACCENT = /^#[0-9a-f]{6}$/u;
+
+/** The preview frame, looked up each time: a server redraw replaces it. */
+function previewFrame() {
+  return document.querySelector("[data-display-preview], .display-preview");
+}
 
 function setStatus(message) {
   if (status) status.textContent = message;
@@ -42,6 +46,7 @@ function syncPreviewFromForm() {
   const theme = String(data.get("theme") ?? "modern_dark");
   const accent = chosenAccent(sharedForm);
   const font = String(data.get("font") ?? "system");
+  const preview = previewFrame();
   if (preview instanceof HTMLElement) {
     preview.dataset.previewTheme = theme;
     preview.dataset.previewAccent = accent;
@@ -119,106 +124,9 @@ document.querySelector("[data-reset-preferences]")?.addEventListener("click", ()
   setStatus("This display now uses the default theme.");
 });
 
-const metricNames = {
-  abv: ["showAbv", "ABV"],
-  ibu: ["showIbu", "IBU"],
-  og: ["showOg", "OG"],
-  fg: ["showFg", "FG"],
-  srm: ["showSrm", "SRM"],
-};
-
-function metricEnabled(control) {
-  return control instanceof HTMLInputElement && control.checked;
-}
-
-function syncTapCardPreview() {
-  const card = document.querySelector(
-    "[data-display-preview] .tap-card, .display-preview .tap-card",
-  );
-  if (!(card instanceof HTMLElement)) return;
-  // Only Display's own form previews metric changes live; a Tap page's switches save and reload.
-  const metricForm = document.querySelector('form[action="/admin/display/tap-card"]');
-  const styleLine = card.querySelector('[data-field="style-line"]');
-  const metrics = card.querySelector('[data-field="metrics"]');
-  if (metricForm instanceof HTMLFormElement) {
-    const abvControl = metricForm.querySelector('[name="showAbv"]');
-    const abv = metricEnabled(abvControl) ? card.dataset.previewMetricAbv : undefined;
-    if (styleLine instanceof HTMLElement) {
-      styleLine.textContent = [abv, styleLine.dataset.previewStyle].filter(Boolean).join(" · ");
-      styleLine.hidden = styleLine.textContent === "";
-    }
-    if (metrics instanceof HTMLElement) {
-      const rows = [];
-      for (const key of ["ibu", "og", "fg", "srm"]) {
-        const [name, label] = metricNames[key];
-        const value = card.dataset[`previewMetric${key[0].toUpperCase()}${key.slice(1)}`];
-        if (!value || !metricEnabled(metricForm.querySelector(`[name="${name}"]`))) continue;
-        const row = document.createElement("div");
-        row.dataset.metricKey = key;
-        const term = document.createElement("dt");
-        term.textContent = label;
-        const detail = document.createElement("dd");
-        detail.textContent = value;
-        row.append(term, detail);
-        rows.push(row);
-      }
-      metrics.replaceChildren(...rows);
-      metrics.hidden = rows.length === 0;
-    }
-  }
-  // Units and serving temperature are set on the System page; the preview frame
-  // carries their saved values.
-  const previewUnit =
-    preview instanceof HTMLElement ? preview.dataset.previewUnitSystem : undefined;
-  const previewShowsTemperature =
-    preview instanceof HTMLElement
-      ? preview.dataset.previewShowServingTemperature !== "false"
-      : true;
-  const remaining =
-    metricForm instanceof HTMLFormElement
-      ? metricForm.querySelector('[name="remainingMode"]')
-      : null;
-  const mode =
-    remaining instanceof HTMLElement && remaining.tagName === "SELECT" ? remaining.value : null;
-  const readout = card.querySelector('[data-field="remaining-readout"]');
-  if (mode && readout) {
-    const remainingMl = Number(card.dataset.remainingVolumeMl);
-    const capacityMl = Number(card.dataset.capacityMl);
-    const servings = Number(card.dataset.servingsRemaining);
-    const percent = Number(card.dataset.fillPercent);
-    const waiting = card.dataset.waitingForMeasurement === "true";
-    if (waiting) readout.textContent = "Waiting for measurement";
-    else if (mode === "percent" && Number.isFinite(percent))
-      readout.textContent = `${Math.round(percent)}% remaining`;
-    else if (mode === "pints" && Number.isFinite(remainingMl))
-      readout.textContent = `${(remainingMl / 473.176473).toFixed(1)} pints remaining`;
-    else if (mode === "pours" && Number.isFinite(servings))
-      readout.textContent = `${Math.max(0, Math.floor(servings))} pours remaining`;
-    else if (mode === "volume" && Number.isFinite(remainingMl) && Number.isFinite(capacityMl)) {
-      const metric = previewUnit === "metric";
-      const divisor = metric ? 1000 : 3785.411784;
-      const suffix = metric ? " L" : " gal";
-      readout.textContent = `${(remainingMl / divisor).toFixed(1)}${suffix} / ${(capacityMl / divisor).toFixed(1)}${suffix}`;
-    } else readout.textContent = "Measurement unavailable";
-  }
-  const temperature = card.querySelector('[data-field="temperature"]');
-  if (temperature instanceof HTMLElement) {
-    const hasTemperature = Number.isFinite(Number(card.dataset.temperatureC));
-    temperature.hidden = !hasTemperature || !previewShowsTemperature;
-  }
-}
-
-for (const previewForm of document.querySelectorAll(
-  'form[action="/admin/display/tap-card"], [data-shared-display-form]',
-)) {
-  previewForm.addEventListener("input", syncTapCardPreview);
-  previewForm.addEventListener("change", syncTapCardPreview);
-}
-document.addEventListener("tapboard:autosave-values-applied", () => {
-  syncPreviewFromForm();
-  syncTapCardPreview();
-});
-syncTapCardPreview();
+// Default theme choices apply to the preview as they change; the card itself is redrawn
+// from the server after each save (refreshTapPreview below).
+document.addEventListener("tapboard:autosave-values-applied", syncPreviewFromForm);
 
 // A Tap's Public card tab: its switches save live (admin-autosave.js). Redraw each metric
 // from the server's answer, then the preview card from the server, so Mystery redaction and
@@ -250,27 +158,39 @@ if (cardMetrics instanceof HTMLElement) {
   });
 }
 
-/** Swap in the server's current preview card after a Public card setting saves. */
+let previewRequest = 0;
+let previewDrawn = 0;
+
+/**
+ * Swap in the server's current preview card after a setting saves (a Tap's Public card
+ * tab, or Display's Default theme), so the card is drawn by the same projection guests see.
+ */
 async function refreshTapPreview() {
   const frame = document.querySelector("[data-tap-preview]");
   if (!(frame instanceof HTMLElement)) return;
+  const request = ++previewRequest;
   try {
     const response = await fetch(window.location.pathname, {
       credentials: "same-origin",
       headers: { Accept: "text/html" },
     });
     if (!response.ok) return;
+    const html = await response.text();
+    // Redraws can answer out of order; never draw over a newer one already shown.
+    if (request < previewDrawn) return;
+    previewDrawn = request;
     const fresh = new window.DOMParser()
-      .parseFromString(await response.text(), "text/html")
+      .parseFromString(html, "text/html")
       .querySelector("[data-tap-preview]");
     if (fresh) frame.replaceChildren(...fresh.childNodes);
-    syncTapCardPreview();
+    // A theme choice made after this save still shows until it saves too.
+    syncPreviewFromForm();
   } catch {
-    // The saved switch is already shown; the preview catches up on the next load.
+    // The saved setting is already shown; the preview catches up on the next load.
   }
 }
 if (document.querySelector("[data-tap-preview]")) {
   document.addEventListener("tapboard:autosave-saved", () => void refreshTapPreview());
 }
 
-if (form instanceof HTMLFormElement && !(preview instanceof HTMLElement)) apply(read());
+if (form instanceof HTMLFormElement && !(previewFrame() instanceof HTMLElement)) apply(read());

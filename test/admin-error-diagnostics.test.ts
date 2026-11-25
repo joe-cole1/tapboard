@@ -148,7 +148,7 @@ void test("Admin errors authenticate before parsing, preserve statuses and corre
         accept: "application/json",
         "x-tapboard-enhancement": "autosave",
       },
-      body: JSON.stringify({ expectedRevision: "1" }),
+      body: JSON.stringify({ expectedRevision: "1", tapboardName: "Tapboard" }),
     });
     assert.equal(response.status, status, category);
     const body = (await response.json()) as {
@@ -164,7 +164,12 @@ void test("Admin errors authenticate before parsing, preserve statuses and corre
         fields: { _form: "Safe fixture failure." },
       });
     if (category === "conflict")
-      assert.deepEqual(body, { message: "Safe fixture failure.", current: settings, revision: 1 });
+      // The current settings come back in the form's shape, never the stored row.
+      assert.deepEqual(body, {
+        message: "Safe fixture failure.",
+        current: { tapboardName: "Tapboard", theme: "dark", font: "system", accent: "amber" },
+        revision: 1,
+      });
   }
 
   error = new Error(sentinel);

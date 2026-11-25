@@ -11,16 +11,24 @@ type TapOverrideResource = Readonly<
 function overrideChoice(value: boolean | null | undefined): OverrideChoice {
   return value === null || value === undefined ? "inherit" : value ? "show" : "hide";
 }
-export function safeDisplayResource(
-  settings: DisplaySettings,
-): Omit<DisplaySettings, "revision" | "updatedAt"> {
+/**
+ * The Default theme form's fields: a custom accent is the Custom choice plus its colour.
+ * Units and serving temperature are System's form, so they stay out.
+ */
+export function safeDisplayResource(settings: DisplaySettings): {
+  readonly tapboardName: string;
+  readonly theme: DisplaySettings["theme"];
+  readonly font: DisplaySettings["font"];
+  readonly accent: string;
+  readonly accentCustom?: string;
+  readonly layoutMode: DisplaySettings["layoutMode"];
+} {
+  const custom = settings.accent.startsWith("#");
   return {
     tapboardName: settings.tapboardName,
     theme: settings.theme,
     font: settings.font,
-    accent: settings.accent,
-    unitSystem: settings.unitSystem,
-    showServingTemperature: settings.showServingTemperature,
+    ...(custom ? { accent: "custom", accentCustom: settings.accent } : { accent: settings.accent }),
     layoutMode: settings.layoutMode,
   };
 }

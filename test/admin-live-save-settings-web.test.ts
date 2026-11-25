@@ -289,3 +289,158 @@ void test("Logs › Retention saves live as a whole form", async (context) => {
   assert.equal(outOfRange.status, 422);
   assert.deepEqual(Object.keys(outOfRange.body.fields as object), ["outboxDays"]);
 });
+
+void test("Display › Default theme saves live, keeps System's units and shares their revision", async (context) => {
+  const database = openDatabase(":memory:");
+  const admin = await adminApp(context, database);
+  const path = "/admin/display/shared";
+  const unitsRevision = inputValue(await admin.get("/admin/system"), "expectedDisplayRevision");
+  const units = await admin.autosave("/admin/system/units", {
+    expectedDisplayRevision: unitsRevision,
+    unitSystem: "metric",
+    showServingTemperature: "true",
+  });
+  assert.equal(units.status, 200);
+
+  const theme = form(await admin.get(path), path);
+  assert.match(theme, /data-autosave="blur"/u);
+  assert.match(theme, /data-autosave-revision="expectedRevision"/u);
+  assert.match(theme, /data-autosave-fallback>Save Default Theme/u);
+  const revision = inputValue(theme, "expectedRevision");
+  assert.equal(revision, String(units.body.revision));
+  const values = {
+    expectedRevision: revision,
+    tapboardName: "Live Board",
+    theme: "warm_pub",
+    font: "rye",
+    accent: "custom",
+    accentCustom: "#3A7BD5",
+    layoutMode: "rotation",
+  };
+
+  // The Custom choice saves its colour, and the answer is in the form's own shape.
+  const saved = await admin.autosave(path, values);
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.resource, {
+    tapboardName: "Live Board",
+    theme: "warm_pub",
+    font: "rye",
+    accent: "custom",
+    accentCustom: "#3a7bd5",
+    layoutMode: "rotation",
+  });
+  assert.notEqual(String(saved.body.revision), revision);
+  const after = await admin.get(path);
+  assert.equal(inputValue(form(after, path), "expectedRevision"), String(saved.body.revision));
+  assert.match(after, /data-preview-theme="warm_pub" data-preview-accent="#3a7bd5"/u);
+  assert.match(await admin.get("/"), /data-theme="warm_pub"[^>]*data-accent="#3a7bd5"/u);
+  // Units and serving temperature stay as System set them.
+  const system = await admin.get("/admin/system");
+  assert.match(system, /<option value="metric" selected>/u);
+  assert.match(system, /name="showServingTemperature" value="true" checked/u);
+
+  // Errors land on the field that caused them and change nothing.
+  const current = String(saved.body.revision);
+  const badColor = await admin.autosave(path, {
+    ...values,
+    expectedRevision: current,
+    accentCustom: "blue",
+  });
+  assert.equal(badColor.status, 422);
+  assert.deepEqual(Object.keys(badColor.body.fields as object), ["accentCustom"]);
+  const blank = await admin.autosave(path, {
+    ...values,
+    expectedRevision: current,
+    tapboardName: "  ",
+  });
+  assert.equal(blank.status, 422);
+  assert.deepEqual(blank.body.fields, { tapboardName: "Enter a Tapboard name." });
+  assert.match(await admin.get(path), /name="tapboardName" value="Live Board"/u);
+
+  // A Units save on System moves the shared revision, so this page's next save is stale.
+  const moved = await admin.autosave("/admin/system/units", {
+    expectedDisplayRevision: current,
+    unitSystem: "us",
+    showServingTemperature: "true",
+  });
+  assert.equal(moved.status, 200);
+  const stale = await admin.autosave(path, {
+    ...values,
+    expectedRevision: current,
+    theme: "cyberpunk",
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.revision, moved.body.revision);
+  assert.deepEqual(stale.body.current, saved.body.resource);
+  assert.match(await admin.get(path), /data-preview-theme="warm_pub"/u);
+
+  // Without JavaScript the same form posts and lands back on the page.
+  assert.match(
+    await admin.post(path, {
+      ...values,
+      expectedRevision: String(moved.body.revision),
+      accent: "blue",
+    }),
+    /notice=/u,
+  );
+  assert.match(await admin.get("/"), /data-accent="blue"/u);
+});
+
+void test("Display › Tap-card metrics save live and redraw the preview", async (context) => {
+  const database = openDatabase(":memory:");
+  const admin = await adminApp(context, database);
+  const path = "/admin/display/tap-card";
+  const page = await admin.get("/admin/display/shared");
+  const metrics = form(page, path);
+  assert.match(metrics, /data-autosave="blur"/u);
+  assert.match(metrics, /data-autosave-fallback>Save Tap-card settings/u);
+  assert.doesNotMatch(page, /data-metric-key="srm"/u);
+  const revision = inputValue(metrics, "expectedRevision");
+  const values = {
+    expectedRevision: revision,
+    showAbv: "true",
+    showIbu: "false",
+    showOg: "true",
+    showFg: "true",
+    showSrm: "true",
+    remainingMode: "pints",
+  };
+
+  const saved = await admin.autosave(path, values);
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.resource, {
+    showAbv: true,
+    showIbu: false,
+    showOg: true,
+    showFg: true,
+    showSrm: true,
+    remainingMode: "pints",
+  });
+  assert.notEqual(String(saved.body.revision), revision);
+  // The page the preview redraws from shows the saved metrics.
+  const after = await admin.get("/admin/display/shared");
+  assert.match(after, /data-metric-key="srm"/u);
+  assert.doesNotMatch(after, /data-metric-key="ibu"/u);
+  assert.match(after, /name="showSrm" value="true" checked/u);
+  assert.match(after, /<option value="pints" selected>/u);
+
+  const current = String(saved.body.revision);
+  const invalid = await admin.autosave(path, {
+    ...values,
+    expectedRevision: current,
+    remainingMode: "barrels",
+  });
+  assert.equal(invalid.status, 422);
+  assert.deepEqual(Object.keys(invalid.body.fields as object), ["remainingMode"]);
+
+  const stale = await admin.autosave(path, { ...values, showSrm: "false" });
+  assert.equal(stale.status, 409);
+  assert.deepEqual(stale.body.current, saved.body.resource);
+  assert.equal(stale.body.revision, saved.body.revision);
+  assert.match(await admin.get("/admin/display/shared"), /data-metric-key="srm"/u);
+
+  // Without JavaScript an unchecked switch posts nothing and saves as hidden.
+  const { showSrm: _hidden, ...withoutSrm } = values;
+  assert.match(await admin.post(path, { ...withoutSrm, expectedRevision: current }), /notice=/u);
+  assert.doesNotMatch(await admin.get("/admin/display/shared"), /data-metric-key="srm"/u);
+});
