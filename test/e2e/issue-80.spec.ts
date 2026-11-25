@@ -46,13 +46,17 @@ async function restoreSettings(page: Page, original: SavedSettings): Promise<voi
   await page.locator('input[name="fallbackFg"]').fill(original.fallbackFg);
   await page.locator('input[name="servingSizeMl"]').fill(original.servingSizeMl);
   await page.getByRole("button", { name: "Save calculation defaults" }).click();
-  await expect(page.getByRole("status")).toContainText("Calculation defaults saved.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Calculation defaults saved." }),
+  ).toBeVisible();
   await page.goto("/admin/logs/retention");
   for (const field of RETENTION_FIELDS) {
     await page.locator(`input[name="${field}"]`).fill(original[field]);
   }
   await page.getByRole("button", { name: "Save retention settings" }).click();
-  await expect(page.getByRole("status")).toContainText("Retention settings saved.");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Retention settings saved." }),
+  ).toBeVisible();
   expect(await readSettings(page)).toEqual(original);
 }
 
@@ -93,7 +97,9 @@ test("Issue 80 System and Logs support no-JS save, Activity filtering, selected/
     restoreNeeded = true;
     await page.getByLabel("Default serving size (mL)").fill(servingSize);
     await page.getByRole("button", { name: "Save calculation defaults" }).click();
-    await expect(page.getByRole("status")).toContainText("Calculation defaults saved.");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Calculation defaults saved." }),
+    ).toBeVisible();
     await expect(page.getByLabel("Default serving size (mL)")).toHaveValue(servingSize);
     await expect(page.getByLabel("Fallback final gravity")).toHaveValue(original.fallbackFg);
 
@@ -105,7 +111,9 @@ test("Issue 80 System and Logs support no-JS save, Activity filtering, selected/
     );
     await page.getByLabel("Activity Log (days)").fill(activityDays);
     await page.getByRole("button", { name: "Save retention settings" }).click();
-    await expect(page.getByRole("status")).toContainText("Retention settings saved.");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Retention settings saved." }),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/admin\/logs\/retention\?/u);
     await expect(page.getByLabel("Activity Log (days)")).toHaveValue(activityDays);
 

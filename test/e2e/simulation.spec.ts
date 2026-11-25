@@ -98,14 +98,18 @@ test("simulation workspace: actual live pour, pause, persistent exit/reentry, re
   await page.goto("/admin/keg-room");
   await expect(page.getByRole("heading", { name: "Keg Room", exact: true })).toBeVisible();
   await page.goto("/admin/simulator");
-  await page
+  // The Online switch saves without a reload and shows the server's state.
+  const onlineSwitch = page
     .locator("[data-simulation-sensor]")
     .first()
-    .getByRole("button", { name: "Pause sensor" })
-    .click();
-  await expect(
-    page.locator("[data-simulation-sensor]").first().getByRole("button", { name: "Bring online" }),
-  ).toBeVisible();
+    .getByRole("switch", { name: /^Online for tap/u });
+  await expect(onlineSwitch).toHaveAttribute("aria-checked", "true");
+  await page.evaluate(() => window.scrollTo(0, 200));
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await onlineSwitch.click();
+  await expect(onlineSwitch).toHaveAttribute("aria-checked", "false");
+  expect(new URL(page.url()).search).toBe("");
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   await page.screenshot({
     path: test.info().outputPath("simulator-desktop.png"),
     fullPage: true,
@@ -191,14 +195,15 @@ async function withNoJavaScriptSimulation(
 
 test("simulation controls work with JavaScript disabled", async ({ browser }) => {
   await withNoJavaScriptSimulation(browser, async (page) => {
-    const sensor = page.locator("[data-simulation-sensor]").first();
-    await sensor.getByRole("button", { name: "Pause sensor" }).click();
-    await expect(
+    const online = () =>
       page
         .locator("[data-simulation-sensor]")
         .first()
-        .getByRole("button", { name: "Bring online" }),
-    ).toBeVisible();
+        .getByRole("switch", { name: /^Online for tap/u });
+    await expect(online()).toHaveAttribute("aria-checked", "true");
+    await online().click();
+    await expect(page).toHaveURL(/\/admin\/simulator\?notice=/u);
+    await expect(online()).toHaveAttribute("aria-checked", "false");
     await page.getByRole("switch", { name: "Enable simulation" }).click();
     await expect(page).toHaveURL(/\/admin\/simulator/u);
   });

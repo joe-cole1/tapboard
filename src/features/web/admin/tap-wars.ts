@@ -3,9 +3,15 @@ import { ApplicationError } from "../../../shared/errors.ts";
 import type { TapActorOptions } from "../../taps/types.ts";
 import { tapWarPercentages } from "../../tap-wars/service.ts";
 import type { EligibilityReason, TapWar } from "../../tap-wars/types.ts";
-import { registerAdminGet, registerAdminAction } from "./http.ts";
+import {
+  registerAdminGet,
+  registerAdminAction,
+  autosaveFieldStrings,
+  validationFieldsFor,
+} from "./http.ts";
 import { renderAdmin } from "./layout.ts";
-import { adminContext, actor, requestUrl } from "./context.ts";
+import { invalidForm } from "./forms.ts";
+import { adminContext, actor, requestUrl, type AdminContext } from "./context.ts";
 import type {
   RegisterTapWarsPagesDependencies,
   RegisterAdminTapWarsApiDependencies,
@@ -101,18 +107,42 @@ export function registerTapWarsMutations(dependencies: RegisterTapWarsMutationsD
     },
     "Tap War completed.",
   );
+  /** Saves the switch and returns what the page announces. */
+  const saveMystery = (
+    form: Readonly<Record<string, string>>,
+    context: AdminContext,
+    params: Readonly<Record<string, string>>,
+  ): { readonly enabled: boolean; readonly notice: string } => {
+    if (form.enabled !== "true" && form.enabled !== "false") {
+      invalidForm("Choose whether Mystery Tap is on or off.", "enabled");
+    }
+    const enabled = form.enabled === "true";
+    setTapWarMystery(dependencies, params.id!, enabled, actor(context));
+    return {
+      enabled,
+      notice: enabled
+        ? "Mystery Tap is on for both Tap War Taps."
+        : "Mystery Tap is off for both Tap War Taps.",
+    };
+  };
   registerAdminAction(
     dependencies,
     "/admin/tap-wars/:id/mystery",
     "/admin/tap-wars",
-    (form, context, params) => {
-      const enabled = form.enabled === "true";
-      setTapWarMystery(dependencies, params.id!, enabled, actor(context));
-      return {
-        notice: enabled
-          ? "Mystery Tap is on for both Tap War Taps."
-          : "Mystery Tap is off for both Tap War Taps.",
-      };
+    (form, context, params) => ({ notice: saveMystery(form, context, params).notice }),
+    "Saved.",
+    {},
+    {
+      // A Tap War keeps no revision; the service checks the war is still current instead.
+      handle: (body, context, params) => {
+        const saved = saveMystery(autosaveFieldStrings(body, ["enabled"]), context, params);
+        return { resource: { enabled: saved.enabled }, message: saved.notice };
+      },
+      current: () => {
+        const sides = tapWarMysteryState(dependencies);
+        return { current: sides === null ? null : mysterySwitchView(sides) };
+      },
+      validationFields: validationFieldsFor(["enabled"]),
     },
   );
   registerAdminAction(

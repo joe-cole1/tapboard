@@ -63,7 +63,8 @@ export function registerAdminGet(
 export interface AdminAutosaveResult {
   /** Safe, server-authoritative values for the marked form controls. */
   readonly resource: Readonly<Record<string, unknown>>;
-  readonly revision: string | number;
+  /** Absent for settings that keep no revision (Calculation defaults, Retention). */
+  readonly revision?: string | number;
   /** Shown instead of "Saved." when a save has something to tell, such as a needed rebaseline. */
   readonly message?: string;
 }
@@ -80,7 +81,7 @@ export interface AdminAutosaveSpec {
   ) => AdminAutosaveResult | Promise<AdminAutosaveResult>;
   readonly current: (params: Readonly<Record<string, string>>) => {
     readonly current: unknown;
-    readonly revision: string | number;
+    readonly revision?: string | number;
   };
   /** Maps service validation failures to safe, form-linked field names. */
   readonly validationFields?: AutosaveValidationFields;
@@ -220,7 +221,7 @@ export async function runAdminAutosave(
     });
     if (isApplicationError(error)) {
       if (error.category === "conflict") {
-        let current: { readonly current: unknown; readonly revision: string | number } | undefined;
+        let current: ReturnType<AdminAutosaveSpec["current"]> | undefined;
         try {
           current = spec.current(params);
         } catch {

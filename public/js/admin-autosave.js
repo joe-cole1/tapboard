@@ -357,6 +357,19 @@ async function drain(form, state) {
   }
 }
 
+/**
+ * A one-setting switch form posts the value it would change to. When the server answers with
+ * that setting as a boolean, show it on the switch and arm the next flip.
+ */
+function syncSwitch(form, resource) {
+  const fields = fieldNames(form);
+  if (fields.length !== 1 || typeof resource?.[fields[0]] !== "boolean") return;
+  const value = resource[fields[0]];
+  form.querySelector('[role="switch"]')?.setAttribute("aria-checked", String(value));
+  const next = controlsFor(form, fields[0])[0];
+  if (next && "value" in next) next.value = String(!value);
+}
+
 /** Saves are live once this script runs, so the no-JavaScript Save buttons go away. */
 function hideFallbacks(form) {
   for (const button of form.querySelectorAll("[data-autosave-fallback]")) button.hidden = true;
@@ -383,6 +396,7 @@ function initializeSubmit(form) {
     try {
       const body = await send(form, values);
       syncResourceRevision(state, body?.revision);
+      syncSwitch(form, body?.resource);
       setStatus(form, savedMessage(body), "saved");
       emitSaved(form, body?.resource);
     } catch (error) {
@@ -418,6 +432,13 @@ function initialize(form) {
   };
   registerResourceState(form, state);
   const commit = (event) => {
+    // Stepping a number field (arrow keys or the spinner) fires "change" at every step, so
+    // a focused number field saves once: when it loses focus, or when Enter submits.
+    const stepping =
+      event.type === "change" &&
+      event.target?.type === "number" &&
+      event.target === document.activeElement;
+    if (stepping) return;
     if (event.target && event.target.name && fieldNames(form).includes(event.target.name)) {
       clearFieldError(form, event.target.name);
       queue(form, state);
