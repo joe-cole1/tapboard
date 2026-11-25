@@ -5,53 +5,82 @@ const root = document.querySelector("[data-admin-tap-wars]");
 
 if (root) {
   const status = root.querySelector("[data-tap-wars-live-status]");
+  const pairForm = root.querySelector("[data-tap-wars-pair]");
   const startForm = root.querySelector("[data-tap-wars-start]");
+  const guestFrame = root.querySelector("[data-tap-wars-guest-preview]");
+  const guestBanner = guestFrame?.querySelector("[data-tap-wars]");
+  const guestEmpty = root.querySelector("[data-tap-wars-guest-preview-empty]");
   let mutationNavigationPending = false;
+  // What guests see now (from /api/admin/tap-wars); undefined until the first refresh.
+  let guestsSee;
 
-  root.querySelectorAll('form[action^="/admin/tap-wars"]').forEach((form) => {
+  root.querySelectorAll('form[method="post"][action^="/admin/tap-wars"]').forEach((form) => {
     form.addEventListener("submit", () => {
       mutationNavigationPending = true;
     });
   });
 
-  if (startForm instanceof HTMLFormElement) {
-    const selectors = [...startForm.querySelectorAll("[data-tap-wars-selector]")];
-    const preview = startForm.querySelector("[data-tap-wars-preview]");
-    const submit = startForm.querySelector("[data-tap-wars-start-submit]");
+  /** Show `war` in "What guests see"; `kind` says whether it is live or a matchup preview. */
+  const showGuest = (war, kind) => {
+    if (!(guestBanner instanceof HTMLElement)) return;
+    patchTapWarsBanner(guestBanner, war);
+    if (guestFrame instanceof HTMLElement) guestFrame.hidden = !war;
+    if (guestEmpty instanceof HTMLElement) guestEmpty.hidden = Boolean(war);
+    for (const caption of root.querySelectorAll("[data-tap-wars-caption]")) {
+      caption.hidden = caption.dataset.tapWarsCaption !== kind;
+    }
+  };
 
-    const selectedOption = (select) => select.selectedOptions.item(0);
-    const setPreview = () => {
-      const [first, second] = selectors;
-      const firstOption = first && selectedOption(first);
-      const secondOption = second && selectedOption(second);
-      const duplicate = Boolean(first?.value && first.value === second?.value);
-      for (const select of selectors) {
-        select.setCustomValidity(duplicate ? "Choose two different Tap assignments." : "");
-      }
-      if (submit && "disabled" in submit)
-        submit.disabled = duplicate || !first?.value || !second?.value;
-      if (!(preview instanceof HTMLElement)) return;
-      if (!first?.value || !second?.value) {
-        preview.textContent =
-          "Select two Tap assignments to preview the exact public-safe matchup.";
-        return;
-      }
-      if (duplicate) {
-        preview.textContent = "Choose two different Tap assignments.";
-        return;
-      }
-      const description = [firstOption, secondOption]
-        .map((option, index) => {
-          const tapNumber = option?.dataset.tapNumber ?? "?";
-          const title = option?.dataset.title ?? "Mystery Tap";
-          return `Side ${index + 1}: Tap ${tapNumber} · ${title}`;
-        })
-        .join(" versus ");
-      preview.textContent = description;
+  const selectors = pairForm ? [...pairForm.querySelectorAll("[data-tap-wars-selector]")] : [];
+  /** The opening banner for the chosen pair, built like the server's previewMatchup. */
+  const selectedMatchup = () => {
+    const options = selectors.map((select) => (select.value ? select.selectedOptions[0] : null));
+    if (options.some((option) => !option) || selectors[0].value === selectors[1].value) return null;
+    const side = (number, option) => ({
+      side: number,
+      tapNumber: Number(option.dataset.tapNumber),
+      title: option.dataset.title || "Mystery Tap",
+      voteCount: 0,
+      percentage: null,
+    });
+    return {
+      status: "active",
+      side1: side(1, options[0]),
+      side2: side(2, options[1]),
+      totalVotes: 0,
+      isTie: false,
+      winnerSide: null,
+      leaderSide: null,
+      statusLabel: "No votes yet",
     };
+  };
 
-    selectors.forEach((select) => select.addEventListener("change", setPreview));
-    setPreview();
+  const renderPair = () => {
+    if (selectors.length !== 2) return;
+    const matchup = selectedMatchup();
+    const duplicate = Boolean(selectors[0].value && selectors[0].value === selectors[1].value);
+    const pairStatus = pairForm.querySelector("[data-tap-wars-pair-status]");
+    if (pairStatus instanceof HTMLElement) pairStatus.hidden = !duplicate;
+    if (startForm instanceof HTMLFormElement) {
+      for (const [index, select] of selectors.entries()) {
+        const competitor = startForm.querySelector(`[data-tap-wars-competitor="${index + 1}"]`);
+        if (competitor instanceof HTMLInputElement) competitor.value = matchup ? select.value : "";
+      }
+      const submit = startForm.querySelector("[data-tap-wars-start-submit]");
+      if (submit instanceof HTMLElement && "disabled" in submit) submit.disabled = !matchup;
+    }
+    if (matchup) showGuest(matchup, "matchup");
+    else if (guestsSee !== undefined) showGuest(guestsSee, "live");
+    // refresh() learns what guests see now and calls back here.
+    else void refresh(false);
+  };
+
+  if (pairForm instanceof HTMLFormElement) {
+    // The preview follows the selects, so the no-JavaScript reload button (and its row) goes.
+    const update = pairForm.querySelector("[data-tap-wars-preview-update]");
+    if (update instanceof HTMLElement) update.hidden = true;
+    pairForm.addEventListener("submit", (event) => event.preventDefault());
+    selectors.forEach((select) => select.addEventListener("change", renderPair));
   }
 
   const currentSignature = () =>
@@ -105,18 +134,20 @@ if (root) {
       }
       const next = await response.json();
       const nextSignature = `${next.current?.id ?? ""}:${next.current?.status ?? ""}:${next.published?.id ?? ""}`;
-      // The guest preview renders server-side only when guests see a war; reload if that changed.
-      // With no current war there is nothing to patch, and an unchanged page stays as it is.
-      const guestBanner = root.querySelector("[data-tap-wars-guest-preview] [data-tap-wars]");
       if (
         nextSignature !== currentSignature() ||
-        Boolean(guestBanner) !== Boolean(next.publicVisible) ||
         (next.current != null && !patchCurrent(next.current, next.publicVisible))
       ) {
         window.location.reload();
         return;
       }
-      if (guestBanner) patchTapWarsBanner(guestBanner, next.publicVisible);
+      if (next.current != null) showGuest(next.publicVisible ?? null, "live");
+      else {
+        // Before a war starts the chosen matchup stays in the preview; without one, show what
+        // guests see now.
+        guestsSee = next.publicVisible ?? null;
+        renderPair();
+      }
       if (announced && status instanceof HTMLElement)
         status.textContent = "Tap War vote totals updated.";
     } catch {
@@ -131,4 +162,6 @@ if (root) {
     },
     () => refresh(false),
   );
+  // A browser can restore the selects on Back, so sync the Start form at once.
+  if (pairForm instanceof HTMLFormElement) renderPair();
 }

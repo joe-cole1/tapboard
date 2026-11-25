@@ -2,6 +2,8 @@
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { saveLive } from "./helpers.ts";
+
 async function login(page: Page, options: { readonly manualSubmit?: boolean } = {}): Promise<void> {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login$/u);
@@ -11,8 +13,10 @@ async function login(page: Page, options: { readonly manualSubmit?: boolean } = 
 }
 
 async function openTapNameForm(page: Page, waitForAutosave = true): Promise<Locator> {
-  await page.getByText("Edit tap name", { exact: true }).click();
   const form = page.locator("form[data-tap-name-form]");
+  // The name lives on the Tap page's Identity tab.
+  if ((await form.count()) === 0)
+    await page.getByRole("link", { name: "Identity", exact: true }).click();
   if (waitForAutosave) {
     await expect(form).toHaveAttribute("data-autosave-initialized", "true");
   }
@@ -27,7 +31,7 @@ async function saveTapName(
   const waitForAutosave = options.waitForAutosave ?? true;
   const form = await openTapNameForm(page, waitForAutosave);
   await form.getByLabel("Tap name").fill(name);
-  await form.getByRole("button", { name: "Save name" }).click();
+  await saveLive(form, "Save name");
   if (waitForAutosave) {
     await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
   }
@@ -181,16 +185,23 @@ test("annotated Admin surfaces share compact tables, controls, and human labels"
   const assignedRow = tapTable.locator("tbody tr").filter({ hasText: "Tap 1" }).first();
   await assignedRow.getByRole("link", { name: /^Open Tap /u }).click();
 
-  const identityTable = page.getByRole("table", { name: "Tap identity and lifecycle" });
-  await expect(identityTable.locator("tbody tr")).toHaveCount(1);
+  await page.getByRole("link", { name: "Identity", exact: true }).click();
+  const identity = page.locator('section[aria-labelledby="tap-identity-heading"]');
+  await expect(identity.locator("dt")).toHaveText(["First used", "Last updated"]);
   const assignmentSection = page.locator('section[aria-labelledby="assignment-heading"]');
   await expect(assignmentSection.locator('a[href^="/admin/keg-room/fills/"]')).toBeVisible();
   await expect(assignmentSection.locator('a[href^="/admin/keg-room/kegs/"]')).toBeVisible();
 
-  await page.getByText("Pour detector", { exact: true }).click();
+  // Pour detector and Health rules share the Sensors tab's Advanced settings disclosure.
+  await page.getByRole("link", { name: "Sensors", exact: true }).click();
+  await page
+    .locator("summary")
+    .filter({ hasText: /^Advanced settings/u })
+    .click();
+  await expect(page.getByRole("heading", { name: "Pour detector" })).toBeVisible();
   await expect(page.getByText("Detection start", { exact: true })).toBeVisible();
   await expect(page.getByText("Candidate loss (mL)", { exact: true })).toBeVisible();
-  await page.getByText("Health rules", { exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Health rules" })).toBeVisible();
   await expect(page.getByRole("group", { name: "Low keg level" })).toBeVisible();
   await expect(page.locator("main")).not.toContainText("candidateLossMl");
   await expect(page.locator("main")).not.toContainText("low_keg");
@@ -285,7 +296,7 @@ test("targeted updates preserve the graphic node and On Deck updates do not rebu
     request.url().endsWith(`/api/public/dashboard/taps/${tap1Id}`),
   );
   await tapNameForm.getByLabel("Tap name").fill("Live renamed Tap");
-  await tapNameForm.getByRole("button", { name: "Save name" }).click();
+  await saveLive(tapNameForm, "Save name");
   const targetedRequest = await targetedRefresh;
   expect(targetedRequest.url().endsWith(`/api/public/dashboard/taps/${tap1Id}`)).toBe(true);
   await expect(tapNameForm.locator("[data-autosave-status]")).toHaveText("Saved");
@@ -948,21 +959,25 @@ test("failed targeted updates recover through bounded snapshots and preserve car
   const tap2 = publicPage.locator('[data-tap-number="2"]');
   const tap2Id = await tap2.getAttribute("data-tap-id");
   expect(tap2Id).not.toBeNull();
-  await admin.goto(`/admin/taps/${tap2Id!}`);
-  await admin.getByText("Edit identity and serving metadata", { exact: true }).click();
+  await admin.goto(`/admin/taps/${tap2Id!}/identity`);
   await admin.locator('select[name="enabled"]').selectOption("false");
   const notPublic = publicPage.waitForResponse(
     (response) =>
       response.url().endsWith(`/api/public/dashboard/taps/${tap2Id}`) && response.status() === 404,
   );
-  await admin.getByRole("button", { name: "Save Tap metadata" }).click();
+  await saveLive(
+    admin.locator('form[action$="/update"]').filter({ has: admin.getByLabel("Public display") }),
+    "Save Tap details",
+  );
   await notPublic;
   await expect(tap2).toHaveCount(0);
   expect(snapshotTimes).toHaveLength(3);
 
-  await admin.getByText("Edit identity and serving metadata", { exact: true }).click();
   await admin.locator('select[name="enabled"]').selectOption("true");
-  await admin.getByRole("button", { name: "Save Tap metadata" }).click();
+  await saveLive(
+    admin.locator('form[action$="/update"]').filter({ has: admin.getByLabel("Public display") }),
+    "Save Tap details",
+  );
   await expect(tap2).toHaveCount(1);
   await saveSharedTapboardName(admin, originalName);
   await expect(brand).toHaveText(originalName);
@@ -999,7 +1014,7 @@ test("targeted tap updates leave every card's bubble animation running", async (
   const form = await openTapNameForm(admin);
   const originalName = await form.getByLabel("Tap name").inputValue();
   await form.getByLabel("Tap name").fill("Bubble continuity Tap");
-  await form.getByRole("button", { name: "Save name" }).click();
+  await saveLive(form, "Save name");
   await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
   await expect(publicTap1).not.toHaveAttribute("aria-label", "before targeted update");
 
@@ -1014,7 +1029,7 @@ test("targeted tap updates leave every card's bubble animation running", async (
   ).toBe(0);
 
   await form.getByLabel("Tap name").fill(originalName);
-  await form.getByRole("button", { name: "Save name" }).click();
+  await saveLive(form, "Save name");
   await expect(form.locator("[data-autosave-status]")).toHaveText("Saved");
   await context.close();
 });

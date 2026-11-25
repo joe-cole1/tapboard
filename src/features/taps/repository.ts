@@ -10,6 +10,7 @@ import type {
   Tap,
   TapAssignmentLifecycle,
   TapAssignmentMysteryConfig,
+  TapFillHistoryEntry,
 } from "./types.ts";
 
 interface TapRow {
@@ -676,7 +677,8 @@ export function listAdminTapViews(database: DatabaseExecutor): AdminTapView[] {
  * and health data are enriched by the web route through their authoritative
  * services after this bounded query returns.
  */
-const ADMIN_TAP_PAGE_FROM = `
+/** A Beverage's Admin name: its own for custom ones, else the Brewfather override or source. */
+const BEVERAGE_NAME_CTE = `
   WITH beverage_projection AS (
     SELECT
       b.id AS beverage_id,
@@ -689,7 +691,9 @@ const ADMIN_TAP_PAGE_FROM = `
     LEFT JOIN custom_beverage_profiles cp ON cp.beverage_id = b.id
     LEFT JOIN brewfather_source_profiles sp ON sp.beverage_id = b.id
     LEFT JOIN brewfather_presentation_overrides po ON po.beverage_id = b.id
-  )
+  )`;
+
+const ADMIN_TAP_PAGE_FROM = `${BEVERAGE_NAME_CTE}
   SELECT
     t.id,
     t.tap_number,
@@ -837,6 +841,59 @@ export function listAdminTapPage(
     )
     .all(...where.params, 25, offset);
   return rows.map(mapAdminTapPageRow);
+}
+
+interface TapFillHistoryRow {
+  readonly assignment_id: string;
+  readonly fill_id: string;
+  readonly beverage_name: string | null;
+  readonly keg_id: string | null;
+  readonly keg_number: number | null;
+  readonly keg_label: string | null;
+  readonly assigned_at: string;
+  readonly ended_at: string | null;
+  readonly end_reason: string | null;
+}
+
+/** The newest `limit` Fills assigned to a Tap, current one included. */
+export function listTapFillHistory(
+  database: DatabaseExecutor,
+  tapId: string,
+  limit: number,
+): TapFillHistoryEntry[] {
+  return database
+    .prepare<[string, number], TapFillHistoryRow>(
+      `${BEVERAGE_NAME_CTE}
+      SELECT
+        a.id AS assignment_id,
+        a.fill_id,
+        bp.beverage_name,
+        k.id AS keg_id,
+        k.keg_number,
+        k.label AS keg_label,
+        a.assigned_at,
+        a.ended_at,
+        a.end_reason
+      FROM tap_assignment_lifecycles a
+      LEFT JOIN fills f ON f.id = a.fill_id
+      LEFT JOIN beverage_projection bp ON bp.beverage_id = f.beverage_id
+      LEFT JOIN kegs k ON k.id = f.keg_id
+      WHERE a.tap_id = ?
+      ORDER BY a.assigned_at DESC, a.id DESC
+      LIMIT ?`,
+    )
+    .all(tapId, limit)
+    .map((row) => ({
+      assignmentId: row.assignment_id,
+      fillId: row.fill_id,
+      beverageName: row.beverage_name,
+      kegId: row.keg_id,
+      kegNumber: row.keg_number,
+      kegLabel: row.keg_label,
+      assignedAt: row.assigned_at,
+      endedAt: row.ended_at,
+      endReason: row.end_reason,
+    }));
 }
 
 export function listPublicTapViews(database: DatabaseExecutor): PublicTapView[] {

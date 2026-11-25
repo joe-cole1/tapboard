@@ -1,30 +1,51 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { reportFailure } from "../../../shared/diagnostics.ts";
-import type { HealthService } from "../../health/service.ts";
 import { tapDeletionConfirmationLabel, type TapService } from "../../taps/service.ts";
+import type { AdminTapView } from "../../taps/types.ts";
 import { DETECTOR_CONFIG_FIELDS, mergeDetectorConfig } from "../../telemetry/detector-config.ts";
 import { TELEMETRY_METRICS } from "../../telemetry/metrics.ts";
 import { HEALTH_CHECK_IDS } from "../../health/types.ts";
-import { type AdminContext } from "./context.ts";
-import {
-  safeDashboardTap,
-  safeMysteryPreview,
-  safeDashboardTapPreview,
-  ALL_TAP_CARD_METRICS,
-  safeHealthOverview,
-  previewMetricCatalog,
-} from "./tap-presentation.ts";
+import { type AdminContext, requestUrl } from "./context.ts";
+import { safeDashboardTap, safeMysteryPreview, safeHealthOverview } from "./tap-presentation.ts";
+import { TAP_CARD_DISPLAY_FIELDS } from "./presentation-overrides.ts";
 import {
   DETECTOR_FIELD_PRESENTATION,
   formatAdminConfigValue,
   DETECTOR_GROUPS,
+  humanizeAdminIdentifier,
 } from "./detector-presentation.ts";
 import { HEALTH_SECTION_PRESENTATION } from "./health-presentation.ts";
 import { renderAdmin } from "./layout.ts";
+import { presentActivityItems } from "./logs.ts";
 import { adminTimestampLabel } from "./presentation.ts";
 import type { RenderTapDetailDependencies } from "../contracts.ts";
 
 const KPA_PER_PSI = TELEMETRY_METRICS.pressure!.units.psi!(1);
+
+/** The Tap page's tabs, in order; the first is the Tap's own URL. */
+export const TAP_TABS = [
+  { id: "card", label: "Public card", path: "" },
+  { id: "identity", label: "Identity", path: "/identity" },
+  { id: "sensors", label: "Sensors", path: "/sensors" },
+  { id: "maintenance", label: "Maintenance", path: "/maintenance" },
+  { id: "history", label: "History", path: "/history" },
+] as const;
+
+export type TapTab = (typeof TAP_TABS)[number]["id"];
+
+/** The URL of one tab of a Tap's page. */
+export function tapPagePath(tapId: string, tab: TapTab): string {
+  const path = TAP_TABS.find((item) => item.id === tab)!.path;
+  return `/admin/taps/${encodeURIComponent(tapId)}${path}`;
+}
+
+const END_REASON_LABELS: Readonly<Record<string, string>> = {
+  unassigned: "Taken off tap",
+  moved: "Moved to another Tap",
+  fill_ended: "Kicked",
+};
+
+type Report = (operation: string, error: unknown) => void;
 
 export function renderTapDetail(
   dependencies: RenderTapDetailDependencies,
@@ -32,37 +53,206 @@ export function renderTapDetail(
   response: ServerResponse,
   context: AdminContext,
   params: Readonly<Record<string, string>>,
+  tab: TapTab,
 ) {
   const id = params.id ?? "";
   const tap = dependencies.tapService.getTap(id);
+  const report: Report = (operation, error) =>
+    reportFailure(error, {
+      operation,
+      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
+    });
+  const tapTitle = `Tap ${tap.tapNumber}${tap.name ? ` — ${tap.name}` : ""}`;
+  const current = TAP_TABS.find((item) => item.id === tab)!;
+  const tabData =
+    tab === "card"
+      ? cardTab(dependencies, tap, report)
+      : tab === "identity"
+        ? identityTab(dependencies, tap, report)
+        : tab === "sensors"
+          ? sensorsTab(dependencies, tap, report)
+          : tab === "maintenance"
+            ? maintenanceTab(dependencies, tap, report)
+            : historyTab(dependencies, tap, request, report);
+
+  renderAdmin(
+    dependencies,
+    response,
+    request,
+    context,
+    "/admin/tap-detail",
+    tab === "card" ? tapTitle : current.label,
+    "/admin/taps",
+    {
+      tab,
+      tabs: {
+        label: tapTitle,
+        items: TAP_TABS.map((item) => ({
+          label: item.label,
+          href: tapPagePath(tap.id, item.id),
+          current: item.id === tab,
+        })),
+      },
+      ...(tab === "card"
+        ? {}
+        : { breadcrumbParents: [{ label: tapTitle, href: tapPagePath(tap.id, "card") }] }),
+      tap: {
+        identity: {
+          id: tap.id,
+          tapNumber: tap.tapNumber,
+          name: tap.name,
+          createdAt: tap.createdAt,
+          updatedAt: tap.updatedAt,
+          updatedAtLabel: adminTimestampLabel(tap.updatedAt),
+          confirmationLabel: tapDeletionConfirmationLabel(tap),
+        },
+        lifecycle: {
+          enabled: tap.enabled,
+          isRetired: tap.isRetired,
+          firstUsedAt: tap.firstUsedAt,
+          firstUsedAtLabel: adminTimestampLabel(tap.firstUsedAt),
+          retiredAt: tap.retiredAt,
+        },
+        ...tabData,
+      },
+      includeDashboardStyles: tab === "card",
+    },
+  );
+}
+
+/** Public card: the preview, the metric switches and Mystery Tap. */
+function cardTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, report: Report) {
   const assignment = tap.activeAssignment ?? null;
-  const publicCard = safeDashboardTap(dependencies.dashboardService, id, dependencies.logger);
+  const publicCard = safeDashboardTap(dependencies.dashboardService, tap.id, dependencies.logger);
   let mystery: ReturnType<TapService["getAssignmentMystery"]> | null = null;
   let mysteryLookupFailed = false;
   try {
-    if (assignment !== null) mystery = dependencies.tapService.getAssignmentMystery(id);
+    if (assignment !== null) mystery = dependencies.tapService.getAssignmentMystery(tap.id);
   } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.mystery",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.mystery", error);
     mystery = null;
     mysteryLookupFailed = assignment !== null;
   }
-  const preview = mysteryLookupFailed
-    ? null
-    : safeMysteryPreview(publicCard, mystery?.enabled === true);
-  const previewCatalogCard = mysteryLookupFailed
-    ? null
-    : safeMysteryPreview(
-        safeDashboardTapPreview(
-          dependencies.dashboardService,
-          id,
-          ALL_TAP_CARD_METRICS,
-          dependencies.logger,
-        ),
-        mystery?.enabled === true,
-      );
+  // One switch per public-card metric: its effective state, and whether this Tap overrides
+  // the Display default (then a reset button clears the override).
+  let cardMetrics: readonly {
+    readonly field: string;
+    readonly label: string;
+    readonly shown: boolean;
+    readonly overridden: boolean;
+    /** What Display shows by default, so a reset can redraw the switch without a reload. */
+    readonly displayDefault: boolean;
+  }[] = [];
+  try {
+    const effective = dependencies.displayService.getEffectiveTapCardSettings(tap.id);
+    const defaults = dependencies.displayService.getTapCardSettings();
+    cardMetrics = TAP_CARD_DISPLAY_FIELDS.map(([field, label]) => ({
+      field,
+      label,
+      shown: effective.settings[field],
+      overridden: typeof effective.override?.[field] === "boolean",
+      displayDefault: defaults[field],
+    }));
+  } catch (error) {
+    report("admin.tap.tap_card", error);
+  }
+  let displayDefaults: Record<string, unknown> = { unitSystem: "us", remainingMode: "percent" };
+  try {
+    displayDefaults = dependencies.dashboardService.getDisplayDefaults() as unknown as Record<
+      string,
+      unknown
+    >;
+  } catch (error) {
+    report("admin.tap.display_defaults", error);
+    // Keep the deterministic preview fallback for small service doubles.
+  }
+  return {
+    assignment: { active: assignment, mystery },
+    cardMetrics,
+    publicPreview: mysteryLookupFailed
+      ? null
+      : safeMysteryPreview(publicCard, mystery?.enabled === true),
+    displayDefaults,
+  };
+}
+
+/** Identity: details, the Filled Keg on tap, retiring and deleting. */
+function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, report: Report) {
+  const assignment = tap.activeAssignment ?? null;
+  let assignableFills: readonly Record<string, unknown>[] = [];
+  try {
+    const fillsById = new Map<
+      string,
+      ReturnType<typeof dependencies.fillService.listFills>[number]
+    >();
+    for (const fill of [
+      ...dependencies.fillService.listFills({ state: "available" }),
+      ...dependencies.fillService.listFills({ state: "on_deck" }),
+    ]) {
+      if (!fillsById.has(fill.id)) fillsById.set(fill.id, fill);
+    }
+    assignableFills = [...fillsById.values()]
+      .sort((left, right) => {
+        const stateOrder = (state: string): number => (state === "available" ? 0 : 1);
+        const stateDifference = stateOrder(left.state) - stateOrder(right.state);
+        if (stateDifference !== 0) return stateDifference;
+        const leftQueueOrder = left.onDeckOrder ?? Number.MAX_SAFE_INTEGER;
+        const rightQueueOrder = right.onDeckOrder ?? Number.MAX_SAFE_INTEGER;
+        if (leftQueueOrder !== rightQueueOrder) return leftQueueOrder - rightQueueOrder;
+        const dateDifference = left.fillDate.localeCompare(right.fillDate);
+        return dateDifference !== 0 ? dateDifference : left.id.localeCompare(right.id);
+      })
+      .slice(0, 200)
+      .map((fill) => ({
+        id: fill.id,
+        beverageName: fill.beverageName,
+        kegNumber: fill.kegNumber,
+        kegLabel: fill.kegLabel,
+        label: `${fill.beverageName} — Keg ${fill.kegNumber}${fill.kegLabel ? ` — ${fill.kegLabel}` : ""}`,
+      }));
+  } catch (error) {
+    report("admin.tap.assignable_fills", error);
+    assignableFills = [];
+  }
+  const moveTargets = dependencies.tapService
+    .listTaps()
+    .filter((candidate) => candidate.id !== tap.id && !candidate.isRetired)
+    .slice(0, 200)
+    .map((candidate) => ({
+      id: candidate.id,
+      tapNumber: candidate.tapNumber,
+      name: candidate.name,
+    }));
+  let deletionImpact: ReturnType<TapService["getTapDeletionImpact"]> | null = null;
+  try {
+    deletionImpact = dependencies.tapService.getTapDeletionImpact(tap.id);
+  } catch (error) {
+    report("admin.tap.deletion_impact", error);
+    deletionImpact = null;
+  }
+  return {
+    configuration: {
+      gasType: tap.gasType,
+      servingPressureKpa: tap.servingPressureKpa,
+      lineLengthMm: tap.lineLengthMm,
+      lineDiameterMm: tap.lineDiameterMm,
+      notes: tap.notes,
+    },
+    assignment: {
+      active:
+        assignment === null
+          ? null
+          : { ...assignment, assignedAtLabel: adminTimestampLabel(assignment.assignedAt) },
+    },
+    assignableFills,
+    moveTargets,
+    deletionImpact,
+  };
+}
+
+/** Sensors: telemetry authority, then the pour detector and health rules. */
+function sensorsTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, report: Report) {
+  const id = tap.id;
   const allTelemetrySources = dependencies.telemetryService.listSources();
   // A disabled source cannot be assigned, so only enabled ones are offered; every name stays
   // available for the summary of what is assigned.
@@ -104,10 +294,7 @@ export function renderTapDetail(
         .join(" · ");
     }
   } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.authority",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.authority", error);
     authoritySummary = "Unavailable";
   }
 
@@ -117,10 +304,7 @@ export function renderTapDetail(
     metric = dependencies.displayService.getSettings().unitSystem === "metric";
   } catch (error) {
     // The reading is still worth showing; US units are the default.
-    reportFailure(error, {
-      operation: "admin.tap.unit_system",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.unit_system", error);
   }
   try {
     const pressure = dependencies.telemetryService.getCurrentTapReading(id, "pressure");
@@ -134,10 +318,7 @@ export function renderTapDetail(
       )}`;
     }
   } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.pressure",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.pressure", error);
     pressureLabel = "Unavailable";
   }
 
@@ -157,10 +338,7 @@ export function renderTapDetail(
       ),
     }));
   } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.detector_config",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.detector_config", error);
     detectorFields = [];
   }
 
@@ -175,10 +353,7 @@ export function renderTapDetail(
     };
     healthConfig = { effective: value.effective, override: value.override ?? null };
   } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.health_config",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
+    report("admin.tap.health_config", error);
     healthConfig = null;
   }
   const healthOverview = safeHealthOverview(dependencies.healthService, id, dependencies.logger);
@@ -219,177 +394,85 @@ export function renderTapDetail(
     fields: detectorFields.filter((field) => field.group === group.id),
   })).filter((group) => group.fields.length > 0);
 
-  let tapCard: Record<string, unknown> | null = null;
-  try {
-    const effective = dependencies.displayService.getEffectiveTapCardSettings?.(id);
-    if (effective !== undefined)
-      tapCard = {
-        override: effective.override,
-        effective: effective.settings,
-        defaults: dependencies.displayService.getTapCardSettings(),
-      };
-  } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.tap_card",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
-    tapCard = null;
-  }
-
-  let maintenance: readonly Record<string, unknown>[] = [];
-  try {
-    const candidate = dependencies.healthService as HealthService & {
-      readonly getAdminMaintenancePage?: (
-        tapId: string,
-        options?: unknown,
-      ) => { readonly records: readonly Record<string, unknown>[] };
-    };
-    const page = candidate.getAdminMaintenancePage?.(id, { limit: 25 });
-    maintenance = (page?.records ?? []) as unknown as readonly Record<string, unknown>[];
-  } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.maintenance",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
-    maintenance = [];
-  }
-
-  let assignableFills: readonly Record<string, unknown>[] = [];
-  try {
-    const fillsById = new Map<
-      string,
-      ReturnType<typeof dependencies.fillService.listFills>[number]
-    >();
-    for (const fill of [
-      ...dependencies.fillService.listFills({ state: "available" }),
-      ...dependencies.fillService.listFills({ state: "on_deck" }),
-    ]) {
-      if (!fillsById.has(fill.id)) fillsById.set(fill.id, fill);
-    }
-    assignableFills = [...fillsById.values()]
-      .sort((left, right) => {
-        const stateOrder = (state: string): number => (state === "available" ? 0 : 1);
-        const stateDifference = stateOrder(left.state) - stateOrder(right.state);
-        if (stateDifference !== 0) return stateDifference;
-        const leftQueueOrder = left.onDeckOrder ?? Number.MAX_SAFE_INTEGER;
-        const rightQueueOrder = right.onDeckOrder ?? Number.MAX_SAFE_INTEGER;
-        if (leftQueueOrder !== rightQueueOrder) return leftQueueOrder - rightQueueOrder;
-        const dateDifference = left.fillDate.localeCompare(right.fillDate);
-        return dateDifference !== 0 ? dateDifference : left.id.localeCompare(right.id);
-      })
-      .slice(0, 200)
-      .map((fill) => ({
-        id: fill.id,
-        beverageName: fill.beverageName,
-        kegNumber: fill.kegNumber,
-        kegLabel: fill.kegLabel,
-        label: `${fill.beverageName} — Keg ${fill.kegNumber}${fill.kegLabel ? ` — ${fill.kegLabel}` : ""}`,
-      }));
-  } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.assignable_fills",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
-    assignableFills = [];
-  }
-
-  const moveTargets = dependencies.tapService
-    .listTaps()
-    .filter((candidate) => candidate.id !== id && !candidate.isRetired)
-    .slice(0, 200)
-    .map((candidate) => ({
-      id: candidate.id,
-      tapNumber: candidate.tapNumber,
-      name: candidate.name,
-    }));
-  let deletionImpact: ReturnType<TapService["getTapDeletionImpact"]> | null = null;
-  try {
-    deletionImpact = dependencies.tapService.getTapDeletionImpact(id);
-  } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.deletion_impact",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
-    deletionImpact = null;
-  }
-  let displayDefaults: Record<string, unknown> = { unitSystem: "us", remainingMode: "percent" };
-  try {
-    displayDefaults = dependencies.dashboardService.getDisplayDefaults() as unknown as Record<
-      string,
-      unknown
-    >;
-  } catch (error) {
-    reportFailure(error, {
-      operation: "admin.tap.display_defaults",
-      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
-    });
-    // Keep the deterministic preview fallback for small service doubles.
-  }
-
-  renderAdmin(
-    dependencies,
-    response,
-    request,
-    context,
-    "/admin/tap-detail",
-    `Tap ${tap.tapNumber}${tap.name ? ` — ${tap.name}` : ""}`,
-    "/admin/taps",
-    {
-      tap: {
-        identity: {
-          id: tap.id,
-          tapNumber: tap.tapNumber,
-          name: tap.name,
-          createdAt: tap.createdAt,
-          updatedAt: tap.updatedAt,
-          updatedAtLabel: adminTimestampLabel(tap.updatedAt),
-          confirmationLabel: tapDeletionConfirmationLabel(tap),
-        },
-        lifecycle: {
-          enabled: tap.enabled,
-          isRetired: tap.isRetired,
-          firstUsedAt: tap.firstUsedAt,
-          firstUsedAtLabel: adminTimestampLabel(tap.firstUsedAt),
-          retiredAt: tap.retiredAt,
-        },
-        configuration: {
-          gasType: tap.gasType,
-          servingPressureKpa: tap.servingPressureKpa,
-          lineLengthMm: tap.lineLengthMm,
-          lineDiameterMm: tap.lineDiameterMm,
-          notes: tap.notes,
-        },
-        assignment: {
-          active:
-            assignment === null
-              ? null
-              : {
-                  ...assignment,
-                  assignedAtLabel: adminTimestampLabel(assignment.assignedAt),
-                },
-          mystery,
-        },
-        telemetry: {
-          authoritySummary,
-          levelSourceId,
-          conditionSourceId,
-          flowSourceId,
-          pressureLabel,
-          sources: telemetrySources,
-        },
-        detector: { fields: detectorFields, groups: detectorGroups },
-        health: { overview: healthOverview, sections: healthSections },
-        display: { tapCard },
-        maintenance: { records: maintenance },
-        assignableFills,
-        moveTargets,
-        deletionImpact,
-        publicPreview: preview,
-        previewMetricCatalog: previewMetricCatalog(previewCatalogCard),
-        publicCard,
-        displayDefaults,
-      },
-      includeDashboardStyles: true,
+  return {
+    telemetry: {
+      authoritySummary,
+      levelSourceId,
+      conditionSourceId,
+      flowSourceId,
+      pressureLabel,
+      sources: telemetrySources,
     },
-  );
+    detector: { fields: detectorFields, groups: detectorGroups },
+    health: { overview: healthOverview, sections: healthSections },
+  };
+}
+
+/** Maintenance: the line records and the form to add one. */
+function maintenanceTab(
+  dependencies: RenderTapDetailDependencies,
+  tap: AdminTapView,
+  report: Report,
+) {
+  let records: readonly Record<string, unknown>[] = [];
+  try {
+    records = dependencies.healthService
+      .getAdminMaintenancePage(tap.id, { limit: 25 })
+      .records.map((record) => {
+        const performedAt = new Date(record.performedAtMs).toISOString();
+        return {
+          typeLabel: humanizeAdminIdentifier(record.maintenanceType),
+          performedAt,
+          performedAtLabel: adminTimestampLabel(performedAt),
+        };
+      });
+  } catch (error) {
+    report("admin.tap.maintenance", error);
+    records = [];
+  }
+  return { maintenance: { records } };
+}
+
+/** History: the Fills this Tap served, then its Activity log entries. */
+function historyTab(
+  dependencies: RenderTapDetailDependencies,
+  tap: AdminTapView,
+  request: IncomingMessage,
+  report: Report,
+) {
+  let fills: readonly Record<string, unknown>[] = [];
+  try {
+    fills = dependencies.tapService.listFillHistory(tap.id).map((entry) => ({
+      ...entry,
+      assignedAtLabel: adminTimestampLabel(entry.assignedAt),
+      endedAtLabel: entry.endedAt === null ? null : adminTimestampLabel(entry.endedAt),
+      endLabel:
+        entry.endedAt === null
+          ? "On tap now"
+          : (END_REASON_LABELS[entry.endReason ?? ""] ?? "Ended"),
+    }));
+  } catch (error) {
+    report("admin.tap.fill_history", error);
+  }
+  let activity: Record<string, unknown> | null = null;
+  const cursor = requestUrl(request).searchParams.get("cursor");
+  try {
+    if (dependencies.systemService !== undefined) {
+      const page = dependencies.systemService.getActivityPage({
+        tapId: tap.id,
+        ...(cursor === null ? {} : { cursor }),
+      });
+      activity = {
+        items: presentActivityItems(page.items),
+        hasCursor: cursor !== null,
+        nextHref:
+          page.nextCursor === null
+            ? null
+            : `${tapPagePath(tap.id, "history")}?${new URLSearchParams({ cursor: page.nextCursor })}`,
+      };
+    }
+  } catch (error) {
+    report("admin.tap.activity", error);
+  }
+  return { history: { fills, activity } };
 }

@@ -30,6 +30,7 @@ import {
   listAdminTapViews,
   listAdminTapPage,
   listPublicTapViews,
+  listTapFillHistory,
   registerTapFirstUse,
   updateTap,
   touchTapIfUpdatedAt,
@@ -66,6 +67,7 @@ import type {
   TapCreatedContext,
   TapRetiredContext,
   TapDeletionImpact,
+  TapFillHistoryEntry,
   UnassignOperationResult,
   TapAssignmentMysteryConfig,
   UpdateTapAssignmentMysteryResult,
@@ -415,6 +417,11 @@ export class TapService {
 
   listTaps(): readonly AdminTapView[] {
     return listAdminTapViews(this.#database);
+  }
+
+  /** The newest 50 Fills this Tap has served, the current one first. */
+  listFillHistory(tapId: unknown): readonly TapFillHistoryEntry[] {
+    return listTapFillHistory(this.#database, this.getTap(tapId).id, 50);
   }
 
   /** Return the bounded SQL-backed Admin Tap list projection. */

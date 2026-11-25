@@ -1,4 +1,6 @@
 const AUTOSAVE_FORMS = 'form[data-autosave="blur"]';
+// A one-click setting (a switch or a reset) whose form saves the moment it is submitted.
+const SUBMIT_FORMS = 'form[data-autosave="submit"]';
 const UNDO_WINDOW_MS = 8_000;
 const resourceStates = new Map();
 
@@ -48,7 +50,13 @@ function logicalKey(form, values) {
 }
 
 function statusElement(form) {
-  return form.querySelector("[data-autosave-status]");
+  const shared = form.dataset.autosaveStatusId;
+  return shared ? document.getElementById(shared) : form.querySelector("[data-autosave-status]");
+}
+
+/** The server's message for a save, unless it is the plain "Saved." */
+function savedMessage(body) {
+  return typeof body?.message === "string" && body.message !== "Saved." ? body.message : "Saved";
 }
 
 function setStatus(form, message, state = "") {
@@ -156,6 +164,17 @@ function emitValuesApplied(form, fields) {
     new CustomEvent("tapboard:autosave-values-applied", {
       bubbles: true,
       detail: { fields },
+    }),
+  );
+}
+
+/** Tell the page a save landed, with the server's resource (a page may redraw a preview). */
+function emitSaved(form, resource) {
+  if (typeof form.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
+  form.dispatchEvent(
+    new CustomEvent("tapboard:autosave-saved", {
+      bubbles: true,
+      detail: { resource: resource ?? {} },
     }),
   );
 }
@@ -321,8 +340,9 @@ async function drain(form, state) {
       }
     }
     applyFieldErrors(form, null);
-    setStatus(form, "Saved", "saved");
+    setStatus(form, savedMessage(body), "saved");
     if (state.pending === null) armUndo(form, state, previous);
+    emitSaved(form, body?.resource);
   } catch (error) {
     invalidateUndo(state);
     if (error.status === 422) {
@@ -337,9 +357,46 @@ async function drain(form, state) {
   }
 }
 
+/** Saves are live once this script runs, so the no-JavaScript Save buttons go away. */
+function hideFallbacks(form) {
+  for (const button of form.querySelectorAll("[data-autosave-fallback]")) button.hidden = true;
+}
+
+function initializeSubmit(form) {
+  if (form.dataset.autosaveInitialized === "true") return;
+  form.dataset.autosaveInitialized = "true";
+  const state = { form, resourceKey: "", running: false };
+  registerResourceState(form, state);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.running) return;
+    state.running = true;
+    const values = {};
+    for (const field of fieldNames(form)) {
+      const control = controlsFor(form, field)[0];
+      if (control && "value" in control) values[field] = control.value;
+    }
+    values[revisionField(form)] = readRevision(form);
+    setStatus(form, "Saving…", "saving");
+    try {
+      const body = await send(form, values);
+      syncResourceRevision(state, body?.revision);
+      setStatus(form, savedMessage(body), "saved");
+      emitSaved(form, body?.resource);
+    } catch (error) {
+      if (error.status === 409) {
+        setStatus(form, "Conflict — reload to review the current value", "conflict");
+      } else setStatus(form, error.message || "Could not save", "error");
+    } finally {
+      state.running = false;
+    }
+  });
+}
+
 function initialize(form) {
   if (form.dataset.autosaveInitialized === "true") return;
   form.dataset.autosaveInitialized = "true";
+  hideFallbacks(form);
   const initialValues = snapshot(form);
   const state = {
     form,
@@ -373,6 +430,7 @@ function initialize(form) {
 
 if (typeof document !== "undefined") {
   for (const form of document.querySelectorAll(AUTOSAVE_FORMS)) initialize(form);
+  for (const form of document.querySelectorAll(SUBMIT_FORMS)) initializeSubmit(form);
 }
 
 export { applyResource, logicalKey, snapshot };

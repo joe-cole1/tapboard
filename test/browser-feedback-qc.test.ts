@@ -449,8 +449,16 @@ void test("Featured publishes only the assigned Tap after commit and Kick requir
   const detail = await request(`/admin/taps/${tap.id}`);
   assert.equal(detail.status, 200);
   const detailHtml = detail.chunks.join("");
-  assert.match(detailHtml, /name="confirmKick" value="true" required/u);
-  assert.match(detailHtml, /name="showIbu" data-inherited-value="true"[\s\S]*?Inherit \(show\)/u);
+  // Kick keg sits with the assignment on the Identity tab.
+  const identity = await request(`/admin/taps/${tap.id}/identity`);
+  assert.equal(identity.status, 200);
+  assert.match(identity.chunks.join(""), /name="confirmKick" value="true" required/u);
+  // This Tap hides IBU, so its switch is off, flipping it shows IBU, and a reset is offered.
+  assert.match(
+    detailHtml,
+    /name="showIbu" value="show" \/><button[^>]*aria-checked="false"[\s\S]*?IBU <small[^>]*>This Tap only<\/small>/u,
+  );
+  assert.match(detailHtml, /aria-label="Reset IBU to Display default"/u);
   assert.match(detailHtml, /class="display-preview tap-public-preview__frame"/u);
   const events = await request("/api/public/events");
   events.chunks.length = 0;

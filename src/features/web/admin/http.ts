@@ -64,6 +64,8 @@ export interface AdminAutosaveResult {
   /** Safe, server-authoritative values for the marked form controls. */
   readonly resource: Readonly<Record<string, unknown>>;
   readonly revision: string | number;
+  /** Shown instead of "Saved." when a save has something to tell, such as a needed rebaseline. */
+  readonly message?: string;
 }
 
 export type AutosaveValidationFields = (

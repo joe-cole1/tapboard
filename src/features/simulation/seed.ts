@@ -156,6 +156,12 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
         actor,
       );
       tapService.assignFill(tap.id, { fillId: fill.id }, actor);
+      if (number === 1) {
+        // Take the first keg off once and put it back (a line clean), so the Tap page's History
+        // tab has an ended Fill to show beside the one on tap.
+        tapService.unassign(tap.id, actor);
+        tapService.assignFill(tap.id, { fillId: fill.id }, actor);
+      }
       insertSensor(database, {
         tapId: tap.id,
         sourceId: source.id,

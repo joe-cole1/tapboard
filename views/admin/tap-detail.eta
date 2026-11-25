@@ -4,11 +4,88 @@
   <header class="page-header">
     <div>
       <h1>Tap <%= it.tap.identity.tapNumber %><% if (it.tap.identity.name) { %> — <%= it.tap.identity.name %><% } else { %> — (unnamed)<% } %></h1>
-      <p class="muted">Read-first operational detail. Public presentation is shown below from the authoritative public projection.</p>
     </div>
     <span class="badge<%= it.tap.lifecycle.enabled && !it.tap.lifecycle.isRetired ? " badge--active" : "" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
   </header>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
+
+<% if (it.tab === "card") { %>
+  <section aria-labelledby="public-preview-heading">
+    <div class="header-row"><div><h2 id="public-preview-heading">Public preview</h2></div></div>
+    <div data-tap-preview>
+    <% if (it.tap.publicPreview) { %>
+      <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'theme' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults }) %></div>
+    <% } else { %>
+      <p class="muted">No public card is available for this disabled, retired, or unassigned Tap.</p>
+    <% } %>
+    </div>
+  </section>
+
+  <section aria-labelledby="public-card-heading">
+    <div class="header-row"><div><h2 id="public-card-heading">On the public card</h2></div></div>
+    <% if (it.tap.cardMetrics.length > 0) { %>
+      <p class="muted">Each switch saves at once. A metric you change here stops following <a href="/admin/display/shared">Display › Default theme</a> until you reset it.</p>
+      <ul class="tap-card-metrics" aria-labelledby="public-card-heading" data-card-metrics>
+        <% for (const metric of it.tap.cardMetrics) { %>
+          <li class="cluster" data-metric-field="<%= metric.field %>" data-display-default="<%= metric.displayDefault %>">
+            <form action="/admin/taps/<%= it.tap.identity.id %>/display" method="post" data-autosave="submit" data-autosave-fields="<%= metric.field %>" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-status-id="card-metrics-status" data-metric-toggle><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><input type="hidden" name="<%= metric.field %>" value="<%= metric.shown ? "hide" : "show" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= metric.shown %>"><span class="switch__control" aria-hidden="true"></span><span><%= metric.label %> <small data-metric-source><%= metric.overridden ? "This Tap only" : "Display default" %></small></span></button></form>
+            <form action="/admin/taps/<%= it.tap.identity.id %>/display" method="post" data-autosave="submit" data-autosave-fields="<%= metric.field %>" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-status-id="card-metrics-status" data-metric-reset<% if (!metric.overridden) { %> hidden<% } %>><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><input type="hidden" name="<%= metric.field %>" value="inherit" /><button type="submit" class="button button--secondary button--icon" aria-label="Reset <%= metric.label %> to Display default" title="Reset <%= metric.label %> to Display default"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4v5h5" /><path d="M5.6 15a7.5 7.5 0 1 0 .8-7.4L4 9" /></svg></button></form>
+          </li>
+        <% } %>
+      </ul>
+      <output id="card-metrics-status" class="autosave-status" data-autosave-status aria-live="polite"></output>
+    <% } else { %>
+      <p class="muted">Per-Tap display settings are unavailable.</p>
+    <% } %>
+  </section>
+
+  <section aria-labelledby="mystery-heading">
+    <div class="header-row"><div><h2 id="mystery-heading">Mystery Tap</h2></div></div>
+    <% if (!it.tap.assignment.active || !it.tap.assignment.mystery) { %>
+      <p class="muted">Mystery settings are unavailable until this Tap has an active Fill assignment.</p>
+    <% } else { %>
+      <p class="muted">A Mystery Tap hides the Tap and beverage names. Guests see only the fields you reveal.</p>
+      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/mystery" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="enabled,revealBeverageType,revealStyle,revealAbv,revealIbu,revealOg,revealFg,revealSrm,revealDescription,revealRecipe,revealSensory,revealHistory">
+        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
+        <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="true"<% if (it.tap.assignment.mystery.enabled) { %> checked<% } %> /> Enable Mystery Tap</label>
+        <fieldset class="fieldset"><legend>Reveal to guests</legend><div class="auto-grid auto-grid--xs"><% for (const field of [["revealBeverageType", "Beverage type"], ["revealStyle", "Style"], ["revealAbv", "ABV"], ["revealIbu", "IBU"], ["revealOg", "OG"], ["revealFg", "FG"], ["revealSrm", "SRM"], ["revealDescription", "Description"], ["revealRecipe", "Recipe"], ["revealSensory", "Sensory profile"], ["revealHistory", "Fill history"]]) { %><label class="switch"><input class="switch__control" role="switch" type="checkbox" name="<%= field[0] %>" value="true"<% if (it.tap.assignment.mystery[field[0]]) { %> checked<% } %> /> <%= field[1] %></label><% } %></div></fieldset>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save Mystery settings</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      </form>
+    <% } %>
+  </section>
+<% } else if (it.tab === "identity") { %>
+  <section aria-labelledby="tap-identity-heading">
+    <div class="header-row"><div><h2 id="tap-identity-heading">Identity</h2></div></div>
+    <dl class="key-value-list">
+      <div><dt>First used</dt><dd><%= it.tap.lifecycle.firstUsedAtLabel %></dd></div>
+      <div><dt>Last updated</dt><dd><time datetime="<%= it.tap.identity.updatedAt %>"><%= it.tap.identity.updatedAtLabel %></time></dd></div>
+    </dl>
+    <form class="form" data-tap-name-form action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name">
+      <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
+      <label class="field">Tap name <input name="name" maxlength="120" value="<%= it.tap.identity.name || "" %>" /></label>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save name</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+    </form>
+    <% if (!it.tap.lifecycle.isRetired) { %>
+      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="tapNumber,enabled,gasType,servingPressureKpa,lineLengthMm,lineDiameterMm,notes,acknowledgeTelemetryEndpointImpact">
+        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+        <input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
+        <div class="auto-grid auto-grid--sm">
+          <label class="field">Tap number <input name="tapNumber" type="number" min="1" max="1000000" value="<%= it.tap.identity.tapNumber %>" required /></label>
+          <label class="field">Public display <select name="enabled"><option value="true"<% if (it.tap.lifecycle.enabled) { %> selected<% } %>>Enabled</option><option value="false"<% if (!it.tap.lifecycle.enabled) { %> selected<% } %>>Disabled</option></select></label>
+          <label class="field">Gas type <input name="gasType" maxlength="64" value="<%= it.tap.configuration.gasType || "" %>" /></label>
+          <label class="field">Serving pressure (kPa) <input name="servingPressureKpa" type="number" min="0" step="any" value="<%= it.tap.configuration.servingPressureKpa ?? "" %>" /></label>
+          <label class="field">Line length (mm) <input name="lineLengthMm" type="number" min="0" step="1" value="<%= it.tap.configuration.lineLengthMm ?? "" %>" /></label>
+          <label class="field">Line diameter (mm) <input name="lineDiameterMm" type="number" min="0" step="any" value="<%= it.tap.configuration.lineDiameterMm ?? "" %>" /></label>
+        </div>
+        <label class="field">Notes <textarea name="notes" maxlength="2048" rows="4"><%= it.tap.configuration.notes || "" %></textarea></label>
+        <label class="switch"><input class="switch__control" role="switch" name="acknowledgeTelemetryEndpointImpact" type="checkbox" value="true" /><span>I understand that changing the number changes <code>/api/v1/telemetry/taps/{tapNumber}</code>.</span></label>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save Tap details</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      </form>
+    <% } else { %>
+      <p class="muted">Retired Taps keep their number and history, so the number can't change.</p>
+    <% } %>
+  </section>
 
   <section aria-labelledby="assignment-heading">
     <div class="header-row"><div><h2 id="assignment-heading">Assignment</h2></div></div>
@@ -56,91 +133,9 @@
     <% } %>
   </section>
 
-  <section aria-labelledby="tap-identity-heading">
-    <div class="header-row"><div><h2 id="tap-identity-heading">Identity and lifecycle</h2><p class="muted">Tap number changes affect the telemetry endpoint and require an explicit acknowledgement.</p></div></div>
-      <table class="table">
-        <caption class="sr-only">Tap identity and lifecycle</caption>
-        <thead><tr><th scope="col">Tap number</th><th scope="col">Name</th><th scope="col">Public display</th><th scope="col">Lifecycle</th><th scope="col">First used</th><th scope="col">Last updated</th></tr></thead>
-        <tbody>
-          <tr><th scope="row" data-label="Tap number"><%= it.tap.identity.tapNumber %></th><td data-label="Name"><%= it.tap.identity.name || "(unnamed)" %></td><td data-label="Public display"><%= it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></td><td data-label="Lifecycle"><%= it.tap.lifecycle.isRetired ? "Retired" : "Active" %></td><td data-label="First used"><%= it.tap.lifecycle.firstUsedAtLabel %></td><td data-label="Last updated"><time datetime="<%= it.tap.identity.updatedAt %>"><%= it.tap.identity.updatedAtLabel %></time></td></tr>
-        </tbody>
-      </table>
-    <details class="disclosure">
-      <summary><span><strong>Edit tap name</strong><small>Current name: <%= it.tap.identity.name || "(unnamed)" %>.</small></span></summary>
-      <form class="form" data-tap-name-form action="/admin/taps/<%= it.tap.identity.id %>/update" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
-        <label class="field">Tap name <input name="name" maxlength="120" value="<%= it.tap.identity.name || "" %>" /></label>
-        <div class="form-actions"><button class="button button--primary button--small" type="submit">Save name</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
-      </form>
-    </details>
-    <% if (!it.tap.lifecycle.isRetired) { %>
-      <details class="disclosure">
-        <summary><span><strong>Edit identity and serving metadata</strong><small>Safe metadata form; concurrency metadata is retained for a later CAS rollout.</small></span></summary>
-        <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/update" method="post">
-          <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-          <input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" />
-          <div class="auto-grid auto-grid--sm">
-            <label class="field">Tap number <input name="tapNumber" type="number" min="1" max="1000000" value="<%= it.tap.identity.tapNumber %>" required /></label>
-            <label class="field">Public display <select name="enabled"><option value="true"<% if (it.tap.lifecycle.enabled) { %> selected<% } %>>Enabled</option><option value="false"<% if (!it.tap.lifecycle.enabled) { %> selected<% } %>>Disabled</option></select></label>
-            <label class="field">Gas type <input name="gasType" maxlength="64" value="<%= it.tap.configuration.gasType || "" %>" /></label>
-            <label class="field">Serving pressure (kPa) <input name="servingPressureKpa" type="number" min="0" step="any" value="<%= it.tap.configuration.servingPressureKpa ?? "" %>" /></label>
-            <label class="field">Line length (mm) <input name="lineLengthMm" type="number" min="0" step="1" value="<%= it.tap.configuration.lineLengthMm ?? "" %>" /></label>
-            <label class="field">Line diameter (mm) <input name="lineDiameterMm" type="number" min="0" step="any" value="<%= it.tap.configuration.lineDiameterMm ?? "" %>" /></label>
-          </div>
-          <label class="field">Notes <textarea name="notes" maxlength="2048" rows="4"><%= it.tap.configuration.notes || "" %></textarea></label>
-          <label class="switch"><input class="switch__control" role="switch" name="acknowledgeTelemetryEndpointImpact" type="checkbox" value="true" /><span>I understand that changing the number changes <code>/api/v1/telemetry/taps/{tapNumber}</code>.</span></label>
-          <button class="button button--primary button--small" type="submit">Save Tap metadata</button>
-        </form>
-      </details>
-    <% } else { %>
-      <p class="muted">Retired Taps preserve their number and history. Identity renumbering is unavailable.</p>
-    <% } %>
-  </section>
-
-  <section aria-labelledby="public-preview-heading">
-    <div class="header-row"><div><h2 id="public-preview-heading">Public preview</h2></div></div>
-    <% if (it.tap.publicPreview) { %>
-      <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'theme' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults, previewMetricCatalog: it.tap.previewMetricCatalog }) %></div>
-    <% } else { %>
-      <p class="muted">No public card is available for this disabled, retired, or unassigned Tap.</p>
-    <% } %>
-  </section>
-
-  <section aria-labelledby="ops-heading">
-    <div class="header-row"><div><h2 id="ops-heading">Operations and health</h2><p class="muted">Advanced controls remain closed until needed.</p></div></div>
-    <details class="disclosure">
-      <summary><span><strong>Telemetry authority</strong><small><%= it.tap.telemetry.authoritySummary %>. Latest pressure: <%= it.tap.telemetry.pressureLabel %>.</small></span></summary>
-      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/authority" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">One device can supply several roles. Readings a source sends for a role it doesn’t hold are ignored. With a flow source, pours come only from the flow meter and a scale gives remaining volume. Changing the level or flow source needs a fresh baseline.</p><label class="field">Level source (scale; pours unless a flow source is set) <select name="levelSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.levelSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Condition source (temperature, pressure) <select name="conditionSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.conditionSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Flow source (flow meter, pours) <select name="flowSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.flowSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><button class="button button--primary button--small" type="submit">Save telemetry sources</button></form>
-    </details>
-    <details class="disclosure">
-      <summary><span><strong>Pour detector</strong><small>Override only the fields that should differ from global defaults.</small></span></summary>
-      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/detector-config" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">Detection starts with measured volume loss, confirms the Tap during arbitration, records a meaningful pour, and waits for stability before recovery. Leave a field blank to inherit the global default.</p><div class="stack stack--loose"><% for (const group of it.tap.detector.groups) { %><fieldset class="fieldset"><legend><%= group.title %></legend><p class="muted"><%= group.description %></p><div class="auto-grid auto-grid--sm"><% for (const field of group.fields) { %><label class="field" for="detector-field-<%= field.name %>"><span><%= field.label %></span><input id="detector-field-<%= field.name %>" name="detector.<%= field.name %>" type="number" step="any" value="<%= field.override === null ? "" : field.override %>" placeholder="Inherited: <%= field.effectiveLabel %>" aria-describedby="detector-help-<%= field.name %>" /><small id="detector-help-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } %></div></fieldset><% } %></div><button class="button button--primary button--small" type="submit">Save detector override</button></form>
-      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/rebaseline" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><button class="button button--secondary button--small" type="submit">Manual rebaseline</button></form>
-    </details>
-    <details class="disclosure">
-      <summary><span><strong>Health rules</strong><small>Effective checks and per-Tap overrides.</small></span></summary>
-      <p class="muted">Current aggregate: <strong><%= it.tap.health.overview.stateLabel %></strong><% if (it.tap.health.overview.severity !== "none") { %> · <%= it.tap.health.overview.severityLabel %><% } %>.</p>
-      <% if (it.tap.health.overview.checks.length > 0) { %><ul class="compact-list"><% for (const check of it.tap.health.overview.checks) { %><li><strong><%= check.label %></strong>: <%= check.stateLabel %><% if (check.severity !== "none") { %> · <%= check.severityLabel %><% } %><% if (check.reasonLabel) { %> — <%= check.reasonLabel %><% } %></li><% } %></ul><% } %>
-      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/health-config" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">Each check below explains what it watches. Leave a field blank to inherit the global default; submitted field names and values remain canonical.</p><div class="stack stack--loose"><% for (const section of it.tap.health.sections) { %><fieldset class="fieldset"><legend><%= section.title %></legend><p class="muted"><%= section.description %></p><div class="auto-grid auto-grid--sm"><% for (const field of section.fields) { %><% if (typeof field.effective === "boolean") { %><label class="field" for="health-field-<%= section.id %>-<%= field.name %>"><span><%= field.label %></span><select id="health-field-<%= section.id %>-<%= field.name %>" name="health.<%= section.id %>.<%= field.name %>" aria-describedby="health-help-<%= section.id %>-<%= field.name %>"><option value="">Inherit (<%= field.effective ? "enabled" : "disabled" %>)</option><option value="true"<% if (field.override === true) { %> selected<% } %>>Enabled</option><option value="false"<% if (field.override === false) { %> selected<% } %>>Disabled</option></select><small id="health-help-<%= section.id %>-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } else { %><label class="field" for="health-field-<%= section.id %>-<%= field.name %>"><span><%= field.label %></span><input id="health-field-<%= section.id %>-<%= field.name %>" name="health.<%= section.id %>.<%= field.name %>" type="number" step="any" value="<%= field.override === null ? "" : field.override %>" placeholder="Inherited: <%= field.effectiveLabel %>" aria-describedby="health-help-<%= section.id %>-<%= field.name %>" /><small id="health-help-<%= section.id %>-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } %><% } %></div></fieldset><% } %></div><button class="button button--primary button--small" type="submit">Save health override</button></form>
-    </details>
-    <details class="disclosure">
-      <summary><span><strong>Public display override</strong><small>Metric visibility only; Remaining mode follows Display.</small></span></summary>
-      <% if (it.tap.display.tapCard) { %><form class="form" action="/admin/taps/<%= it.tap.identity.id %>/display" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="showAbv,showIbu,showOg,showFg,showSrm"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><div class="auto-grid auto-grid--xs"><% for (const metric of [["showAbv", "ABV"], ["showIbu", "IBU"], ["showOg", "OG"], ["showFg", "FG"], ["showSrm", "SRM"]]) { const override = it.tap.display.tapCard.override?.[metric[0]] ?? null; const inherited = it.tap.display.tapCard.defaults[metric[0]]; %><fieldset class="fieldset"><legend><%= metric[1] %></legend><label class="field">Display <select name="<%= metric[0] %>" data-inherited-value="<%= inherited %>"><option value="inherit"<% if (override === null) { %> selected<% } %>>Inherit (<%= inherited ? "show" : "hide" %>)</option><option value="show"<% if (override === true) { %> selected<% } %>>Show</option><option value="hide"<% if (override === false) { %> selected<% } %>>Hide</option></select></label></fieldset><% } %></div><div class="form-actions"><button class="button button--primary button--small" type="submit">Save display override</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form><% } else { %><p class="muted">Per-Tap display settings are unavailable.</p><% } %>
-    </details>
-    <details class="disclosure">
-      <summary><span><strong>Line maintenance</strong><small>Append-only maintenance records and due-state support.</small></span></summary>
-      <% if (it.tap.maintenance.records.length > 0) { %><ul class="compact-list"><% for (const record of it.tap.maintenance.records) { %><li><strong><%= record.maintenanceType %></strong> · <%= record.performedAtMs %></li><% } %></ul><% } else { %><p class="muted">No maintenance records are available.</p><% } %>
-      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/maintenance" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="field">Maintenance type <select name="maintenanceType"><option value="line_cleaned">Line cleaned</option><option value="sanitized">Sanitized</option><option value="inspection">Inspection</option><option value="repair">Repair</option><option value="other">Other</option></select></label><label class="field">Notes <textarea name="notes" maxlength="255"></textarea></label><button class="button button--primary button--small" type="submit">Record maintenance</button></form>
-    </details>
-    <details class="disclosure">
-      <summary><span><strong>Mystery Tap reveal fields</strong><small>Assignment-scoped allowlist; identity remains protected.</small></span></summary>
-      <% if (!it.tap.assignment.active || !it.tap.assignment.mystery) { %><p class="muted">Mystery settings are unavailable until this Tap has an active Fill assignment.</p><% } else { %><p>Mystery is <strong><%= it.tap.assignment.mystery.enabled ? "enabled" : "disabled" %></strong>. Tap and Beverage identity remain protected when enabled.</p><form class="form" action="/admin/taps/<%= it.tap.identity.id %>/mystery" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="true"<% if (it.tap.assignment.mystery.enabled) { %> checked<% } %> /> Enable Mystery Tap</label><fieldset class="fieldset"><legend>Reveal allowlist</legend><div class="auto-grid auto-grid--xs"><% for (const field of [["revealBeverageType", "Beverage type"], ["revealStyle", "Style"], ["revealAbv", "ABV"], ["revealIbu", "IBU"], ["revealOg", "OG"], ["revealFg", "FG"], ["revealSrm", "SRM"], ["revealDescription", "Description"], ["revealRecipe", "Recipe"], ["revealSensory", "Sensory profile"], ["revealHistory", "Fill history"]]) { %><label class="switch"><input class="switch__control" role="switch" type="checkbox" name="<%= field[0] %>" value="true"<% if (it.tap.assignment.mystery[field[0]]) { %> checked<% } %> /> <%= field[1] %></label><% } %></div></fieldset><button class="button button--primary button--small" type="submit">Save Mystery settings</button></form><% } %>
-    </details>
-  </section>
-
   <% if (!it.tap.lifecycle.isRetired) { %>
     <section aria-labelledby="lifecycle-heading">
-      <div class="header-row"><div><h2 id="lifecycle-heading">Lifecycle</h2><p class="muted">Retirement is reversible only through a future explicit workflow; no typed confirmation is required.</p></div></div>
+      <div class="header-row"><div><h2 id="lifecycle-heading">Lifecycle</h2><p class="muted">A retired Tap leaves the public display and keeps its number and history. Retiring can't be undone.</p></div></div>
       <% if (it.tap.assignment.active) { %><p class="muted">Unassign the current Fill before retiring this Tap.</p><% } else { %><details class="disclosure"><summary>Retire Tap</summary><form class="form" action="/admin/taps/<%= it.tap.identity.id %>/retire" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger button--small" type="submit">Retire Tap</button></form></details><% } %>
     </section>
   <% } %>
@@ -156,5 +151,54 @@
       <% } %>
     <% } else { %><p class="muted">Deletion impact is unavailable.</p><% } %>
   </section>
+<% } else if (it.tab === "sensors") { %>
+  <section aria-labelledby="sensors-heading">
+    <div class="header-row"><div><h2 id="sensors-heading">Sensors</h2></div></div>
+    <p class="muted"><%= it.tap.telemetry.authoritySummary %>. Latest pressure: <%= it.tap.telemetry.pressureLabel %>.</p>
+    <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/authority" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="levelSourceId,conditionSourceId,flowSourceId"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">One device can supply several roles. Readings a source sends for a role it doesn’t hold are ignored. With a flow source, pours come only from the flow meter and a scale gives remaining volume. Changing the level or flow source needs a fresh baseline.</p><label class="field">Level source (scale; pours unless a flow source is set) <select name="levelSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.levelSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Condition source (temperature, pressure) <select name="conditionSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.conditionSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Flow source (flow meter, pours) <select name="flowSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.flowSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save telemetry sources</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
+  </section>
+
+  <section aria-labelledby="advanced-heading">
+    <details class="disclosure">
+      <summary id="advanced-heading">Advanced settings<small>Pour detector and health rules. Leave a field blank to use the global default.</small></summary>
+      <h3>Pour detector</h3>
+      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/detector-config" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="<%= it.tap.detector.fields.map((field) => `detector.${field.name}`).join(",") %>"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">Detection starts with measured volume loss, confirms the Tap during arbitration, records a meaningful pour, and waits for stability before recovery.</p><div class="stack stack--loose"><% for (const group of it.tap.detector.groups) { %><fieldset class="fieldset"><legend><%= group.title %></legend><p class="muted"><%= group.description %></p><div class="auto-grid auto-grid--sm"><% for (const field of group.fields) { %><label class="field" for="detector-field-<%= field.name %>"><span><%= field.label %></span><input id="detector-field-<%= field.name %>" name="detector.<%= field.name %>" type="number" step="any" value="<%= field.override === null ? "" : field.override %>" placeholder="Inherited: <%= field.effectiveLabel %>" aria-describedby="detector-help-<%= field.name %>" /><small id="detector-help-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } %></div></fieldset><% } %></div><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save detector override</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
+      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/rebaseline" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><button class="button button--secondary button--small" type="submit">Manual rebaseline</button></form>
+      <h3>Health rules</h3>
+      <p class="muted">Current aggregate: <strong><%= it.tap.health.overview.stateLabel %></strong><% if (it.tap.health.overview.severity !== "none") { %> · <%= it.tap.health.overview.severityLabel %><% } %>.</p>
+      <% if (it.tap.health.overview.checks.length > 0) { %><ul class="compact-list"><% for (const check of it.tap.health.overview.checks) { %><li><strong><%= check.label %></strong>: <%= check.stateLabel %><% if (check.severity !== "none") { %> · <%= check.severityLabel %><% } %><% if (check.reasonLabel) { %> — <%= check.reasonLabel %><% } %></li><% } %></ul><% } %>
+      <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/health-config" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="<%= it.tap.health.sections.flatMap((section) => section.fields.map((field) => `health.${section.id}.${field.name}`)).join(",") %>"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">Each check below explains what it watches.</p><div class="stack stack--loose"><% for (const section of it.tap.health.sections) { %><fieldset class="fieldset"><legend><%= section.title %></legend><p class="muted"><%= section.description %></p><div class="auto-grid auto-grid--sm"><% for (const field of section.fields) { %><% if (typeof field.effective === "boolean") { %><label class="field" for="health-field-<%= section.id %>-<%= field.name %>"><span><%= field.label %></span><select id="health-field-<%= section.id %>-<%= field.name %>" name="health.<%= section.id %>.<%= field.name %>" aria-describedby="health-help-<%= section.id %>-<%= field.name %>"><option value="">Inherit (<%= field.effective ? "enabled" : "disabled" %>)</option><option value="true"<% if (field.override === true) { %> selected<% } %>>Enabled</option><option value="false"<% if (field.override === false) { %> selected<% } %>>Disabled</option></select><small id="health-help-<%= section.id %>-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } else { %><label class="field" for="health-field-<%= section.id %>-<%= field.name %>"><span><%= field.label %></span><input id="health-field-<%= section.id %>-<%= field.name %>" name="health.<%= section.id %>.<%= field.name %>" type="number" step="any" value="<%= field.override === null ? "" : field.override %>" placeholder="Inherited: <%= field.effectiveLabel %>" aria-describedby="health-help-<%= section.id %>-<%= field.name %>" /><small id="health-help-<%= section.id %>-<%= field.name %>" class="field__help"><%= field.help %></small></label><% } %><% } %></div></fieldset><% } %></div><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save health override</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
+    </details>
+  </section>
+<% } else if (it.tab === "maintenance") { %>
+  <section aria-labelledby="maintenance-heading">
+    <div class="header-row"><div><h2 id="maintenance-heading">Line maintenance</h2></div></div>
+    <% if (it.tap.maintenance.records.length > 0) { %>
+      <table class="table"><caption class="sr-only">Line maintenance, newest first</caption><thead><tr><th scope="col">Done</th><th scope="col">Type</th></tr></thead><tbody>
+        <% for (const record of it.tap.maintenance.records) { %><tr><th scope="row"><time datetime="<%= record.performedAt %>"><%= record.performedAtLabel %></time></th><td data-label="Type"><%= record.typeLabel %></td></tr><% } %>
+      </tbody></table>
+    <% } else { %><p class="muted">No maintenance recorded yet.</p><% } %>
+    <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/maintenance" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="field">Maintenance type <select name="maintenanceType"><option value="line_cleaned">Line cleaned</option><option value="sanitized">Sanitized</option><option value="inspection">Inspection</option><option value="repair">Repair</option><option value="other">Other</option></select></label><label class="field">Notes <textarea name="notes" maxlength="255"></textarea></label><button class="button button--primary button--small" type="submit">Record maintenance</button></form>
+  </section>
+<% } else { %>
+  <section aria-labelledby="fill-history-heading">
+    <div class="header-row"><div><h2 id="fill-history-heading">Fill history</h2><p class="muted">Every Filled Keg this Tap has poured, newest first (up to 50).</p></div></div>
+    <% if (it.tap.history.fills.length === 0) { %><p class="muted">Nothing has been on this Tap yet.</p><% } else { %>
+      <table class="table"><caption class="sr-only">Filled Kegs on this Tap, newest first</caption><thead><tr><th scope="col">Beverage</th><th scope="col">Physical keg</th><th scope="col">On tap</th><th scope="col">Off tap</th><th scope="col">How it ended</th></tr></thead><tbody>
+        <% for (const fill of it.tap.history.fills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.fillId %>"><%= fill.beverageName || "Unknown beverage" %></a></th><td data-label="Physical keg"><% if (fill.kegId) { %><a href="/admin/keg-room/kegs/<%= fill.kegId %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><% } else { %>—<% } %></td><td data-label="On tap"><time datetime="<%= fill.assignedAt %>"><%= fill.assignedAtLabel %></time></td><td data-label="Off tap"><% if (fill.endedAt) { %><time datetime="<%= fill.endedAt %>"><%= fill.endedAtLabel %></time><% } else { %>—<% } %></td><td data-label="How it ended"><%= fill.endLabel %></td></tr><% } %>
+      </tbody></table>
+    <% } %>
+  </section>
+
+  <section aria-labelledby="tap-activity-heading">
+    <div class="header-row"><div><h2 id="tap-activity-heading">Activity</h2><p class="muted">Changes recorded against this Tap, newest first. The <a href="/admin/logs">Activity log</a> has everything.</p></div></div>
+    <% if (!it.tap.history.activity) { %><p class="muted">Activity is unavailable.</p><% } else if (it.tap.history.activity.items.length === 0) { %><p class="muted">No activity recorded for this Tap.</p><% } else { %>
+      <table class="table"><caption class="sr-only">Activity for this Tap</caption><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Action</th><th scope="col">Category</th><th scope="col">Actor</th></tr></thead><tbody>
+        <% for (const item of it.tap.history.activity.items) { %><tr><td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td><td data-label="Action"><%= item.actionLabel %></td><td data-label="Category"><%= item.categoryLabel %></td><td data-label="Actor"><%= item.actorLabel %></td></tr><% } %>
+      </tbody></table>
+      <div class="cluster"><% if (it.tap.history.activity.nextHref) { %><a class="button button--secondary" href="<%= it.tap.history.activity.nextHref %>">Older activity</a><% } %><% if (it.tap.history.activity.hasCursor) { %><a class="button button--secondary" href="/admin/taps/<%= it.tap.identity.id %>/history">Latest activity</a><% } %></div>
+    <% } %>
+  </section>
+<% } %>
 </main>
-<script type="module" src="/assets/js/admin-display.js"></script>
+<% if (it.tab === "card") { %><script type="module" src="/assets/js/admin-display.js"></script><% } %>

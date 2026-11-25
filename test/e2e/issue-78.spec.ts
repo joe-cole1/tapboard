@@ -2,6 +2,8 @@
 
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+import { saveLive } from "./helpers.ts";
+
 const MYSTERY_SECRET = "MYSTERY_SECRET_DO_NOT_LEAK_77";
 
 async function login(page: Page, options: { readonly manualSubmit?: boolean } = {}): Promise<void> {
@@ -13,7 +15,7 @@ async function login(page: Page, options: { readonly manualSubmit?: boolean } = 
 
 async function startWar(page: Page, firstTap: number, secondTap: number): Promise<void> {
   await page.goto("/admin/tap-wars");
-  const form = page.locator("[data-tap-wars-start]");
+  const form = page.locator("[data-tap-wars-pair]");
   await expect(form).toBeVisible();
   const selects = form.locator("[data-tap-wars-selector]");
   const firstValue = await selects
@@ -27,9 +29,12 @@ async function startWar(page: Page, firstTap: number, secondTap: number): Promis
   if (firstValue === null || secondValue === null) throw new Error("Expected fixture competitors.");
   await selects.nth(0).selectOption(firstValue);
   await selects.nth(1).selectOption(secondValue);
-  await expect(form.locator("[data-tap-wars-preview]")).toContainText(`Tap ${firstTap}`);
-  await expect(form.locator("[data-tap-wars-preview]")).toContainText(`Tap ${secondTap}`);
-  await form.getByRole("button", { name: "Start Tap War" }).click();
+  // "What guests see" shows the real banner for the chosen pair before the war starts.
+  const guest = page.locator("[data-tap-wars-guest-preview]");
+  await expect(guest.locator('[data-tap-wars-tap="1"]')).toHaveText(`Tap ${firstTap}`);
+  await expect(guest.locator('[data-tap-wars-tap="2"]')).toHaveText(`Tap ${secondTap}`);
+  await expect(guest.locator("[data-tap-wars-status]")).toHaveText("TAP WARS! Vote below");
+  await page.getByRole("button", { name: "Start Tap War" }).click();
   await expect(page.getByRole("heading", { name: "Current Tap War" })).toBeVisible();
 }
 
@@ -251,13 +256,12 @@ test("Tap Wars votes live-update stable cards, pause safely, and publish a froze
 
   // Disabling the original participant pauses the same competition; restoring the
   // Tap does not implicitly resume it.
-  await admin.goto(`/admin/taps/${war.side1.tapId}`);
-  await admin.getByText("Edit identity and serving metadata", { exact: true }).click();
+  await admin.goto(`/admin/taps/${war.side1.tapId}/identity`);
   const metadata = admin
     .locator('form[action$="/update"]')
     .filter({ has: admin.getByLabel("Public display") });
   await metadata.getByLabel("Public display").selectOption("false");
-  await metadata.getByRole("button", { name: "Save Tap metadata" }).click();
+  await saveLive(metadata, "Save Tap details");
   await expect.poll(async () => (await publicWar(page)).status).toBe("paused");
   await expect.poll(async () => (await publicWar(page)).side1.title).toBe("Tap Wars Amber");
   await expect(page.locator("[data-tap-wars-vote]")).toHaveCount(0);
@@ -266,9 +270,8 @@ test("Tap Wars votes live-update stable cards, pause safely, and publish a froze
     headers: { Origin: new URL(page.url()).origin, Accept: "application/json" },
   });
   expect(pausedVote.ok()).toBe(false);
-  await admin.getByText("Edit identity and serving metadata", { exact: true }).click();
   await metadata.getByLabel("Public display").selectOption("true");
-  await metadata.getByRole("button", { name: "Save Tap metadata" }).click();
+  await saveLive(metadata, "Save Tap details");
   await expect.poll(async () => (await publicWar(page)).status).toBe("paused");
   await admin.goto("/admin/tap-wars");
   await expect(admin.getByRole("button", { name: "Resume Tap War" })).toBeVisible();
@@ -325,20 +328,18 @@ test("Tap Wars resolves the exact disabled original title without leaking a repl
   let tap4Id: string | undefined;
 
   const setTapEnabled = async (tapId: string, enabled: boolean): Promise<void> => {
-    await admin.goto(`/admin/taps/${tapId}`);
-    await admin.getByText("Edit identity and serving metadata", { exact: true }).click();
+    await admin.goto(`/admin/taps/${tapId}/identity`);
     const metadata = admin
       .locator('form[action$="/update"]')
       .filter({ has: admin.getByLabel("Public display") });
     await metadata.getByLabel("Public display").selectOption(enabled ? "true" : "false");
-    await metadata.getByRole("button", { name: "Save Tap metadata" }).click();
+    await saveLive(metadata, "Save Tap details");
   };
 
   const setMysteryEnabled = async (tapId: string, enabled: boolean): Promise<void> => {
     await admin.goto(`/admin/taps/${tapId}`);
-    await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByLabel("Enable Mystery Tap").setChecked(enabled);
-    await admin.getByRole("button", { name: "Save Mystery settings" }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
   };
 
   try {
@@ -410,11 +411,10 @@ test("Tap Wars remains SSR-safe without JavaScript and does not leak Mystery ide
   const mysteryTap = dashboard.taps.find((tap) => tap.tapNumber === 3);
   if (mysteryTap === undefined) throw new Error("Expected the Mystery fixture Tap.");
   await admin.goto(`/admin/taps/${mysteryTap.id}`);
-  await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   const styleReveal = admin.getByLabel("Style", { exact: true });
   if (await styleReveal.isChecked()) {
     await styleReveal.uncheck();
-    await admin.getByRole("button", { name: "Save Mystery settings" }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
   }
   await startWar(admin, 3, 4);
   const publicPage = await adminContext.newPage();
@@ -479,7 +479,7 @@ test("Tap Wars remains SSR-safe without JavaScript and does not leak Mystery ide
   await noJs.waitForURL(/\/#tap-wars$/u);
   await expect(noJs.locator("[data-tap-wars]")).toBeVisible();
   expect((await publicWar(noJs)).side1.voteCount).toBe(beforeNoJsVote + 1);
-  await admin.goto(`/admin/taps/${mysteryTap.id}`);
+  await admin.goto(`/admin/taps/${mysteryTap.id}/identity`);
   await admin.getByRole("button", { name: "Take off tap" }).click();
   await expect.poll(async () => (await publicWar(noJs)).status).toBe("paused");
   const pausedMystery = await publicWar(noJs);
@@ -525,7 +525,7 @@ test("a replacement assignment cannot inherit votes or resume the original compe
   });
   expect(vote.ok()).toBe(true);
 
-  await admin.goto(`/admin/taps/${started.side1.tapId}`);
+  await admin.goto(`/admin/taps/${started.side1.tapId}/identity`);
   await admin.getByRole("button", { name: "Take off tap" }).click();
   await expect.poll(async () => (await publicWar(page)).status).toBe("paused");
   const assignment = admin.locator('form[action$="/assign"]');
@@ -659,7 +659,7 @@ test("a live update with no Tap War running keeps the start form (#220)", async 
   await login(page);
   await closeCurrentWar(page);
   await page.goto("/admin/tap-wars");
-  const form = page.locator("[data-tap-wars-start]");
+  const form = page.locator("[data-tap-wars-pair]");
   await expect(form).toBeVisible();
   const first = form.locator("[data-tap-wars-selector]").nth(0);
   const value = await first.locator("option[data-tap-number]").first().getAttribute("value");

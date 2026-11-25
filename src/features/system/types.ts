@@ -70,6 +70,8 @@ export interface SystemActivityCursor {
 export interface SystemActivityPageQuery {
   readonly category?: unknown;
   readonly cursor?: unknown;
+  /** Only entries recorded against this Tap. */
+  readonly tapId?: unknown;
 }
 
 export interface SystemActivityPage {

@@ -11,6 +11,8 @@ import {
   autosaveFieldStrings,
   requiredAutosaveField,
   validationFieldsFor,
+  type AdminAutosaveSpec,
+  type AutosaveValidationFields,
 } from "./http.ts";
 import {
   fallbackAdminTapPage,
@@ -19,9 +21,9 @@ import {
   tapRemainingLabel,
 } from "./tap-presentation.ts";
 import { renderAdmin } from "./layout.ts";
-import { renderTapDetail } from "./tap-detail.ts";
+import { renderTapDetail, TAP_TABS, tapPagePath } from "./tap-detail.ts";
 import { nullable, nullableNumber, invalidForm } from "./forms.ts";
-import { actor } from "./context.ts";
+import { actor, type AdminContext } from "./context.ts";
 import { tapCardOverrideFromForm } from "./presentation-overrides.ts";
 import { detectorOverrideFromForm, healthOverrideFromForm } from "./detector-presentation.ts";
 import type {
@@ -113,12 +115,147 @@ export function registerTapPages(dependencies: RegisterTapPagesDependencies): vo
     );
   });
 
-  registerAdminGet(dependencies, "/admin/taps/:id", (request, response, context, params) => {
-    renderTapDetail(dependencies, request, response, context, params);
-  });
+  for (const tab of TAP_TABS) {
+    registerAdminGet(
+      dependencies,
+      `/admin/taps/:id${tab.path}`,
+      (request, response, context, params) => {
+        renderTapDetail(dependencies, request, response, context, params, tab.id);
+      },
+    );
+  }
+}
+
+/** The Tap details form's fields (everything on Identity except the name). */
+const TAP_DETAIL_FIELDS = [
+  "tapNumber",
+  "enabled",
+  "gasType",
+  "servingPressureKpa",
+  "lineLengthMm",
+  "lineDiameterMm",
+  "notes",
+  "acknowledgeTelemetryEndpointImpact",
+] as const;
+
+/** The JSON body's string fields whose names start with `prefix` (the override forms). */
+function prefixedFieldStrings(
+  body: Readonly<Record<string, unknown>>,
+  prefix: string,
+): Record<string, string> {
+  return autosaveFieldStrings(
+    body,
+    Object.keys(body).filter((key) => key.startsWith(prefix)),
+  );
 }
 
 export function registerTapMutations(dependencies: RegisterTapMutationsDependencies): void {
+  type TapForm = Readonly<Record<string, string>>;
+  type TapParams = Readonly<Record<string, string>>;
+  /**
+   * Live save for a Tap settings form: runs the form post's own `save` on the posted fields,
+   * then answers with the Tap's current revision, so every live form on the Tap's page keeps
+   * the newest one. `save` may return a message to show instead of "Saved".
+   */
+  const tapAutosave = (
+    fields: (body: Readonly<Record<string, unknown>>) => TapForm,
+    save: (form: TapForm, context: AdminContext, params: TapParams) => string | void,
+    validationFields: AutosaveValidationFields = validationFieldsFor([]),
+    resource: Readonly<Record<string, unknown>> = {},
+  ): AdminAutosaveSpec => ({
+    handle: (body, context, params) => {
+      const message = save(fields(body), context, params);
+      const tap = dependencies.tapService.getTap(params.id!);
+      return { resource, revision: tap.updatedAt, ...(message ? { message } : {}) };
+    },
+    current: (params) => {
+      const tap = dependencies.tapService.getTap(params.id!);
+      return { current: { updatedAt: tap.updatedAt }, revision: tap.updatedAt };
+    },
+    validationFields,
+  });
+  const updateTapDetails = (form: TapForm, context: AdminContext, params: TapParams) => {
+    dependencies.tapService.updateTap(
+      params.id!,
+      {
+        tapNumber: Number(form.tapNumber),
+        name: nullable(form.name),
+        enabled: form.enabled === "true",
+        gasType: nullable(form.gasType),
+        servingPressureKpa: nullableNumber(form.servingPressureKpa),
+        lineLengthMm: nullableNumber(form.lineLengthMm),
+        lineDiameterMm: nullableNumber(form.lineDiameterMm),
+        notes: nullable(form.notes),
+        acknowledgeTelemetryEndpointImpact: form.acknowledgeTelemetryEndpointImpact === "true",
+      },
+      actor(context),
+    );
+  };
+  // The details form's live save: the acknowledgement clears after each save, so the next
+  // number change needs it again.
+  const detailsAutosave = tapAutosave(
+    (body) => autosaveFieldStrings(body, TAP_DETAIL_FIELDS),
+    updateTapDetails,
+    validationFieldsFor([...TAP_DETAIL_FIELDS]),
+    { acknowledgeTelemetryEndpointImpact: false },
+  );
+  const saveMystery = (form: TapForm, context: AdminContext, params: TapParams) => {
+    dependencies.tapService.updateAssignmentMystery(
+      params.id!,
+      {
+        enabled: form.enabled === "true",
+        revealBeverageType: form.revealBeverageType === "true",
+        revealStyle: form.revealStyle === "true",
+        revealAbv: form.revealAbv === "true",
+        revealIbu: form.revealIbu === "true",
+        revealOg: form.revealOg === "true",
+        revealFg: form.revealFg === "true",
+        revealSrm: form.revealSrm === "true",
+        revealDescription: form.revealDescription === "true",
+        revealRecipe: form.revealRecipe === "true",
+        revealSensory: form.revealSensory === "true",
+        revealHistory: form.revealHistory === "true",
+      },
+      actor(context),
+    );
+  };
+  const saveAuthority = (form: TapForm, context: AdminContext, params: TapParams) => {
+    const { requiresFreshBaseline } = dependencies.telemetryService.setTapAuthority(
+      params.id!,
+      {
+        levelSourceId: form.levelSourceId,
+        conditionSourceId: form.conditionSourceId,
+        flowSourceId: form.flowSourceId,
+      },
+      actor(context),
+    );
+    return requiresFreshBaseline
+      ? "Telemetry sources updated; a fresh baseline is required."
+      : "Telemetry sources updated.";
+  };
+  const saveDetector = (form: TapForm, context: AdminContext, params: TapParams) => {
+    const override = detectorOverrideFromForm(form);
+    if (Object.keys(override).length === 0) {
+      dependencies.detectorService.clearTapOverride(params.id!, actor(context));
+      return;
+    }
+    const effective = mergeDetectorConfig(
+      dependencies.detectorService.getGlobalConfig().config,
+      override,
+    );
+    validateCompleteDetectorConfig(effective);
+    dependencies.detectorService.setTapOverride(params.id!, override, actor(context));
+  };
+  const saveHealth = (form: TapForm, context: AdminContext, params: TapParams) => {
+    const effective = dependencies.healthService.getEffectiveConfig(params.id!).effective;
+    const override = healthOverrideFromForm(form, effective);
+    if (override === null) {
+      dependencies.healthService.clearTapOverride(params.id!, actor(context));
+      return;
+    }
+    dependencies.healthService.updateTapOverride(params.id!, override, actor(context));
+  };
+
   registerAdminAction(
     dependencies,
     "/admin/taps/create",
@@ -143,7 +280,7 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/update",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "identity"),
     (form, context, params) => {
       if (isTapNameOnlyForm(form)) {
         dependencies.tapService.autosaveName(
@@ -154,26 +291,15 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
         );
         return;
       }
-      dependencies.tapService.updateTap(
-        params.id!,
-        {
-          tapNumber: Number(form.tapNumber),
-          name: nullable(form.name),
-          enabled: form.enabled === "true",
-          gasType: nullable(form.gasType),
-          servingPressureKpa: nullableNumber(form.servingPressureKpa),
-          lineLengthMm: nullableNumber(form.lineLengthMm),
-          lineDiameterMm: nullableNumber(form.lineDiameterMm),
-          notes: nullable(form.notes),
-          acknowledgeTelemetryEndpointImpact: form.acknowledgeTelemetryEndpointImpact === "true",
-        },
-        actor(context),
-      );
+      updateTapDetails(form, context, params);
     },
     "Tap updated.",
     {},
     {
+      // The name form saves with a revision check; the details form saves its whole form.
       handle: (body, context, params) => {
+        if (TAP_DETAIL_FIELDS.some((field) => Object.hasOwn(body, field)))
+          return detailsAutosave.handle(body, context, params);
         const fields = autosaveFieldStrings(body, ["updatedAt", "name"]);
         const updated = dependencies.tapService.autosaveName(
           params.id!,
@@ -193,13 +319,13 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
           revision: current.updatedAt,
         };
       },
-      validationFields: validationFieldsFor(["updatedAt", "name"]),
+      validationFields: validationFieldsFor(["updatedAt", "name", ...TAP_DETAIL_FIELDS]),
     },
   );
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/assign",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "identity"),
     (form, context, params) => {
       dependencies.tapService.assignFill(params.id!, { fillId: form.fillId }, actor(context));
     },
@@ -208,33 +334,33 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/mystery",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
-    (form, context, params) => {
-      dependencies.tapService.updateAssignmentMystery(
-        params.id!,
-        {
-          enabled: form.enabled === "true",
-          revealBeverageType: form.revealBeverageType === "true",
-          revealStyle: form.revealStyle === "true",
-          revealAbv: form.revealAbv === "true",
-          revealIbu: form.revealIbu === "true",
-          revealOg: form.revealOg === "true",
-          revealFg: form.revealFg === "true",
-          revealSrm: form.revealSrm === "true",
-          revealDescription: form.revealDescription === "true",
-          revealRecipe: form.revealRecipe === "true",
-          revealSensory: form.revealSensory === "true",
-          revealHistory: form.revealHistory === "true",
-        },
-        actor(context),
-      );
-    },
+    (params) => tapPagePath(params.id ?? "", "card"),
+    saveMystery,
     "Mystery Tap settings saved.",
+    {},
+    tapAutosave(
+      (body) =>
+        autosaveFieldStrings(body, [
+          "enabled",
+          "revealBeverageType",
+          "revealStyle",
+          "revealAbv",
+          "revealIbu",
+          "revealOg",
+          "revealFg",
+          "revealSrm",
+          "revealDescription",
+          "revealRecipe",
+          "revealSensory",
+          "revealHistory",
+        ]),
+      saveMystery,
+    ),
   );
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/display",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "card"),
     (form, context, params) => {
       dependencies.displayService.setTapCardOverride(
         params.id!,
@@ -291,7 +417,7 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/unassign",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "identity"),
     (_form, context, params) => {
       dependencies.tapService.unassign(params.id!, actor(context));
     },
@@ -300,7 +426,7 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/move",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "identity"),
     (form, context, params) => {
       const tap = dependencies.tapService.getTap(params.id!);
       if (tap.activeAssignment === undefined || tap.activeAssignment === null) {
@@ -321,63 +447,38 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/authority",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
-    (form, context, params) => {
-      const { requiresFreshBaseline } = dependencies.telemetryService.setTapAuthority(
-        params.id!,
-        {
-          levelSourceId: form.levelSourceId,
-          conditionSourceId: form.conditionSourceId,
-          flowSourceId: form.flowSourceId,
-        },
-        actor(context),
-      );
-      return {
-        notice: requiresFreshBaseline
-          ? "Telemetry sources updated; a fresh baseline is required."
-          : "Telemetry sources updated.",
-      };
-    },
+    (params) => tapPagePath(params.id ?? "", "sensors"),
+    (form, context, params) => ({ notice: saveAuthority(form, context, params) }),
     "Telemetry sources updated.",
+    {},
+    tapAutosave(
+      (body) => autosaveFieldStrings(body, ["levelSourceId", "conditionSourceId", "flowSourceId"]),
+      saveAuthority,
+      validationFieldsFor(["levelSourceId", "conditionSourceId", "flowSourceId"]),
+    ),
   );
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/detector-config",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
-    (form, context, params) => {
-      const override = detectorOverrideFromForm(form);
-      if (Object.keys(override).length === 0) {
-        dependencies.detectorService.clearTapOverride(params.id!, actor(context));
-        return;
-      }
-      const effective = mergeDetectorConfig(
-        dependencies.detectorService.getGlobalConfig().config,
-        override,
-      );
-      validateCompleteDetectorConfig(effective);
-      dependencies.detectorService.setTapOverride(params.id!, override, actor(context));
-    },
+    (params) => tapPagePath(params.id ?? "", "sensors"),
+    saveDetector,
     "Pour-detector override updated.",
+    {},
+    tapAutosave((body) => prefixedFieldStrings(body, "detector."), saveDetector),
   );
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/health-config",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
-    (form, context, params) => {
-      const effective = dependencies.healthService.getEffectiveConfig(params.id!).effective;
-      const override = healthOverrideFromForm(form, effective);
-      if (override === null) {
-        dependencies.healthService.clearTapOverride(params.id!, actor(context));
-        return;
-      }
-      dependencies.healthService.updateTapOverride(params.id!, override, actor(context));
-    },
+    (params) => tapPagePath(params.id ?? "", "sensors"),
+    saveHealth,
     "Health override updated.",
+    {},
+    tapAutosave((body) => prefixedFieldStrings(body, "health."), saveHealth),
   );
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/rebaseline",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "sensors"),
     (_form, context, params) => {
       dependencies.detectorService.manualRebaseline(params.id!, actor(context));
     },
@@ -386,7 +487,7 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/maintenance",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "maintenance"),
     (form, context, params) => {
       dependencies.healthService.recordMaintenance(
         params.id!,
@@ -399,7 +500,7 @@ export function registerTapMutations(dependencies: RegisterTapMutationsDependenc
   registerAdminAction(
     dependencies,
     "/admin/taps/:id/retire",
-    (params) => `/admin/taps/${encodeURIComponent(params.id ?? "")}`,
+    (params) => tapPagePath(params.id ?? "", "identity"),
     (form, context, params) => {
       dependencies.tapService.retireTap(
         params.id!,

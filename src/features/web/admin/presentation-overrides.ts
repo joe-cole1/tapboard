@@ -9,12 +9,17 @@ export const TAP_CARD_DISPLAY_FIELDS = [
   ["showSrm", "SRM"],
 ] as const;
 
+/**
+ * The metrics a Tap-card override form changes. Each Tap-page switch posts only its own
+ * metric, so a missing field leaves that metric as it is; "inherit" clears its override.
+ */
 export function tapCardOverrideFromForm(
   form: Readonly<Record<string, string>>,
-): Record<(typeof TAP_CARD_DISPLAY_FIELDS)[number][0], boolean | null> {
-  const result = {} as Record<(typeof TAP_CARD_DISPLAY_FIELDS)[number][0], boolean | null>;
+): Partial<Record<(typeof TAP_CARD_DISPLAY_FIELDS)[number][0], boolean | null>> {
+  const result: Partial<Record<(typeof TAP_CARD_DISPLAY_FIELDS)[number][0], boolean | null>> = {};
   for (const [field, label] of TAP_CARD_DISPLAY_FIELDS) {
     const value = form[field];
+    if (value === undefined) continue;
     if (value === "inherit") result[field] = null;
     else if (value === "show") result[field] = true;
     else if (value === "hide") result[field] = false;

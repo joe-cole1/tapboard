@@ -128,11 +128,7 @@ const metricNames = {
 };
 
 function metricEnabled(control) {
-  if (control instanceof HTMLInputElement) return control.checked;
-  if (!(control instanceof HTMLElement) || control.tagName !== "SELECT") return false;
-  if (control.value === "show") return true;
-  if (control.value === "hide") return false;
-  return control.dataset.inheritedValue === "true";
+  return control instanceof HTMLInputElement && control.checked;
 }
 
 function syncTapCardPreview() {
@@ -140,9 +136,8 @@ function syncTapCardPreview() {
     "[data-display-preview] .tap-card, .display-preview .tap-card",
   );
   if (!(card instanceof HTMLElement)) return;
-  const metricForm =
-    document.querySelector('form[action="/admin/display/tap-card"]') ??
-    document.querySelector('form[action$="/display"]');
+  // Only Display's own form previews metric changes live; a Tap page's switches save and reload.
+  const metricForm = document.querySelector('form[action="/admin/display/tap-card"]');
   const styleLine = card.querySelector('[data-field="style-line"]');
   const metrics = card.querySelector('[data-field="metrics"]');
   if (metricForm instanceof HTMLFormElement) {
@@ -214,7 +209,7 @@ function syncTapCardPreview() {
 }
 
 for (const previewForm of document.querySelectorAll(
-  'form[action="/admin/display/tap-card"], form[action$="/display"], [data-shared-display-form]',
+  'form[action="/admin/display/tap-card"], [data-shared-display-form]',
 )) {
   previewForm.addEventListener("input", syncTapCardPreview);
   previewForm.addEventListener("change", syncTapCardPreview);
@@ -224,5 +219,58 @@ document.addEventListener("tapboard:autosave-values-applied", () => {
   syncTapCardPreview();
 });
 syncTapCardPreview();
+
+// A Tap's Public card tab: its switches save live (admin-autosave.js). Redraw each metric
+// from the server's answer, then the preview card from the server, so Mystery redaction and
+// metric values stay server-side.
+const cardMetrics = document.querySelector("[data-card-metrics]");
+if (cardMetrics instanceof HTMLElement) {
+  cardMetrics.addEventListener("tapboard:autosave-saved", (event) => {
+    const resource = event.detail?.resource ?? {};
+    for (const row of cardMetrics.querySelectorAll("[data-metric-field]")) {
+      const field = row.dataset.metricField;
+      const choice = resource[field];
+      if (!["inherit", "show", "hide"].includes(choice)) continue;
+      const shown =
+        choice === "show" || (choice === "inherit" && row.dataset.displayDefault === "true");
+      const toggle = row.querySelector("[data-metric-toggle]");
+      const button = toggle?.querySelector('[role="switch"]');
+      button?.setAttribute("aria-checked", String(shown));
+      const next = toggle?.querySelector(`input[name="${field}"]`);
+      if (next instanceof HTMLInputElement) next.value = shown ? "hide" : "show";
+      const source = row.querySelector("[data-metric-source]");
+      if (source) source.textContent = choice === "inherit" ? "Display default" : "This Tap only";
+      const reset = row.querySelector("[data-metric-reset]");
+      if (reset instanceof HTMLElement) {
+        const hadFocus = reset.contains(document.activeElement);
+        reset.hidden = choice === "inherit";
+        if (hadFocus && reset.hidden && button instanceof HTMLElement) button.focus();
+      }
+    }
+  });
+}
+
+/** Swap in the server's current preview card after a Public card setting saves. */
+async function refreshTapPreview() {
+  const frame = document.querySelector("[data-tap-preview]");
+  if (!(frame instanceof HTMLElement)) return;
+  try {
+    const response = await fetch(window.location.pathname, {
+      credentials: "same-origin",
+      headers: { Accept: "text/html" },
+    });
+    if (!response.ok) return;
+    const fresh = new window.DOMParser()
+      .parseFromString(await response.text(), "text/html")
+      .querySelector("[data-tap-preview]");
+    if (fresh) frame.replaceChildren(...fresh.childNodes);
+    syncTapCardPreview();
+  } catch {
+    // The saved switch is already shown; the preview catches up on the next load.
+  }
+}
+if (document.querySelector("[data-tap-preview]")) {
+  document.addEventListener("tapboard:autosave-saved", () => void refreshTapPreview());
+}
 
 if (form instanceof HTMLFormElement && !(preview instanceof HTMLElement)) apply(read());
