@@ -17,6 +17,7 @@ async function newBeverage(page: Page, name: string): Promise<void> {
   await page.goto("/admin/beverages/new");
   await page.getByRole("textbox", { name: "Name" }).fill(name);
   await page.getByRole("button", { name: "Create beverage" }).click();
+  await page.getByRole("link", { name: "Recipe", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import recipe file" })).toBeVisible();
 }
 

@@ -68,8 +68,9 @@ export function presentationOverridesFromForm(
     if (mode === undefined) {
       // Older forms did not expose a mode for the vessel picker. Preserve
       // that normal form action while keeping newly-supported fields absent
-      // unless the detail form explicitly submits them.
-      if (field === "fillGlass") {
+      // unless the detail form explicitly submits them. A form without the
+      // vessel (the colour picker) leaves it as it is.
+      if (field === "fillGlass" && form.fillGlass !== undefined) {
         result[field] = { value: vesselFromForm(form[field] ?? "") ?? "" };
       }
       continue;

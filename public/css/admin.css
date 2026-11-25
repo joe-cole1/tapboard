@@ -866,24 +866,6 @@
     flex: 1 1 16rem;
     min-width: 0;
   }
-  .keg-inventory__graphic {
-    width: 100%;
-    max-width: 3.5rem;
-    height: auto;
-  }
-  .keg-inventory__body {
-    fill: color-mix(in srgb, var(--accent) 18%, var(--surface));
-    stroke: var(--accent-readable);
-    stroke-width: 3;
-  }
-  .keg-inventory__rim,
-  .keg-inventory__handle {
-    fill: none;
-    stroke: var(--muted);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
   .beverage-color-cue {
     display: inline-block;
     width: 1.5rem;
@@ -898,6 +880,42 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+  }
+  /*
+   * Display colour picker: SRM swatches are radios, each labelled with its number. A swatch
+   * keeps a 3:1 outline on every Admin ground; the chosen one adds a thick border and a bold,
+   * underlined number, so the choice never rests on colour alone.
+   */
+  .srm-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-block-end: var(--space-3);
+  }
+  .srm-swatch {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    min-inline-size: 2.25rem;
+    padding: var(--space-1);
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-small);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .srm-swatch rect {
+    stroke: var(--control-border);
+    stroke-width: 2;
+  }
+  .srm-swatch:has(input:checked) {
+    border-color: var(--accent-strong);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+  .srm-swatch:has(input:focus-visible) {
+    outline: 3px solid var(--accent-strong);
+    outline-offset: 2px;
   }
 
   .autosave-status {

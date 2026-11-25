@@ -1,6 +1,11 @@
 import { VESSEL_IDS } from "../../story/index.ts";
 import { OFFLINE_RECIPE_ACCOUNT_ID } from "../../beverages/recipe-files/import.ts";
-import { beverageDisplayColor, getVesselDescriptor } from "../../story/vessels.ts";
+import {
+  beverageDisplayColor,
+  getVesselDescriptor,
+  SAFE_DISPLAY_COLOR,
+  SRM_COLOR_PALETTE,
+} from "../../story/vessels.ts";
 import {
   BEVERAGE_SENSORY_AXES,
   BEVERAGE_SENSORY_CANONICAL_MAX,
@@ -74,6 +79,80 @@ export function vesselFromForm(
     invalidForm("Fill Glass must be selected from the supported catalog.", field);
   }
   return trimmed;
+}
+
+/** The SRM radio a value selects: its palette swatch, or "exact" for any other value. */
+export function srmChoice(srm: number | null): string {
+  return srm !== null && SRM_COLOR_PALETTE.some((entry) => entry.srm === srm)
+    ? String(srm)
+    : "exact";
+}
+
+/**
+ * A colour-picker form's fields with `srm` resolved: a swatch posts its number, and "Exact value"
+ * posts the number field, which is read only then (one input per value).
+ */
+export function withPickedSrm(form: Readonly<Record<string, string>>): Record<string, string> {
+  const { srmExact, ...fields }: Record<string, string> = form;
+  if (fields.srm === "exact") fields.srm = srmExact ?? "";
+  return fields;
+}
+
+/**
+ * What the display colour picker shows: SRM swatches for a beer, and the colour, which
+ * matches SRM (or the Brewfather value) until someone picks one.
+ */
+export function displayColourPicker(input: {
+  readonly beverageType: string | null;
+  readonly srm: number | null;
+  readonly resolvedColor: string;
+  readonly colourOverridden: boolean;
+  /** Linked beverages inherit from Brewfather, so their SRM can be reset too. */
+  readonly linked: boolean;
+  readonly srmOverridden: boolean;
+}) {
+  const isBeer = (input.beverageType ?? "beer").trim().toLowerCase() === "beer";
+  const choice = srmChoice(input.srm);
+  const inherited = input.linked ? "From Brewfather" : isBeer ? "Matches SRM" : "Default colour";
+  const overridden = input.linked ? "This beverage only" : "Custom colour";
+  return {
+    showSrm: isBeer,
+    linked: input.linked,
+    swatches: SRM_COLOR_PALETTE.map((entry) => ({
+      value: String(entry.srm),
+      color: entry.color,
+      selected: choice === String(entry.srm),
+    })),
+    exactSelected: input.srm !== null && choice === "exact",
+    srmExact: input.srm ?? "",
+    srmOverridden: input.linked && input.srmOverridden,
+    srmLabels: { inherited: "From Brewfather", overridden: "This beverage only" },
+    colour: /^#[0-9A-F]{6}$/iu.test(input.resolvedColor) ? input.resolvedColor : SAFE_DISPLAY_COLOR,
+    colourOverridden: input.colourOverridden,
+    colourLabels: { inherited, overridden },
+    colourResetLabel: input.linked
+      ? "Reset display colour to the Brewfather value"
+      : isBeer
+        ? "Reset display colour to match SRM"
+        : "Reset display colour to the default",
+  };
+}
+
+/** The picker's part of a live-save answer, so the page can redraw it without a reload. */
+export function colourPickerResource(detail: BeverageDetailResult): Record<string, unknown> {
+  const effective = detail.effectivePresentation;
+  const overrides = detail.presentationOverrides;
+  const linked = detail.beverage.ownershipType === "brewfather";
+  return {
+    // No SRM selects nothing, as the page renders it.
+    srm: effective.srm === null ? "" : srmChoice(effective.srm),
+    srmExact: effective.srm ?? "",
+    resolvedColor: beverageDisplayColor(effective),
+    colourOverridden: linked
+      ? overrides?.overrideDisplayColorPresent === true
+      : safeColorForDisplay(effective.displayColor) !== null,
+    srmOverridden: linked && overrides?.overrideSrmPresent === true,
+  };
 }
 
 export function safeVesselForDisplay(value: unknown): string | null {

@@ -411,7 +411,7 @@ test("Custom recipe JSON editor round-trips losslessly without JavaScript", asyn
 
   const beverageRow = page.locator("tbody tr").filter({ hasText: "Measured fixture beer" });
   await beverageRow.getByRole("link", { name: /Measured fixture beer/u }).click();
-  await page.getByText("Edit recipe data", { exact: true }).click();
+  await page.getByRole("link", { name: "Recipe", exact: true }).click();
   const recipeField = page.locator('textarea[name="recipeJson"]');
   const before = await recipeField.inputValue();
   expect(before).toContain("|");
@@ -422,7 +422,7 @@ test("Custom recipe JSON editor round-trips losslessly without JavaScript", asyn
   const beforeRecipe = JSON.parse(before) as unknown;
 
   await page.getByRole("button", { name: "Save custom recipe" }).click();
-  await expect(page).toHaveURL(/\/admin\/beverages\/[^/?]+\?notice=/u);
+  await expect(page).toHaveURL(/\/admin\/beverages\/[^/?]+\/recipe\?notice=/u);
   const after = await page.locator('textarea[name="recipeJson"]').inputValue();
   expect(JSON.parse(after) as unknown).toEqual(beforeRecipe);
   await context.close();
@@ -605,7 +605,6 @@ test("the manual density override autosaves and survives a reload (#227)", async
   const presentationForm = page.locator('form[action$="/update"][data-autosave="blur"]');
   const density = presentationForm.getByLabel("Manual density override");
   const autosave = async (value: string) => {
-    await page.getByText("Edit presentation", { exact: true }).click();
     await expect(presentationForm).toHaveAttribute("data-autosave-initialized", "true");
     const request = page.waitForRequest(
       (candidate) =>
@@ -621,13 +620,10 @@ test("the manual density override autosaves and survives a reload (#227)", async
 
   await autosave("1.012");
   await page.reload();
-  await page.getByText("Edit presentation", { exact: true }).click();
   await expect(density).toHaveValue("1.012");
-  await page.reload();
   // Clearing autosaves too, which leaves the fixture as it was.
   await autosave("");
   await page.reload();
-  await page.getByText("Edit presentation", { exact: true }).click();
   await expect(density).toHaveValue("");
 });
 
@@ -651,7 +647,7 @@ test("Fill Glass live updates use the server vessel contour and preserve the roo
   const beverageHref = await beverageLink.getAttribute("href");
   expect(beverageHref).toMatch(/^\/admin\/beverages\/[^/]+$/u);
   await beverageLink.click();
-  await admin.getByText("Edit presentation", { exact: true }).click();
+  await admin.getByRole("link", { name: "Presentation", exact: true }).click();
   const presentationForm = admin.locator('form[action$="/update"][data-autosave="blur"]');
   await expect(presentationForm).toHaveAttribute("data-autosave-initialized", "true");
   const picker = admin.locator(".fill-glass-picker");

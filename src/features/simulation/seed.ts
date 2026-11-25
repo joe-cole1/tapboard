@@ -172,6 +172,38 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
         sequence: 0,
       });
     }
+    // A cider nobody pours yet, with its own recipe and tasting overrides, and an empty keg to
+    // fill it into: the Beverage page's Recipe, Sensory and Current usage tabs, a non-beer
+    // display colour, and a Physical Keg without a Fill.
+    beverageService.createCustomBeverage(
+      {
+        name: "Sample Orchard Cider",
+        beverageType: "cider",
+        abv: 6.2,
+        og: 1.05,
+        fg: 1.003,
+        description: "Fictional sample cider for the built-in Simulation workspace.",
+        recipe: {
+          notes: "Pressed dessert apples, fermented cool and dry.",
+          ingredients: [
+            { name: "Apple juice", amount: 20, unit: "L" },
+            { name: "Cider yeast", amount: 1, unit: "packet" },
+          ],
+          steps: [{ name: "Ferment", temperatureC: 16, timeMinutes: 20_160 }],
+        },
+        sensoryOverrides: { sweetness: 3, tartness: 6, body: 2 },
+      },
+      actor,
+    );
+    kegService.createKeg(
+      {
+        kegNumber: HISTORY_BEERS.length + 1,
+        label: "Sample Spare Keg",
+        capacityMl: 19_000,
+        currentTareG: 4_200,
+      },
+      actor,
+    );
     setSeeded(database);
     return listSensors(database);
   });

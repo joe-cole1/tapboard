@@ -1,133 +1,175 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%
+  const bev = it.beverage;
+  const linked = bev.ownershipType === "brewfather";
+  const axisLabel = (axis) => ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1);
+  const axes = ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"];
+  const revisionFields = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" /><input type="hidden" name="updatedAt" value="${bev.updatedAt}" />`;
+  const liveForm = (action, fields) => `action="/admin/beverages/${bev.id}/${action}" method="post" data-autosave="blur" data-autosave-resource="beverage:${bev.id}" data-autosave-revision="updatedAt" data-autosave-fields="${fields}"`;
+%>
 <main id="main-content" class="admin-page">
   <header class="page-header">
     <div class="beverage-detail-header__title">
-      <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="5" fill="<%= it.beverage.resolvedColor %>" /></svg>
-      <div><p class="eyebrow"><%= it.beverage.ownershipType === "brewfather" ? "Brewfather linked" : "Custom beverage" %></p><h1><%= it.beverage.name %></h1></div>
+      <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false" data-beverage-colour-cue><circle cx="5" cy="5" r="5" fill="<%= bev.resolvedColor %>" /></svg>
+      <div><p class="eyebrow"><%= linked ? "Brewfather linked" : "Custom beverage" %></p><h1><%= bev.name %></h1></div>
     </div>
-    <p class="muted" data-beverage-updated-at="<%= it.beverage.updatedAt %>">Last updated <time datetime="<%= it.beverage.updatedAt %>"><%= it.beverage.updatedAt %></time></p>
+    <p class="muted" data-beverage-updated-at="<%= bev.updatedAt %>">Last updated <time datetime="<%= bev.updatedAt %>"><%= bev.updatedAtLabel %></time></p>
   </header>
+  <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <dl class="key-value-list">
-    <div><dt>Style</dt><dd><%= it.beverage.style || "—" %></dd></div>
-    <div><dt>ABV</dt><dd><%= it.beverage.abv === null ? "—" : `${it.beverage.abv}%` %></dd></div>
-    <div><dt>Current use</dt><dd><%= it.beverage.usage.current === 0 ? "Not in use" : it.beverage.usage.current %></dd></div>
-    <div><dt>Source</dt><dd><%= it.beverage.ownershipType === "brewfather" ? "Brewfather" : "Custom" %></dd></div>
-    <% if (it.beverage.syncState) { %><div><dt>Sync state</dt><dd><%= it.beverage.syncState %></dd></div><% } %>
-  </dl>
 
-  <% if (it.beverage.ownershipType === "custom") { %>
-    <section aria-labelledby="custom-presentation-heading">
-      <div class="header-row"><div><h2 id="custom-presentation-heading">Presentation</h2><p class="muted">Values used wherever this beverage appears.</p></div></div>
-      <dl class="key-value-list"><div><dt>Name</dt><dd><%= it.beverage.name %></dd></div><div><dt>Type and style</dt><dd><%= it.beverage.beverageType %><% if (it.beverage.style) { %> · <%= it.beverage.style %><% } %></dd></div><div><dt>ABV</dt><dd><%= it.beverage.abv === null ? "—" : `${it.beverage.abv}%` %></dd></div><div><dt>Fill glass</dt><dd><%= it.beverage.fillGlass || "Default" %></dd></div><div><dt>Description</dt><dd><%= it.beverage.description || "—" %></dd></div></dl>
-      <details class="disclosure">
-        <summary><span><strong>Edit presentation</strong><small>Identity, metrics, color, glass, and public description.</small></span></summary>
-      <form class="form" action="/admin/beverages/<%= it.beverage.id %>/update" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="name,beverageType,style,abv,ibu,og,fg,srm,manualDensityOverride,displayColor,description,fillGlass">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
+<% if (it.tab === "info") { %>
+  <section aria-labelledby="beverage-info-heading">
+    <div class="header-row"><div><h2 id="beverage-info-heading">Info</h2></div></div>
+    <dl class="key-value-list">
+      <div><dt>Source</dt><dd><%= linked ? "Brewfather" : "Custom" %></dd></div>
+      <% if (bev.syncState) { %><div><dt>Sync state</dt><dd><%= bev.syncState %></dd></div><% } %>
+      <% if (bev.lastSyncedAtLabel) { %><div><dt>Last synced</dt><dd><%= bev.lastSyncedAtLabel %></dd></div><% } %>
+      <div><dt>Current use</dt><dd><%= bev.usage.current === 0 ? "Not in use" : `${bev.usage.current} Filled Keg${bev.usage.current === 1 ? "" : "s"}` %></dd></div>
+    </dl>
+    <% if (!linked) { %>
+      <form class="form" <%~ liveForm("update", "name,beverageType,style,abv,ibu,og,fg,manualDensityOverride") %>>
+        <%~ revisionFields %>
         <div class="auto-grid auto-grid--sm">
-          <label class="field">Name <input name="name" value="<%= it.beverage.name %>" maxlength="160" required /></label>
-          <label class="field">Type <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"<% if (it.beverage.beverageType === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label>
-          <label class="field">Style <input name="style" value="<%= it.beverage.style || "" %>" maxlength="120" /></label>
-          <label class="field">ABV (%) <input name="abv" type="number" min="0" max="100" step="0.1" value="<%= it.beverage.abv ?? "" %>" /></label>
-          <label class="field">IBU <input name="ibu" type="number" min="0" max="2000" step="0.1" value="<%= it.beverage.ibu ?? "" %>" /></label>
-          <label class="field">Original gravity <input name="og" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.og ?? "" %>" /></label>
-          <label class="field">Final gravity <input name="fg" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.fg ?? "" %>" /></label>
-          <label class="field">SRM <input name="srm" type="number" min="0" max="100" step="0.1" value="<%= it.beverage.srm ?? "" %>" /></label>
-          <label class="field">Manual density override <input name="manualDensityOverride" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.manualDensityOverride ?? "" %>" /></label>
-          <label class="field">Display color <input name="displayColor" value="<%= it.beverage.displayColor || "" %>" pattern="#[0-9A-Fa-f]{6}" /></label>
+          <label class="field">Name <input name="name" value="<%= bev.name %>" maxlength="160" required /></label>
+          <label class="field">Type <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"<% if (bev.beverageType === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label>
+          <label class="field">Style <input name="style" value="<%= bev.style || "" %>" maxlength="120" /></label>
+          <label class="field">ABV (%) <input name="abv" type="number" min="0" max="100" step="0.1" value="<%= bev.abv ?? "" %>" /></label>
+          <label class="field">IBU <input name="ibu" type="number" min="0" max="2000" step="0.1" value="<%= bev.ibu ?? "" %>" /></label>
+          <label class="field">Original gravity <input name="og" type="number" min="0.5" max="2" step="0.001" value="<%= bev.og ?? "" %>" /></label>
+          <label class="field">Final gravity <input name="fg" type="number" min="0.5" max="2" step="0.001" value="<%= bev.fg ?? "" %>" /></label>
+          <label class="field">Manual density override <input name="manualDensityOverride" type="number" min="0.5" max="2" step="0.001" value="<%= bev.manualDensityOverride ?? "" %>" /></label>
         </div>
-        <%~ include("/partials/fill-glass-picker", { label: "Fill Glass", name: "fillGlass", id: `custom-fill-glass-${it.beverage.id}`, selected: it.beverage.fillGlass || "", options: it.fillGlassOptions || [] }) %>
-        <label class="field">Description <textarea name="description" maxlength="4000" rows="4"><%= it.beverage.description || "" %></textarea></label>
-        <div class="form-actions"><button class="button button--primary" type="submit">Save presentation</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save details</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
       </form>
-      </details>
-    </section>
-  <% } else if (it.beverage.source && it.beverage.overrides) { %>
-    <section aria-labelledby="source-controls-heading">
-      <div class="header-row"><div><h2 id="source-controls-heading">Brewfather presentation</h2><p class="muted">Source values remain read-only; local overrides are available when the inherited presentation needs adjustment.</p></div></div>
-      <details class="disclosure">
-        <summary><span><strong>Edit source overrides</strong><small>Choose Override for a local value or Reset to inherited for the latest source value.</small></span></summary>
-      <form class="form" action="/admin/beverages/<%= it.beverage.id %>/presentation" method="post" data-autosave="blur" data-autosave-resource="beverage:<%= it.beverage.id %>" data-autosave-revision="updatedAt" data-autosave-fields="nameMode,name,beverageTypeMode,beverageType,styleMode,style,abvMode,abv,ibuMode,ibu,ogMode,og,fgMode,fg,srmMode,srm,displayColorMode,displayColor,descriptionMode,description,fillGlassMode,fillGlass,manualDensityOverrideMode,manualDensityOverride">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
-        <div class="auto-grid auto-grid--lg source-control-grid">
-          <fieldset class="fieldset"><legend>Name</legend><p><strong>Source:</strong> <%= it.beverage.source.name %></p><p><strong>Effective:</strong> <%= it.beverage.name %></p><label class="field">Mode <select name="nameMode"><option value="inherit"<% if (!it.beverage.overrides.overrideNamePresent) { %> selected<% } %>>Reset to inherited</option><option value="value"<% if (it.beverage.overrides.overrideNamePresent) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="name" value="<%= it.beverage.overrides.name || it.beverage.name %>" maxlength="160" /></label></fieldset>
-          <fieldset class="fieldset"><legend>Type</legend><p><strong>Source:</strong> <%= it.beverage.source.beverageType %></p><p><strong>Effective:</strong> <%= it.beverage.beverageType %></p><label class="field">Mode <select name="beverageTypeMode"><option value="inherit"<% if (!it.beverage.overrides.overrideBeverageTypePresent) { %> selected<% } %>>Reset to inherited</option><option value="value"<% if (it.beverage.overrides.overrideBeverageTypePresent) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"<% if ((it.beverage.overrides.beverageType || it.beverage.beverageType) === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label></fieldset>
-          <fieldset class="fieldset"><legend>Style</legend><p><strong>Source:</strong> <%= it.beverage.source.style || "—" %></p><p><strong>Effective:</strong> <%= it.beverage.style || "—" %></p><label class="field">Mode <select name="styleMode"><option value="inherit"<% if (!it.beverage.overrides.overrideStylePresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideStylePresent && it.beverage.overrides.style === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideStylePresent && it.beverage.overrides.style !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="style" value="<%= it.beverage.overrides.style || it.beverage.style || "" %>" maxlength="120" /></label></fieldset>
-          <fieldset class="fieldset"><legend>ABV</legend><p><strong>Source:</strong> <%= it.beverage.source.abv === null ? "—" : `${it.beverage.source.abv}%` %></p><p><strong>Effective:</strong> <%= it.beverage.abv === null ? "—" : `${it.beverage.abv}%` %></p><label class="field">Mode <select name="abvMode"><option value="inherit"<% if (!it.beverage.overrides.overrideAbvPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideAbvPresent && it.beverage.overrides.abv === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideAbvPresent && it.beverage.overrides.abv !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="abv" type="number" min="0" max="100" step="0.1" value="<%= it.beverage.overrides.abv ?? it.beverage.abv ?? "" %>" /></label></fieldset>
-          <fieldset class="fieldset"><legend>IBU</legend><p><strong>Source:</strong> <%= it.beverage.source.ibu === null ? "—" : it.beverage.source.ibu %></p><p><strong>Effective:</strong> <%= it.beverage.ibu === null ? "—" : it.beverage.ibu %></p><label class="field">Mode <select name="ibuMode"><option value="inherit"<% if (!it.beverage.overrides.overrideIbuPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideIbuPresent && it.beverage.overrides.ibu === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideIbuPresent && it.beverage.overrides.ibu !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="ibu" type="number" min="0" max="2000" step="0.1" value="<%= it.beverage.overrides.ibu ?? it.beverage.ibu ?? "" %>" /></label></fieldset>
-          <fieldset class="fieldset"><legend>Original gravity</legend><p><strong>Source:</strong> <%= it.beverage.source.og ?? "—" %></p><p><strong>Effective:</strong> <%= it.beverage.og ?? "—" %></p><label class="field">Mode <select name="ogMode"><option value="inherit"<% if (!it.beverage.overrides.overrideOgPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideOgPresent && it.beverage.overrides.og === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideOgPresent && it.beverage.overrides.og !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="og" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.overrides.og ?? it.beverage.og ?? "" %>" /></label></fieldset>
-          <fieldset class="fieldset"><legend>Final gravity</legend><p><strong>Source:</strong> <%= it.beverage.source.fg ?? "—" %></p><p><strong>Effective:</strong> <%= it.beverage.fg ?? "—" %></p><label class="field">Mode <select name="fgMode"><option value="inherit"<% if (!it.beverage.overrides.overrideFgPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideFgPresent && it.beverage.overrides.fg === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideFgPresent && it.beverage.overrides.fg !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="fg" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.overrides.fg ?? it.beverage.fg ?? "" %>" /></label></fieldset>
-          <fieldset class="fieldset"><legend>SRM</legend><p><strong>Source:</strong> <%= it.beverage.source.srm ?? "—" %></p><p><strong>Effective:</strong> <%= it.beverage.srm ?? "—" %></p><label class="field">Mode <select name="srmMode"><option value="inherit"<% if (!it.beverage.overrides.overrideSrmPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideSrmPresent && it.beverage.overrides.srm === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideSrmPresent && it.beverage.overrides.srm !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="srm" type="number" min="0" max="100" step="0.1" value="<%= it.beverage.overrides.srm ?? it.beverage.srm ?? "" %>" /></label></fieldset>
-          <fieldset class="fieldset"><legend>Display color</legend><p><strong>Source:</strong> <%= it.beverage.source.displayColor || "—" %></p><p><strong>Effective:</strong> <%= it.beverage.displayColor || "—" %></p><label class="field">Mode <select name="displayColorMode"><option value="inherit"<% if (!it.beverage.overrides.overrideDisplayColorPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideDisplayColorPresent && it.beverage.overrides.displayColor === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideDisplayColorPresent && it.beverage.overrides.displayColor !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="displayColor" value="<%= it.beverage.overrides.displayColor || it.beverage.displayColor || "" %>" pattern="#[0-9A-Fa-f]{6}" /></label></fieldset>
-          <fieldset class="fieldset"><legend>Description</legend><p><strong>Source:</strong> <%= it.beverage.source.description || "—" %></p><p><strong>Effective:</strong> <%= it.beverage.description || "—" %></p><label class="field">Mode <select name="descriptionMode"><option value="inherit"<% if (!it.beverage.overrides.overrideDescriptionPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideDescriptionPresent && it.beverage.overrides.description === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideDescriptionPresent && it.beverage.overrides.description !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <textarea name="description" maxlength="4000"><%= it.beverage.overrides.description || it.beverage.description || "" %></textarea></label></fieldset>
-          <fieldset class="fieldset"><legend>Fill Glass</legend><p><strong>Source:</strong> Style suggestion</p><p><strong>Effective:</strong> <%= it.beverage.fillGlass || "Style suggestion" %></p><label class="field">Mode <select name="fillGlassMode"><option value="inherit"<% if (!it.beverage.overrides.overrideFillGlassPresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideFillGlassPresent && it.beverage.overrides.fillGlass === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideFillGlassPresent && it.beverage.overrides.fillGlass !== null) { %> selected<% } %>>Override</option></select></label><%~ include("/partials/fill-glass-picker", { label: "Override vessel", name: "fillGlass", id: `source-fill-glass-${it.beverage.id}`, selected: it.beverage.overrides.overrideFillGlassPresent ? (it.beverage.overrides.fillGlass || "") : "", options: it.fillGlassOptions || [] }) %></fieldset>
-          <fieldset class="fieldset"><legend>Manual density</legend><p><strong>Source:</strong> Not supplied</p><p><strong>Effective:</strong> <%= it.beverage.manualDensityOverride ?? "Fallback/FG derived" %></p><label class="field">Mode <select name="manualDensityOverrideMode"><option value="inherit"<% if (!it.beverage.overrides.overrideManualDensityOverridePresent) { %> selected<% } %>>Reset to inherited</option><option value="clear"<% if (it.beverage.overrides.overrideManualDensityOverridePresent && it.beverage.overrides.manualDensityOverride === null) { %> selected<% } %>>Clear</option><option value="value"<% if (it.beverage.overrides.overrideManualDensityOverridePresent && it.beverage.overrides.manualDensityOverride !== null) { %> selected<% } %>>Override</option></select></label><label class="field">Override value <input name="manualDensityOverride" type="number" min="0.5" max="2" step="0.001" value="<%= it.beverage.overrides.manualDensityOverride ?? it.beverage.manualDensityOverride ?? "" %>" /></label></fieldset>
-        </div>
-        <div class="form-actions"><button class="button button--primary" type="submit">Save Brewfather presentation</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
-      </form>
-      <form class="form" action="/admin/beverages/<%= it.beverage.id %>/unlink" method="post">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
-        <button class="button button--secondary" type="submit">Unlink and retain as custom</button>
-      </form>
-      </details>
+    <% } else { %>
+      <p class="muted">Brewfather supplies these values. Change any of them for this beverage on <a href="/admin/beverages/<%= bev.id %>/presentation">Presentation</a>.</p>
+      <dl class="key-value-list">
+        <div><dt>Type and style</dt><dd><%= bev.beverageType %><% if (bev.style) { %> · <%= bev.style %><% } %></dd></div>
+        <div><dt>ABV</dt><dd><%= bev.abv === null ? "—" : `${bev.abv}%` %></dd></div>
+        <div><dt>IBU</dt><dd><%= bev.ibu ?? "—" %></dd></div>
+        <div><dt>Original gravity</dt><dd><%= bev.og ?? "—" %></dd></div>
+        <div><dt>Final gravity</dt><dd><%= bev.fg ?? "—" %></dd></div>
+        <div><dt>SRM</dt><dd><%= bev.srm ?? "—" %></dd></div>
+      </dl>
+    <% } %>
+  </section>
+  <% if (linked) { %>
+    <section aria-labelledby="brewfather-link-heading">
+      <div class="header-row"><div><h2 id="brewfather-link-heading">Brewfather link</h2><p class="muted">Unlinking keeps this beverage, its Fills and its current values as a Custom beverage. Brewfather stops updating it.</p></div></div>
+      <form class="form" action="/admin/beverages/<%= bev.id %>/unlink" method="post"><%~ revisionFields %><button class="button button--secondary button--small" type="submit">Unlink and keep as custom</button></form>
     </section>
   <% } %>
 
-  <section aria-labelledby="sensory-heading">
-    <div class="header-row"><div><h2 id="sensory-heading">Sensory guidance</h2><p class="muted">Canonical manual overrides use a 0–10 scale; derived guidance is shown below when available.</p></div></div>
-    <% if (it.beverage.guidance) { %><dl class="key-value-list"><% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"]) { const result = it.beverage.guidance.sensory[axis]; %><dt><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %></dt><dd><%= result.value === null ? "Unavailable" : `${Number(result.value.toFixed(1))} / 5` %> · <%= result.source.replace(/_/gu, " ") %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd><% } %></dl><% } else { %><p class="muted">Guidance is unavailable until a compatible source or manual override is present.</p><% } %>
-    <% if (it.beverage.guidance?.brewingEnrichmentPending) { %><p class="muted">Recipe enrichment is pending. The last saved guidance remains available while the linked batch is refreshed.</p><% } %>
-    <% if (it.beverage.guidance?.flavorDetails) { const details = it.beverage.guidance.flavorDetails; %>
-      <details class="disclosure">
-        <summary><span><strong>Why these estimates?</strong><small>Selected inputs, ingredient coverage, and model limitations.</small></span></summary>
-        <p>Model <%= details.modelVersion || "Unavailable" %> · Catalog <%= details.catalogVersion || "Unavailable" %>. Versioned heuristics; ingredient support does not establish scientific validation.</p>
-        <h3>Selected brewing inputs</h3>
-        <table class="table"><thead><tr><th scope="col">Input</th><th scope="col">Selected value</th><th scope="col">Source</th></tr></thead><tbody><% for (const scalar of details.scalars) { %><tr><th scope="row"><%= scalar.key %></th><td data-label="Selected value"><%= scalar.value === null ? "Unavailable" : Number(scalar.value.toPrecision(5)) %> <%= scalar.value === null ? "" : scalar.unit || "" %></td><td data-label="Source"><%= scalar.provenance?.replaceAll("_", " ") || "Unavailable" %><% if (scalar.sourcePath) { %><br /><small><%= scalar.sourcePath %></small><% } %><% if (scalar.limitations.length) { %><br /><small><%= scalar.limitations.join("; ") %></small><% } %></td></tr><% } %></tbody></table>
-        <h3>Ingredient coverage</h3><ul><% for (const group of details.coverage) { %><li><%= group.key %>: <%= group.present ? `${group.resolvedCount ?? 0} recognized of ${group.acceptedCount ?? 0} accepted` : "Collection not supplied" %> · <%= group.complete ? "Complete collection" : "Incomplete collection" %><% if (group.classifiedFraction !== null) { %> · <%= Math.round(group.classifiedFraction * 100) %>% classified by eligible mass<% } %></li><% } %></ul>
-        <h3>Axis support and limitations</h3><dl class="key-value-list"><% for (const axis of details.axes) { %><dt><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis.key] || axis.key[0].toUpperCase() + axis.key.slice(1) %></dt><dd><%= axis.support || "Unavailable" %><% if (axis.reasons.length) { %> · <%= axis.reasons.map(reason => reason.replaceAll("_", " ")).join("; ") %><% } %><% if (axis.limitations.length) { %><br /><small><%= axis.limitations.map(reason => reason.replaceAll("_", " ")).join("; ") %></small><% } %></dd><% } %></dl>
-        <% if (details.catalogGaps.length) { %><h3>Ingredients not in the flavor catalog</h3><p class="muted">Generic or no flavor words are used for these. A maker's data sheet lets a reviewed entry replace them.</p><ul><% for (const gap of details.catalogGaps) { %><li><%= gap %></li><% } %></ul><% } %>
-        <% if (details.diagnostics.length) { %><h3>Input diagnostics</h3><ul><% for (const diagnostic of details.diagnostics) { %><li><%= diagnostic %></li><% } %></ul><% } %>
-      </details>
-    <% } %>
-    <details class="disclosure">
-      <summary><span><strong>Edit sensory overrides</strong><small>Advanced manual values from 0 to 10.</small></span></summary>
-      <form class="form" action="/admin/beverages/<%= it.beverage.id %>/sensory" method="post">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" />
-        <div class="auto-grid auto-grid--sm"><% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"]) { %><label class="field"><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %><input name="<%= axis %>" type="number" min="0" max="10" step="0.1" value="<%= it.beverage.sensoryOverrides?.[axis] ?? "" %>" /></label><% } %></div>
-        <button class="button button--secondary" type="submit">Save sensory overrides</button>
+<% } else if (it.tab === "presentation") { %>
+  <section aria-labelledby="presentation-heading">
+    <div class="header-row"><div><h2 id="presentation-heading">Presentation</h2><p class="muted"><%= linked ? "Brewfather supplies each value. Override one for this beverage, or reset it to follow Brewfather again." : "How this beverage appears on the display." %></p></div></div>
+    <% if (!linked) { %>
+      <form class="form" <%~ liveForm("update", "fillGlass,description") %>>
+        <%~ revisionFields %>
+        <%~ include("/partials/fill-glass-picker", { label: "Fill Glass", name: "fillGlass", id: `custom-fill-glass-${bev.id}`, selected: bev.fillGlass || "", options: it.fillGlassOptions || [] }) %>
+        <label class="field">Description <textarea name="description" maxlength="4000" rows="4"><%= bev.description || "" %></textarea></label>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save presentation</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
       </form>
-    </details>
+    <% } else if (bev.source && bev.overrides) { %>
+      <form class="form" <%~ liveForm("presentation", "nameMode,name,beverageTypeMode,beverageType,styleMode,style,abvMode,abv,ibuMode,ibu,ogMode,og,fgMode,fg,descriptionMode,description,fillGlassMode,fillGlass,manualDensityOverrideMode,manualDensityOverride") %>>
+        <%~ revisionFields %>
+        <%
+          const modeSelect = (field, present, isNull, canClear = true) => `<label class="field">Mode <select name="${field}Mode"><option value="inherit"${present ? "" : " selected"}>Reset to inherited</option>${canClear ? `<option value="clear"${present && isNull ? " selected" : ""}>Clear</option>` : ""}<option value="value"${present && !isNull ? " selected" : ""}>Override</option></select></label>`;
+          const o = bev.overrides;
+        %>
+        <div class="auto-grid auto-grid--lg source-control-grid">
+          <fieldset class="fieldset"><legend>Name</legend><p><strong>Source:</strong> <%= bev.source.name %></p><p><strong>Effective:</strong> <%= bev.name %></p><%~ modeSelect("name", o.overrideNamePresent, false, false) %><label class="field">Override value <input name="name" value="<%= o.name || bev.name %>" maxlength="160" /></label></fieldset>
+          <fieldset class="fieldset"><legend>Type</legend><p><strong>Source:</strong> <%= bev.source.beverageType %></p><p><strong>Effective:</strong> <%= bev.beverageType %></p><%~ modeSelect("beverageType", o.overrideBeverageTypePresent, false, false) %><label class="field">Override value <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"<% if ((o.beverageType || bev.beverageType) === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label></fieldset>
+          <fieldset class="fieldset"><legend>Style</legend><p><strong>Source:</strong> <%= bev.source.style || "—" %></p><p><strong>Effective:</strong> <%= bev.style || "—" %></p><%~ modeSelect("style", o.overrideStylePresent, o.style === null) %><label class="field">Override value <input name="style" value="<%= o.style || bev.style || "" %>" maxlength="120" /></label></fieldset>
+          <fieldset class="fieldset"><legend>ABV</legend><p><strong>Source:</strong> <%= bev.source.abv === null ? "—" : `${bev.source.abv}%` %></p><p><strong>Effective:</strong> <%= bev.abv === null ? "—" : `${bev.abv}%` %></p><%~ modeSelect("abv", o.overrideAbvPresent, o.abv === null) %><label class="field">Override value <input name="abv" type="number" min="0" max="100" step="0.1" value="<%= o.abv ?? bev.abv ?? "" %>" /></label></fieldset>
+          <fieldset class="fieldset"><legend>IBU</legend><p><strong>Source:</strong> <%= bev.source.ibu ?? "—" %></p><p><strong>Effective:</strong> <%= bev.ibu ?? "—" %></p><%~ modeSelect("ibu", o.overrideIbuPresent, o.ibu === null) %><label class="field">Override value <input name="ibu" type="number" min="0" max="2000" step="0.1" value="<%= o.ibu ?? bev.ibu ?? "" %>" /></label></fieldset>
+          <fieldset class="fieldset"><legend>Original gravity</legend><p><strong>Source:</strong> <%= bev.source.og ?? "—" %></p><p><strong>Effective:</strong> <%= bev.og ?? "—" %></p><%~ modeSelect("og", o.overrideOgPresent, o.og === null) %><label class="field">Override value <input name="og" type="number" min="0.5" max="2" step="0.001" value="<%= o.og ?? bev.og ?? "" %>" /></label></fieldset>
+          <fieldset class="fieldset"><legend>Final gravity</legend><p><strong>Source:</strong> <%= bev.source.fg ?? "—" %></p><p><strong>Effective:</strong> <%= bev.fg ?? "—" %></p><%~ modeSelect("fg", o.overrideFgPresent, o.fg === null) %><label class="field">Override value <input name="fg" type="number" min="0.5" max="2" step="0.001" value="<%= o.fg ?? bev.fg ?? "" %>" /></label></fieldset>
+          <fieldset class="fieldset"><legend>Description</legend><p><strong>Source:</strong> <%= bev.source.description || "—" %></p><p><strong>Effective:</strong> <%= bev.description || "—" %></p><%~ modeSelect("description", o.overrideDescriptionPresent, o.description === null) %><label class="field">Override value <textarea name="description" maxlength="4000"><%= o.description || bev.description || "" %></textarea></label></fieldset>
+          <fieldset class="fieldset"><legend>Fill Glass</legend><p><strong>Source:</strong> Style suggestion</p><p><strong>Effective:</strong> <%= bev.fillGlass || "Style suggestion" %></p><%~ modeSelect("fillGlass", o.overrideFillGlassPresent, o.fillGlass === null) %><%~ include("/partials/fill-glass-picker", { label: "Override vessel", name: "fillGlass", id: `source-fill-glass-${bev.id}`, selected: o.overrideFillGlassPresent ? (o.fillGlass || "") : "", options: it.fillGlassOptions || [] }) %></fieldset>
+          <fieldset class="fieldset"><legend>Manual density</legend><p><strong>Source:</strong> Not supplied</p><p><strong>Effective:</strong> <%= bev.manualDensityOverride ?? "Fallback/FG derived" %></p><%~ modeSelect("manualDensityOverride", o.overrideManualDensityOverridePresent, o.manualDensityOverride === null) %><label class="field">Override value <input name="manualDensityOverride" type="number" min="0.5" max="2" step="0.001" value="<%= o.manualDensityOverride ?? bev.manualDensityOverride ?? "" %>" /></label></fieldset>
+        </div>
+        <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save Brewfather presentation</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      </form>
+    <% } %>
   </section>
 
-  <% if (it.beverage.recipeImport === "imported" || it.beverage.recipeImport === "source") { %>
-    <section aria-labelledby="recipe-import-heading"><div class="header-row"><div><% if (it.beverage.recipeImport === "imported") { %><h2 id="recipe-import-heading">Imported recipe</h2><p class="muted">Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there.</p><% } else { %><h2 id="recipe-import-heading">Source recipe</h2><p class="muted">Read-only recipe kept from the beverage's earlier Brewfather link.</p><% } %></div></div><% for (const recipe of (it.beverage.guidance?.sourceRecipes || [])) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Imported recipe" %></h3><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
-  <% } else if (it.beverage.recipeImport === "available") { %>
+  <section aria-labelledby="display-colour-heading">
+    <div class="header-row"><div><h2 id="display-colour-heading">Display colour</h2><p class="muted"><%= it.colourPicker.showSrm ? "Pick the beer's SRM, and a colour only if the display should show something else." : "SRM describes beer only, so this beverage uses the default colour until you pick one." %></p></div></div>
+    <%~ include("/partials/display-colour-picker", { picker: it.colourPicker, mode: "live", id: `colour-${bev.id}`, action: `/admin/beverages/${bev.id}/${linked ? "presentation" : "update"}`, resource: `beverage:${bev.id}`, revision: bev.updatedAt, csrfToken: it.page.csrfToken }) %>
+  </section>
+
+<% } else if (it.tab === "usage") { %>
+  <section aria-labelledby="fill-heading">
+    <div class="header-row"><div><h2 id="fill-heading">Current usage</h2><p class="muted"><%= bev.usage.total %> fill record<%= bev.usage.total === 1 ? "" : "s" %> linked to this beverage.</p></div></div>
+    <% if ((it.currentFills || []).length > 0) { %>
+      <table class="table"><caption class="sr-only">Current Filled Kegs</caption><thead><tr><th scope="col">Filled Keg</th><th scope="col">State</th><th scope="col">Tap</th><th scope="col">Fill date</th></tr></thead><tbody><% for (const fill of it.currentFills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><br /><a class="muted" href="/admin/keg-room/kegs/<%= fill.kegId %>">Physical Keg detail</a></th><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.state.replaceAll("_", " ") %></span></td><td data-label="Tap"><% if (fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else { %>—<% } %></td><td data-label="Fill date"><%= fill.fillDate %></td></tr><% } %></tbody></table>
+    <% } else { %><p class="muted">No current Filled Kegs use this beverage.</p><% } %>
+  </section>
+  <section aria-labelledby="new-fill-heading">
+    <div class="header-row"><div><h2 id="new-fill-heading">Fill a Keg</h2></div></div>
+    <% if ((it.availableKegs || []).length === 0) { %><p class="muted">No empty active kegs are available for a new fill.</p><% } else { %>
+      <form class="form" action="/admin/beverages/<%= bev.id %>/create-fill" method="post"><%~ revisionFields %><div class="auto-grid auto-grid--sm"><label class="field">Physical keg <select name="kegId" required><option value="">Choose keg</option><% for (const keg of it.availableKegs) { %><option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option><% } %></select></label><label class="field">Fill date <input name="fillDate" type="date" /></label></div><button class="button button--primary button--small" type="submit">Create fill</button></form>
+    <% } %>
+  </section>
+
+<% } else if (it.tab === "recipe") { %>
+  <% if (bev.recipeImport === "imported" || bev.recipeImport === "source") { %>
+    <section aria-labelledby="recipe-import-heading"><div class="header-row"><div><% if (bev.recipeImport === "imported") { %><h2 id="recipe-import-heading">Imported recipe</h2><p class="muted">Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there.</p><% } else { %><h2 id="recipe-import-heading">Source recipe</h2><p class="muted">Read-only recipe kept from the beverage's earlier Brewfather link.</p><% } %></div></div><% for (const recipe of (bev.guidance?.sourceRecipes || [])) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Imported recipe" %></h3><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
+  <% } else if (bev.recipeImport === "available") { %>
     <section aria-labelledby="recipe-import-heading">
       <div class="header-row"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">A Brewfather batch or recipe JSON export, a BeerJSON file or a BeerXML file (in BeerSmith: File → Export → BeerXML), up to about 1 MiB of text and one recipe per file. Tapboard keeps a cleaned copy for the recipe sheet and flavor guidance. The import is permanent.</p></div></div>
-      <form class="form" action="/admin/beverages/<%= it.beverage.id %>/recipe-import" method="post" data-recipe-import>
+      <form class="form" action="/admin/beverages/<%= bev.id %>/recipe-import" method="post" data-recipe-import>
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <label class="field" hidden data-recipe-file-picker>Recipe file <input type="file" accept=".json,.xml,application/json,application/xml,text/xml" data-recipe-file /></label>
         <label class="field">Recipe file contents <textarea name="recipeFile" rows="10" spellcheck="false" required></textarea></label>
         <p class="muted" data-recipe-file-status aria-live="polite"></p>
-        <button class="button button--secondary" type="submit">Import recipe</button>
+        <button class="button button--secondary button--small" type="submit">Import recipe</button>
       </form>
     </section>
-  <% } else if (it.beverage.recipeImport === "unavailable") { %>
+  <% } else if (bev.recipeImport === "unavailable") { %>
     <section aria-labelledby="recipe-import-heading"><div class="header-row"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">This beverage has an editable custom recipe, so a recipe file can't be imported. Remove the custom recipe below to import a file instead.</p></div></div></section>
   <% } %>
-
-  <% if (it.beverage.ownershipType === "custom") { %>
-    <section aria-labelledby="recipe-heading"><div class="header-row"><div><h2 id="recipe-heading">Custom recipe</h2><p class="muted">Keep process notes and ingredients close to the beverage record.</p></div></div><details class="disclosure"><summary><span><strong>Edit recipe data</strong><small>Advanced structured recipe content.</small></span></summary><form class="form" action="/admin/beverages/<%= it.beverage.id %>/recipe" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" /><label class="field">Recipe JSON <textarea name="recipeJson" rows="16" spellcheck="false"><%= it.beverage.customRecipeJson %></textarea></label><p class="muted">Leave blank (or enter <code>null</code>) to remove the custom recipe.</p><button class="button button--secondary" type="submit">Save custom recipe</button></form></details></section>
-  <% } else if (it.beverage.guidance && it.beverage.guidance.sourceRecipes.length > 0) { %>
-    <section aria-labelledby="source-recipe-heading"><div class="header-row"><div><h2 id="source-recipe-heading">Source recipe guidance</h2><p class="muted">Read-only, bounded recipe presentation from the linked Brewfather snapshot.</p></div></div><details class="disclosure"><summary><span><strong>Show source recipe</strong><small>Ingredients, notes, and provenance.</small></span></summary><% for (const recipe of it.beverage.guidance.sourceRecipes) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Source recipe" %></h3><p class="muted"><%= recipe.status || "available" %></p><% if (recipe.notes) { %><p><%= recipe.notes %></p><% } %><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></details></section>
+  <% if (!linked) { %>
+    <section aria-labelledby="recipe-heading">
+      <div class="header-row"><div><h2 id="recipe-heading">Custom recipe</h2><p class="muted">Ingredients and process notes as a recipe object with <code>notes</code>, <code>ingredients</code> and <code>steps</code>. Leave it blank (or enter <code>null</code>) to remove the custom recipe.</p></div></div>
+      <form class="form" <%~ liveForm("recipe", "recipeJson") %>><%~ revisionFields %><label class="field">Recipe JSON <textarea name="recipeJson" rows="16" spellcheck="false"><%= bev.customRecipeJson %></textarea></label><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save custom recipe</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
+    </section>
+  <% } else if (bev.guidance && bev.guidance.sourceRecipes.length > 0) { %>
+    <section aria-labelledby="source-recipe-heading"><div class="header-row"><div><h2 id="source-recipe-heading">Source recipe</h2><p class="muted">Read-only, from the linked Brewfather batch.</p></div></div><% for (const recipe of bev.guidance.sourceRecipes) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Source recipe" %></h3><p class="muted"><%= recipe.status || "available" %></p><% if (recipe.notes) { %><p><%= recipe.notes %></p><% } %><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
+  <% } else { %>
+    <section aria-labelledby="source-recipe-heading"><div class="header-row"><div><h2 id="source-recipe-heading">Source recipe</h2></div></div><p class="muted">The linked Brewfather batch has no recipe to show yet.</p></section>
   <% } %>
 
-  <section aria-labelledby="fill-heading"><div class="header-row"><div><h2 id="fill-heading">Current usage</h2><p class="muted"><%= it.beverage.usage.total %> fill record<%= it.beverage.usage.total === 1 ? "" : "s" %> linked to this beverage.</p></div></div><% if ((it.beverage.currentFills || []).length > 0) { %><table class="table"><caption class="sr-only">Current Filled Kegs</caption><thead><tr><th scope="col">Filled Keg</th><th scope="col">State</th><th scope="col">Tap</th><th scope="col">Fill date</th></tr></thead><tbody><% for (const fill of it.beverage.currentFills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><br /><a class="muted" href="/admin/keg-room/kegs/<%= fill.kegId %>">Physical Keg detail</a></th><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.state.replaceAll("_", " ") %></span></td><td data-label="Tap"><% if (fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else { %>—<% } %></td><td data-label="Fill date"><%= fill.fillDate %></td></tr><% } %></tbody></table><% } else { %><p class="muted">No current Filled Kegs use this beverage.</p><% } %><% if ((it.availableKegs || []).length === 0) { %><p class="muted">No empty active kegs are available for a new fill.</p><% } else { %><form class="form" action="/admin/beverages/<%= it.beverage.id %>/create-fill" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" /><div class="auto-grid auto-grid--sm"><label class="field">Physical keg <select name="kegId" required><option value="">Choose keg</option><% for (const keg of it.availableKegs) { %><option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option><% } %></select></label><label class="field">Fill date <input name="fillDate" type="date" /></label></div><button class="button button--secondary" type="submit">Create fill</button></form><% } %></section>
+<% } else if (it.tab === "sensory") { %>
+  <section aria-labelledby="sensory-heading">
+    <div class="header-row"><div><h2 id="sensory-heading">Sensory guidance</h2><p class="muted">Derived from the recipe, unless an override below sets an axis.</p></div></div>
+    <% if (bev.guidance) { %><dl class="key-value-list"><% for (const axis of axes) { const result = bev.guidance.sensory[axis]; %><div><dt><%= axisLabel(axis) %></dt><dd><%= result.value === null ? "Unavailable" : `${Number(result.value.toFixed(1))} / 5` %> · <%= result.source.replace(/_/gu, " ") %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd></div><% } %></dl><% } else { %><p class="muted">Guidance is unavailable until a compatible source or manual override is present.</p><% } %>
+    <% if (bev.guidance?.brewingEnrichmentPending) { %><p class="muted">Recipe enrichment is pending. The last saved guidance remains available while the linked batch is refreshed.</p><% } %>
+  </section>
+  <section aria-labelledby="sensory-overrides-heading">
+    <div class="header-row"><div><h2 id="sensory-overrides-heading">Overrides</h2><p class="muted">Manual values from 0 to 10. Leave an axis blank to use the derived value.</p></div></div>
+    <form class="form" <%~ liveForm("sensory", axes.join(",")) %>>
+      <%~ revisionFields %>
+      <div class="auto-grid auto-grid--sm"><% for (const axis of axes) { %><label class="field"><%= axisLabel(axis) %><input name="<%= axis %>" type="number" min="0" max="10" step="0.1" value="<%= bev.sensoryOverrides?.[axis] ?? "" %>" /></label><% } %></div>
+      <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save sensory overrides</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+    </form>
+  </section>
+  <% if (bev.guidance?.flavorDetails) { const details = bev.guidance.flavorDetails; %>
+    <section aria-labelledby="sensory-why-heading">
+      <div class="header-row"><div><h2 id="sensory-why-heading">Why these estimates?</h2><p class="muted">Model <%= details.modelVersion || "Unavailable" %> · Catalog <%= details.catalogVersion || "Unavailable" %>. Versioned heuristics; ingredient support does not establish scientific validation.</p></div></div>
+      <h3>Selected brewing inputs</h3>
+      <table class="table"><thead><tr><th scope="col">Input</th><th scope="col">Selected value</th><th scope="col">Source</th></tr></thead><tbody><% for (const scalar of details.scalars) { %><tr><th scope="row"><%= scalar.key %></th><td data-label="Selected value"><%= scalar.value === null ? "Unavailable" : Number(scalar.value.toPrecision(5)) %> <%= scalar.value === null ? "" : scalar.unit || "" %></td><td data-label="Source"><%= scalar.provenance?.replaceAll("_", " ") || "Unavailable" %><% if (scalar.sourcePath) { %><br /><small><%= scalar.sourcePath %></small><% } %><% if (scalar.limitations.length) { %><br /><small><%= scalar.limitations.join("; ") %></small><% } %></td></tr><% } %></tbody></table>
+      <h3>Ingredient coverage</h3><ul><% for (const group of details.coverage) { %><li><%= group.key %>: <%= group.present ? `${group.resolvedCount ?? 0} recognized of ${group.acceptedCount ?? 0} accepted` : "Collection not supplied" %> · <%= group.complete ? "Complete collection" : "Incomplete collection" %><% if (group.classifiedFraction !== null) { %> · <%= Math.round(group.classifiedFraction * 100) %>% classified by eligible mass<% } %></li><% } %></ul>
+      <h3>Axis support and limitations</h3><dl class="key-value-list"><% for (const axis of details.axes) { %><div><dt><%= axisLabel(axis.key) %></dt><dd><%= axis.support || "Unavailable" %><% if (axis.reasons.length) { %> · <%= axis.reasons.map(reason => reason.replaceAll("_", " ")).join("; ") %><% } %><% if (axis.limitations.length) { %><br /><small><%= axis.limitations.map(reason => reason.replaceAll("_", " ")).join("; ") %></small><% } %></dd></div><% } %></dl>
+      <% if (details.catalogGaps.length) { %><h3>Ingredients not in the flavor catalog</h3><p class="muted">Generic or no flavor words are used for these. A maker's data sheet lets a reviewed entry replace them.</p><ul><% for (const gap of details.catalogGaps) { %><li><%= gap %></li><% } %></ul><% } %>
+      <% if (details.diagnostics.length) { %><h3>Input diagnostics</h3><ul><% for (const diagnostic of details.diagnostics) { %><li><%= diagnostic %></li><% } %></ul><% } %>
+    </section>
+  <% } %>
 
-  <section class="card card--danger" aria-labelledby="delete-heading"><div class="header-row"><div><h2 id="delete-heading">Permanent deletion</h2><p class="muted">This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.</p></div></div><ul class="impact-list"><% for (const impact of it.beverage.deletionImpacts) { %><li><%= impact.code %>: <%= impact.count %></li><% } %></ul><div class="field confirmation-copy" data-copy-group><label for="beverage-confirmation-value-<%= it.beverage.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="beverage-confirmation-value-<%= it.beverage.id %>" readonly value="<%= it.beverage.name %>" /><button class="button button--secondary" type="button" data-copy-target="beverage-confirmation-value-<%= it.beverage.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><form class="form" action="/admin/beverages/<%= it.beverage.id %>/delete" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.beverage.updatedAt %>" /><label class="field">Type the exact value above to confirm <input name="confirmationName" autocomplete="off" required /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger" type="submit">Permanently delete beverage</button></form></section>
+<% } else { %>
+  <section class="card card--danger" aria-labelledby="delete-heading"><div class="header-row"><div><h2 id="delete-heading">Permanent deletion</h2><p class="muted">This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.</p></div></div><ul class="impact-list"><% for (const impact of bev.deletionImpacts) { %><li><%= impact.code %>: <%= impact.count %></li><% } %></ul><div class="field confirmation-copy" data-copy-group><label for="beverage-confirmation-value-<%= bev.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="beverage-confirmation-value-<%= bev.id %>" readonly value="<%= bev.name %>" /><button class="button button--secondary" type="button" data-copy-target="beverage-confirmation-value-<%= bev.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><form class="form" action="/admin/beverages/<%= bev.id %>/delete" method="post"><%~ revisionFields %><label class="field">Type the exact value above to confirm <input name="confirmationName" autocomplete="off" required /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger" type="submit">Permanently delete beverage</button></form></section>
+<% } %>
 </main>

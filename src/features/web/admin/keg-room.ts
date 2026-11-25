@@ -21,14 +21,14 @@ import {
 } from "./http.ts";
 import { safePublicTapCards } from "./tap-presentation.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
-import { capacityLabel, pourHistoryEntry, tareLabel } from "./presentation.ts";
+import { adminTimestampLabel, capacityLabel, pourHistoryEntry, tareLabel } from "./presentation.ts";
 import { reportFailure } from "../../../shared/diagnostics.ts";
 import {
   decodeForecastHistoryCursor,
   type ForecastHistoryCursor,
 } from "../../forecasting/forecast-validation.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
-import { actor } from "./context.ts";
+import { actor, type AdminContext } from "./context.ts";
 import { safeVesselForDisplay, boundedAdminString } from "./beverage-presentation.ts";
 import type {
   RegisterKegRoomPagesDependencies,
@@ -37,6 +37,19 @@ import type {
 
 const POUR_HISTORY_PAGE_SIZE = 25;
 const PHYSICAL_KEGS_CRUMB = { label: "Physical Kegs", href: "/admin/keg-room/kegs" } as const;
+const FILL_STATE_LABELS: Readonly<Record<string, string>> = {
+  available: "Available",
+  on_deck: "On Deck",
+  on_tap: "On Tap",
+  ended: "Ended",
+};
+/** The Keg settings saved by `updateKeg`; the label saves on its own. */
+const KEG_SETTINGS_FIELDS = ["kegNumber", "capacityMl", "isActive", "currentTareG", "reason"];
+
+/** A Physical Keg's page, where each of its forms returns. */
+function kegPagePath(params: Readonly<Record<string, string>>): string {
+  return `${PHYSICAL_KEGS_CRUMB.href}/${encodeURIComponent(params.id ?? "")}`;
+}
 
 /** One page of a Fill's pours, newest first, paged by the forecast history cursor. */
 function fillPourHistory(
@@ -151,6 +164,8 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
     const displaySettings = dependencies.displayService.getSettings();
     const unitSystem = displaySettings.unitSystem === "metric" ? "metric" : "us";
     const fillsFor = (kegId: string) => dependencies.fillService.listFills({ kegId });
+    const publicCards = safePublicTapCards(dependencies.dashboardService, dependencies.logger);
+    const cornyKeg = getVesselDescriptor("corny_keg");
     const kegs = page.items.map((keg) => {
       const detail = dependencies.kegService.getKeg(keg.id);
       const detailRecord = detail as unknown as {
@@ -167,7 +182,14 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         }[];
       };
       const impact = dependencies.kegService.getDeletionImpact(keg.id);
-      const fillHistory = fillsFor(keg.id).map((fill) => ({
+      const fills = fillsFor(keg.id);
+      const currentFillView = fills.find((fill) => fill.state !== "ended");
+      // The row icon: the keg filled to its current Fill, or empty.
+      const currentCard =
+        currentFillView === undefined
+          ? null
+          : safeFillCard(currentFillView, dependencies.dashboardService, publicCards);
+      const fillHistory = fills.map((fill) => ({
         id: fill.id,
         beverageName: fill.beverageName,
         fillDate: fill.fillDate,
@@ -190,6 +212,14 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         currentFillId: currentFill?.id ?? null,
         currentFillRecord: currentFill,
         recentFillRecord: recentFill,
+        vessel: {
+          id: `keg-${keg.id}`,
+          title: `Keg ${keg.kegNumber}`,
+          graphic: cornyKeg,
+          fillPercent: currentCard?.fillPercent ?? 0,
+          displayColor: currentCard?.displayColor ?? null,
+          tapNumber: 0,
+        },
         fillHistorySummary:
           fillHistory.length === 0
             ? "No fills recorded"
@@ -267,7 +297,9 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           beverageName: fill.beverageName,
           fillDate: fill.fillDate,
           state: fill.state,
+          stateLabel: FILL_STATE_LABELS[fill.state] ?? fill.state,
           endedAt: fill.endedAt,
+          endedAtLabel: fill.endedAt === null ? null : adminTimestampLabel(fill.endedAt),
         }));
       renderAdmin(
         dependencies,
@@ -280,11 +312,19 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         {
           keg: {
             ...physical,
+            updatedAtLabel: adminTimestampLabel(physical.updatedAt),
             confirmationLabel: kegDeletionConfirmationLabel(physical),
-            tareHistory,
-            maintenanceHistory,
+            tareHistory: tareHistory.map((item) => ({
+              ...item,
+              recordedAtLabel: adminTimestampLabel(item.recordedAt),
+            })),
+            maintenanceHistory: maintenanceHistory.map((item) => ({
+              ...item,
+              recordedAtLabel: adminTimestampLabel(item.recordedAt),
+            })),
             deletionImpacts: impact.impacts,
             fillHistory,
+            currentFill: fillHistory.find((fill) => fill.state !== "ended") ?? null,
           },
           breadcrumbParents: [PHYSICAL_KEGS_CRUMB],
         },
@@ -395,28 +435,62 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
     },
     "Keg created.",
   );
+  /**
+   * Saves one Keg form: each posts only its own fields, and the rest of the Keg stays as it is.
+   * A correction reason is recorded with a tare change, so a reason alone changes nothing.
+   * Returns whether the tare changed.
+   */
+  const saveKeg = (
+    form: Readonly<Record<string, string>>,
+    context: AdminContext,
+    params: Readonly<Record<string, string>>,
+  ): boolean => {
+    const input = {
+      ...(form.kegNumber === undefined ? {} : { kegNumber: Number(form.kegNumber) }),
+      ...(form.label === undefined ? {} : { label: nullable(form.label) ?? null }),
+      ...(form.capacityMl === undefined ? {} : { capacityMl: Number(form.capacityMl) }),
+      ...(form.currentTareG === undefined ? {} : { currentTareG: Number(form.currentTareG) }),
+      ...(form.isActive === undefined ? {} : { isActive: form.isActive === "true" }),
+    };
+    const existing = dependencies.kegService.getKeg(params.id!).keg;
+    if (
+      Object.entries(input).every(
+        ([field, value]) => existing[field as keyof typeof existing] === value,
+      )
+    )
+      return false;
+    dependencies.kegService.updateKeg(
+      params.id!,
+      { ...input, reason: nullable(form.reason) },
+      actor(context),
+    );
+    return input.currentTareG !== undefined && input.currentTareG !== existing.currentTareG;
+  };
   registerAdminAction(
     dependencies,
     "/admin/kegs/:id/update",
-    "/admin/keg-room/kegs",
+    kegPagePath,
     (form, context, params) => {
-      dependencies.kegService.updateKeg(
-        params.id!,
-        {
-          kegNumber: Number(form.kegNumber),
-          label: nullable(form.label),
-          capacityMl: Number(form.capacityMl),
-          currentTareG: Number(form.currentTareG),
-          isActive: form.isActive === "true",
-          reason: nullable(form.reason),
-        },
-        actor(context),
-      );
+      saveKeg(form, context, params);
     },
     "Keg updated.",
     {},
     {
       handle: (body, context, params) => {
+        if (KEG_SETTINGS_FIELDS.some((field) => Object.hasOwn(body, field))) {
+          // Number, capacity, status and tare save their whole form. The reason clears once
+          // it is recorded with a tare change, so the next correction needs its own.
+          const tareChanged = saveKeg(
+            autosaveFieldStrings(body, KEG_SETTINGS_FIELDS),
+            context,
+            params,
+          );
+          return {
+            resource: tareChanged ? { reason: "" } : {},
+            revision: dependencies.kegService.getKeg(params.id!).keg.updatedAt,
+          };
+        }
+        // The label saves on its own, with its revision check.
         const fields = autosaveFieldStrings(body, ["updatedAt", "label"]);
         const updated = dependencies.kegService.autosaveLabel(
           params.id!,
@@ -436,13 +510,13 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
           revision: current.updatedAt,
         };
       },
-      validationFields: validationFieldsFor(["updatedAt", "label"]),
+      validationFields: validationFieldsFor(["updatedAt", "label", ...KEG_SETTINGS_FIELDS]),
     },
   );
   registerAdminAction(
     dependencies,
     "/admin/kegs/:id/maintenance",
-    "/admin/keg-room/kegs",
+    kegPagePath,
     (form, context, params) => {
       dependencies.kegService.recordMaintenance(
         params.id!,
@@ -455,7 +529,8 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
   registerAdminAction(
     dependencies,
     "/admin/kegs/:id/delete",
-    "/admin/keg-room/kegs",
+    // A refused deletion stays on the Keg's page; a deleted Keg returns to the list.
+    kegPagePath,
     (form, context, params) => {
       if (form.confirmation === undefined || form.confirmation.trim() === "") {
         invalidForm("Type the exact visible Keg number and label to confirm permanent deletion.");
@@ -465,6 +540,7 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
         { reason: nullable(form.reason), confirmation: form.confirmation },
         actor(context),
       );
+      return PHYSICAL_KEGS_CRUMB.href;
     },
     "Keg deleted.",
   );
@@ -726,14 +802,7 @@ export function safeFillCard(
     confirmationLabel: fillDeletionConfirmationLabel(fill),
     fillDate: fill.fillDate,
     state: fill.state,
-    stateLabel:
-      fill.state === "on_deck"
-        ? "On Deck"
-        : fill.state === "on_tap"
-          ? "On Tap"
-          : fill.state === "ended"
-            ? "Ended"
-            : "Available",
+    stateLabel: FILL_STATE_LABELS[fill.state] ?? "Available",
     onDeckOrder: fill.onDeckOrder,
     tapNumber: authoritativeTapNumber,
     tapId: authoritativeTapId,
