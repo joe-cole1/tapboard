@@ -10,7 +10,6 @@
     <div class="header-row"><div><h2 id="source-status-heading">Source status</h2><p class="muted">Authentication and key information for this source.</p></div><span class="badge badge--<%= it.source.disabledAt === null ? "healthy" : "muted" %>"><%= it.source.disabledAt === null ? "Active" : "Disabled" %></span></div>
     <table class="table"><tbody>
       <tr><th scope="row">Key ID (audit reference)</th><td><code><%= it.source.keyPublicId %></code><br /><span class="muted">Reference only; it is not sent in the URL or request.</span></td></tr>
-      <tr><th scope="row">Key label</th><td><%= it.source.keyLabel %></td></tr>
       <tr><th scope="row">Source created</th><td><time datetime="<%= it.source.createdAt %>"><%= it.source.createdAtLabel %></time></td></tr>
       <tr><th scope="row">Key created</th><td><time datetime="<%= it.source.keyCreatedAt %>"><%= it.source.keyCreatedAtLabel %></time></td></tr>
       <% if (it.source.disabledAt !== null) { %><tr><th scope="row">Disabled</th><td><time datetime="<%= it.source.disabledAt %>"><%= it.source.disabledAtLabel %></time></td></tr><% } %>
@@ -22,14 +21,13 @@
     <p>Authenticate with the complete machine key in <code>Authorization: Bearer …</code>. The Key ID above is an audit reference only; it is not sent in the URL or request.</p>
   </section>
   <% if (it.source.disabledAt === null) { %>
-    <section aria-labelledby="source-key-actions-heading">
-      <details class="disclosure">
-        <summary><span><strong id="source-key-actions-heading">Key actions</strong><small>Explicit actions issue a replacement secret or permanently disable this source.</small></span></summary>
-        <div>
-          <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">New key label <input name="label" maxlength="120" /></label><button class="button button--primary" type="submit">Rotate key and show replacement once</button></form>
-          <form action="/admin/integrations/telemetry-sources/<%= it.source.id %>/disable" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--danger" type="submit">Disable source</button><p class="muted">A source assigned to any Tap must be unassigned before it can be disabled.</p></form>
-        </div>
-      </details>
+    <section aria-labelledby="source-rotate-heading">
+      <div class="header-row"><div><h2 id="source-rotate-heading">Rotate key</h2><p class="muted">Issues a replacement key, labelled with the source name, and shows it once. The current key stops working immediately.</p></div></div>
+      <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><div class="form-actions"><button class="button button--primary button--small" type="submit">Rotate key and show replacement once</button></div></form>
+    </section>
+    <section class="card card--danger" aria-labelledby="source-disable-heading">
+      <div class="header-row"><div><h2 id="source-disable-heading">Disable source</h2><p class="muted">Disabling revokes the current key for good. The source stays in history and can't be re-enabled.</p></div></div>
+      <%~ include("/partials/permanent-action", { id: `source-disable-${it.source.id}`, blockers: it.disableBlockers, action: `/admin/integrations/telemetry-sources/${it.source.id}/disable`, hiddenFields: `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" />`, disclosure: "Disable source", buttonLabel: "Disable source" }) %>
     </section>
   <% } else { %>
     <section><h2>Immutable history</h2><p>This source is disabled and its current key is revoked. It cannot be rotated, renamed, or re-enabled.</p></section>

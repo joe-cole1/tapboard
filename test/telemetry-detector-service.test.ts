@@ -397,7 +397,7 @@ void test("source and keg corrections transition epochs, while manual rebaseline
       conditionSourceId: source.id,
       flowSourceId: null,
     });
-    h.telemetryService.rotateSourceKey(source.id, { label: "rotated scale key" });
+    h.telemetryService.rotateSourceKey(source.id, {});
     assert.equal(h.detector.diagnostics(tap.id).epoch?.id, first.id);
     const source2 = h.telemetryService.createSource({ name: "scale two" }).source;
     h.set(1_100);

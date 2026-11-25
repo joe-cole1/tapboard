@@ -189,7 +189,9 @@ test("annotated Admin surfaces share compact tables, controls, and human labels"
   const identity = page.locator('section[aria-labelledby="tap-identity-heading"]');
   await expect(identity.locator("dt")).toHaveText(["First used", "Last updated"]);
   const assignmentSection = page.locator('section[aria-labelledby="assignment-heading"]');
-  await expect(assignmentSection.locator('a[href^="/admin/keg-room/fills/"]')).toBeVisible();
+  // The Fill row's link, plus the section's "Open Filled Keg" header link (#253).
+  await expect(assignmentSection.locator('a[href^="/admin/keg-room/fills/"]')).toHaveCount(2);
+  await expect(assignmentSection.getByRole("link", { name: "Open Filled Keg" })).toBeVisible();
   await expect(assignmentSection.locator('a[href^="/admin/keg-room/kegs/"]')).toBeVisible();
 
   // Pour detector and Health rules share the Sensors tab's Advanced settings disclosure.

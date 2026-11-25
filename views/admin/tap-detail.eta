@@ -87,8 +87,8 @@
     <% } %>
   </section>
 
-  <section aria-labelledby="assignment-heading">
-    <div class="header-row"><div><h2 id="assignment-heading">Assignment</h2></div></div>
+  <section id="assignment" aria-labelledby="assignment-heading">
+    <div class="header-row"><div><h2 id="assignment-heading">Assignment</h2></div><% if (it.tap.assignment.active) { %><a class="button button--secondary button--small" href="/admin/keg-room/fills/<%= it.tap.assignment.active.fillId %>">Open Filled Keg</a><% } %></div>
     <% if (it.tap.assignment.active) { %>
         <table class="table">
           <caption class="sr-only">Current Tap assignment</caption>
@@ -133,23 +133,19 @@
     <% } %>
   </section>
 
+  <% const tapHiddenFields = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" /><input type="hidden" name="updatedAt" value="${it.tap.identity.updatedAt}" />`; %>
   <% if (!it.tap.lifecycle.isRetired) { %>
-    <section aria-labelledby="lifecycle-heading">
+    <section id="lifecycle" aria-labelledby="lifecycle-heading">
       <div class="header-row"><div><h2 id="lifecycle-heading">Lifecycle</h2><p class="muted">A retired Tap leaves the public display and keeps its number and history. Retiring can't be undone.</p></div></div>
-      <% if (it.tap.assignment.active) { %><p class="muted">Unassign the current Fill before retiring this Tap.</p><% } else { %><details class="disclosure"><summary>Retire Tap</summary><form class="form" action="/admin/taps/<%= it.tap.identity.id %>/retire" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger button--small" type="submit">Retire Tap</button></form></details><% } %>
+      <%~ include("/partials/permanent-action", { id: `tap-retire-${it.tap.identity.id}`, blockers: it.tap.blockers.retire, action: `/admin/taps/${it.tap.identity.id}/retire`, hiddenFields: tapHiddenFields, reason: true, disclosure: "Retire Tap", buttonLabel: "Retire Tap" }) %>
     </section>
   <% } %>
 
   <section class="card card--danger" aria-labelledby="tap-delete-heading">
     <div class="header-row"><div><h2 id="tap-delete-heading">Permanent deletion</h2><p class="muted">Only a never-used, non-retired, unassigned Tap can be deleted. Deletion removes the Tap record and its deletion audit entry.</p></div></div>
     <% if (it.tap.deletionImpact) { %>
-      <% if (it.tap.deletionImpact.canDelete) { %>
-        <div class="field confirmation-copy" data-copy-group><label for="tap-confirmation-value-<%= it.tap.identity.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="tap-confirmation-value-<%= it.tap.identity.id %>" readonly value="<%= it.tap.identity.confirmationLabel %>" /><button class="button button--secondary button--small" type="button" data-copy-target="tap-confirmation-value-<%= it.tap.identity.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><form class="form" action="/admin/taps/<%= it.tap.identity.id %>/delete" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><label class="field">Type the exact value above to confirm <input name="confirmation" autocomplete="off" required /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger button--small" type="submit">Permanently delete Tap</button></form>
-      <% } else { %>
-        <p class="muted">Deletion is unavailable because this Tap has history or active dependencies.</p>
-        <ul class="impact-list"><% for (const reason of it.tap.deletionImpact.reasonsCannotDelete) { %><li><%= reason %></li><% } %></ul>
-      <% } %>
-    <% } else { %><p class="muted">Deletion impact is unavailable.</p><% } %>
+      <%~ include("/partials/permanent-action", { id: `tap-delete-${it.tap.identity.id}`, blockers: it.tap.blockers.delete, action: `/admin/taps/${it.tap.identity.id}/delete`, hiddenFields: tapHiddenFields, confirmation: { field: "confirmation", value: it.tap.identity.confirmationLabel }, reason: true, buttonLabel: "Permanently delete Tap" }) %>
+    <% } else { %><p class="muted">Deletion impact is unavailable right now. <a href="/admin/taps/<%= it.tap.identity.id %>/identity">Try again <span aria-hidden="true">→</span></a></p><% } %>
   </section>
 <% } else if (it.tab === "sensors") { %>
   <section aria-labelledby="sensors-heading">

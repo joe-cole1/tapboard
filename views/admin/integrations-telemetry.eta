@@ -18,13 +18,13 @@
   </section>
   <form class="form" method="get" action="/admin/integrations/telemetry" role="search"><label class="field">Search sources <input type="search" name="q" value="<%= it.query || "" %>" maxlength="80" /></label><button class="button button--secondary button--small" type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry">Clear</a><% } %></form>
   <section aria-labelledby="active-telemetry-heading">
-    <div class="header-row"><div><h2 id="active-telemetry-heading">Active sources</h2><p class="muted">Sources that can currently authenticate and report measurements.</p></div><a class="button button--primary button--small" href="#create-telemetry-source">Add source</a></div>
+    <div class="header-row"><div><h2 id="active-telemetry-heading">Active sources</h2><p class="muted">Sources that can currently authenticate and report measurements.</p></div><a class="button button--primary button--small" href="/admin/integrations/telemetry/new">Add source</a></div>
     <% if (it.activeSources.length === 0) { %><div class="empty-state"><h3>No active telemetry sources</h3><p>Create a source to issue the first machine key.</p></div><% } else { %>
       <div class="auto-grid auto-grid--lg">
         <% for (const source of it.activeSources) { %>
           <article class="card integration-source-card">
             <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="badge badge--healthy">Active</span></div>
-            <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Key label</dt><dd><%= source.keyLabel %></dd></div><div><dt>Created</dt><dd><time datetime="<%= source.keyCreatedAt %>"><%= source.keyCreatedAtLabel %></time></dd></div></dl>
+            <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Created</dt><dd><time datetime="<%= source.keyCreatedAt %>"><%= source.keyCreatedAtLabel %></time></dd></div></dl>
             <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">Open source</a>
           </article>
         <% } %>
@@ -32,32 +32,19 @@
     <% } %>
     <% if (it.pagination.active.pageCount > 1) { %><nav class="pagination" aria-label="Active telemetry source pages"><% if (it.pagination.active.page > 1) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry?q=<%= encodeURIComponent(it.query || "") %>&activePage=<%= it.pagination.active.page - 1 %>&historyPage=<%= it.pagination.history.page %>">Previous</a><% } %><span>Page <%= it.pagination.active.page %> of <%= it.pagination.active.pageCount %></span><% if (it.pagination.active.page < it.pagination.active.pageCount) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry?q=<%= encodeURIComponent(it.query || "") %>&activePage=<%= it.pagination.active.page + 1 %>&historyPage=<%= it.pagination.history.page %>">Next</a><% } %></nav><% } %>
   </section>
-  <section id="create-telemetry-source" aria-labelledby="create-telemetry-heading">
-    <details class="disclosure">
-      <summary><span><strong id="create-telemetry-heading">Create a telemetry source</strong><small>Issue a new machine key. The secret is shown exactly once.</small></span></summary>
-      <form class="form" action="/admin/integrations/telemetry-sources/create" method="post">
-        <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-        <label class="field">Source name <input name="name" maxlength="120" required /></label>
-        <label class="field">Key label <input name="label" maxlength="120" /></label>
-        <button class="button button--primary" type="submit">Create source and show key</button>
-      </form>
-    </details>
-  </section>
   <section aria-labelledby="disabled-telemetry-heading">
-    <details class="disclosure">
-      <summary><span><strong id="disabled-telemetry-heading">Disabled source history</strong><small>Immutable record of revoked sources and their key lineage.</small></span></summary>
+    <div class="header-row"><div><h2 id="disabled-telemetry-heading">Disabled source history</h2><p class="muted">Immutable record of revoked sources and their key lineage.</p></div></div>
       <% if (it.disabledSources.length === 0) { %><div class="empty-state"><p>No disabled sources.</p></div><% } else { %>
         <div class="auto-grid auto-grid--lg">
           <% for (const source of it.disabledSources) { %>
             <article class="card integration-source-card integration-source-card--disabled">
               <div class="header-row"><h3><a href="/admin/integrations/telemetry-sources/<%= source.id %>"><%= source.name %></a></h3><span class="badge">Disabled</span></div>
-              <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Key label</dt><dd><%= source.keyLabel %></dd></div><div><dt>Disabled</dt><dd><time datetime="<%= source.disabledAt %>"><%= source.disabledAtLabel %></time></dd></div></dl>
+              <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Disabled</dt><dd><time datetime="<%= source.disabledAt %>"><%= source.disabledAtLabel %></time></dd></div></dl>
               <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">View history</a>
             </article>
           <% } %>
         </div>
       <% } %>
       <% if (it.pagination.history.pageCount > 1) { %><nav class="pagination" aria-label="Disabled telemetry source pages"><% if (it.pagination.history.page > 1) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry?q=<%= encodeURIComponent(it.query || "") %>&historyPage=<%= it.pagination.history.page - 1 %>&activePage=<%= it.pagination.active.page %>">Previous</a><% } %><span>Page <%= it.pagination.history.page %> of <%= it.pagination.history.pageCount %></span><% if (it.pagination.history.page < it.pagination.history.pageCount) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry?q=<%= encodeURIComponent(it.query || "") %>&historyPage=<%= it.pagination.history.page + 1 %>&activePage=<%= it.pagination.active.page %>">Next</a><% } %></nav><% } %>
-    </details>
   </section>
 </main>

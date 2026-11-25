@@ -103,7 +103,7 @@
 
 <% } else if (it.tab === "usage") { %>
   <section aria-labelledby="fill-heading">
-    <div class="header-row"><div><h2 id="fill-heading">Current usage</h2><p class="muted"><%= bev.usage.total %> fill record<%= bev.usage.total === 1 ? "" : "s" %> linked to this beverage.</p></div></div>
+    <div class="header-row"><div><h2 id="fill-heading">Current usage</h2><p class="muted"><%= bev.usage.total %> fill record<%= bev.usage.total === 1 ? "" : "s" %> linked to this beverage.</p></div><a class="button button--secondary button--small" href="/admin/keg-room">Keg Room</a></div>
     <% if ((it.currentFills || []).length > 0) { %>
       <table class="table"><caption class="sr-only">Current Filled Kegs</caption><thead><tr><th scope="col">Filled Keg</th><th scope="col">State</th><th scope="col">Tap</th><th scope="col">Fill date</th></tr></thead><tbody><% for (const fill of it.currentFills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><br /><a class="muted" href="/admin/keg-room/kegs/<%= fill.kegId %>">Physical Keg detail</a></th><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.state.replaceAll("_", " ") %></span></td><td data-label="Tap"><% if (fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else { %>—<% } %></td><td data-label="Fill date"><%= fill.fillDate %></td></tr><% } %></tbody></table>
     <% } else { %><p class="muted">No current Filled Kegs use this beverage.</p><% } %>
@@ -170,6 +170,9 @@
   <% } %>
 
 <% } else { %>
-  <section class="card card--danger" aria-labelledby="delete-heading"><div class="header-row"><div><h2 id="delete-heading">Permanent deletion</h2><p class="muted">This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.</p></div></div><ul class="impact-list"><% for (const impact of bev.deletionImpacts) { %><li><%= impact.code %>: <%= impact.count %></li><% } %></ul><div class="field confirmation-copy" data-copy-group><label for="beverage-confirmation-value-<%= bev.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="beverage-confirmation-value-<%= bev.id %>" readonly value="<%= bev.name %>" /><button class="button button--secondary" type="button" data-copy-target="beverage-confirmation-value-<%= bev.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><form class="form" action="/admin/beverages/<%= bev.id %>/delete" method="post"><%~ revisionFields %><label class="field">Type the exact value above to confirm <input name="confirmationName" autocomplete="off" required /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><button class="button button--danger" type="submit">Permanently delete beverage</button></form></section>
+  <section class="card card--danger" aria-labelledby="delete-heading">
+    <div class="header-row"><div><h2 id="delete-heading">Permanent deletion</h2><p class="muted">This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.</p></div></div>
+    <%~ include("/partials/permanent-action", { id: `beverage-delete-${bev.id}`, blockers: [], impact: bev.deletionImpact, action: `/admin/beverages/${bev.id}/delete`, hiddenFields: revisionFields, confirmation: { field: "confirmationName", value: bev.name }, reason: true, buttonLabel: "Permanently delete beverage" }) %>
+  </section>
 <% } %>
 </main>

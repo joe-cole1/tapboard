@@ -7,9 +7,9 @@ device or bridge side. The machine contract is [`openapi/telemetry-v1.json`](../
 
 ## 1. Create a source and select it for a Tap
 
-1. In Admin, open **Integrations → Telemetry** and use **Create a telemetry source**. Give it a
-   name (for example `Keg scale 1`). The machine key (`tbk_…`) is shown **once**; store it in
-   the device or bridge configuration, not in a shared document.
+1. In Admin, open **Integrations → Telemetry** and choose **Add source**. Give it a name (for
+   example `Keg scale 1`); its key is labelled with that name. The machine key (`tbk_…`) is shown
+   **once**; store it in the device or bridge configuration, not in a shared document.
 2. Open the Tap in Admin (**Taps → the Tap → Telemetry authority**), choose a **Level source**
    (the scale: keg level, and pours unless the Tap has a flow source), a **Condition source**
    (temperature, pressure) and a **Flow source** (a flow meter: pours), and save. Each role is

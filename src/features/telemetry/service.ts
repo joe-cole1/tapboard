@@ -84,7 +84,6 @@ import type {
   ExternalBatchTelemetryRequestInput,
   ExternalTelemetryRequestInput,
   RenameTelemetrySourceInput,
-  RotateTelemetrySourceInput,
   SingleIngestResult,
   TapTelemetryAuthority,
   TapTelemetryAuthorityRow,
@@ -240,8 +239,7 @@ export class TelemetryService {
         });
       }
 
-      const keyLabel = input.label ?? input.name;
-      const issued = this.machineKeyService.create(keyLabel, {
+      const issued = this.machineKeyService.create(input.name, {
         now: this.clock,
         suppressActivity: true,
       });
@@ -358,7 +356,7 @@ export class TelemetryService {
     options: TelemetryActorOptions = {},
   ): { readonly source: TelemetrySource; readonly replacementToken: string } {
     const sourceId = validateTelemetrySourceId(sourceIdRaw);
-    const input: RotateTelemetrySourceInput = validateRotateTelemetrySourceInput(inputRaw);
+    validateRotateTelemetrySourceInput(inputRaw);
     return this.database.withTransaction(() => {
       const source = readTelemetrySourceById(this.database, sourceId);
       if (!source) {
@@ -379,8 +377,7 @@ export class TelemetryService {
         });
       }
 
-      const keyLabel = input.label ?? source.name;
-      const issued = this.machineKeyService.rotate(source.current_machine_key_id, keyLabel, {
+      const issued = this.machineKeyService.rotate(source.current_machine_key_id, source.name, {
         now: this.clock,
         suppressActivity: true,
       });

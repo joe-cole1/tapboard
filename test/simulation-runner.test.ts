@@ -144,7 +144,10 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
   const h = harness();
   try {
     const first = h.seed();
-    const assignments = h.tapService.listTaps().map((tap) => tap.activeAssignment);
+    const sensorTaps = h.tapService
+      .listTaps()
+      .filter((tap) => first.some((sensor) => sensor.tapId === tap.id));
+    const assignments = sensorTaps.map((tap) => tap.activeAssignment);
     assert.equal(first.length, 5);
     assert.equal(new Set(first.map((sensor) => sensor.sourceId)).size, 5);
     assert.equal(new Set(first.map((sensor) => sensor.remainingMl)).size, 5);
@@ -152,7 +155,7 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
     assert.equal(new Set(assignments.map((assignment) => assignment!.kegId)).size, 5);
     assert.equal(h.fillService.listFills({ state: "on_deck" }).length, 2);
     assert.equal(count(h.database, "simulation_fill_volumes"), 7);
-    for (const tap of h.tapService.listTaps())
+    for (const tap of sensorTaps)
       assert.equal(
         readFillVolume(h.database, tap.activeAssignment!.fillId),
         first.find((sensor) => sensor.tapId === tap.id)!.remainingMl,
@@ -170,7 +173,21 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
     assert.equal(new Set(glasses).size, 5);
     assert.ok(glasses.every((glass) => VESSEL_IDS.some((known) => known === glass)));
     assert.deepEqual(h.seed(), first);
-    assert.equal(count(h.database, "taps"), 5);
+    // Each permanent action has an allowed case: a never-used, hidden spare Tap, a kicked Filled
+    // Keg and a sensor no Tap uses.
+    const spare = h.tapService.listTaps().find((tap) => tap.name === "Sample Spare Tap");
+    assert.ok(spare && spare.firstUsedAt === null && !spare.enabled && !spare.activeAssignment);
+    assert.equal(h.tapService.getTapDeletionImpact(spare.id).canDelete, true);
+    assert.equal(h.fillService.listFills({ state: "ended" }).length, 1);
+    const usedSourceIds = new Set(first.map((sensor) => sensor.sourceId));
+    assert.deepEqual(
+      h.telemetryService
+        .listSources()
+        .filter((source) => !usedSourceIds.has(source.id))
+        .map((source) => source.name),
+      ["Simulation spare sensor"],
+    );
+    assert.equal(count(h.database, "taps"), 6);
     assert.equal(count(h.database, "beverages"), 8);
     assert.equal(count(h.database, "pours"), 0);
     assert.equal(count(h.database, "telemetry_measurements"), 0);
@@ -417,13 +434,16 @@ void test("pause, stop and a real-file restart retain hardware state and never r
     h = harness(path, time);
     assert.deepEqual(h.seed(), before);
     h.runner.start();
-    for (const source of h.telemetryService.listSources()) {
+    const sensorSourceIds = new Set(before.map((sensor) => sensor.sourceId));
+    for (const source of h.telemetryService
+      .listSources()
+      .filter((candidate) => sensorSourceIds.has(candidate.id))) {
       assert.notEqual(source.currentMachineKeyId, keys.get(source.id));
       assert.ok(h.machineKeyService.get(keys.get(source.id)!)!.revokedAt !== null);
     }
     h.advance(15_000);
     assert.equal(count(h.database, "pours"), 1);
-    assert.equal(count(h.database, "taps"), 5);
+    assert.equal(count(h.database, "taps"), 6);
     assert.equal(count(h.database, "beverages"), 8);
     assert.equal(readSensor(h.database, offline!.tapId)!.sequence, sequence);
     assert.equal(readSensor(h.database, offline!.tapId)!.noiseEnabled, true);
@@ -860,7 +880,7 @@ void test("history snapshots retain selected batch values and real brewing/barre
         assert.ok(flavor.processTags.includes("Bourbon barrel-aged"));
       }
     }
-    assert.equal(h.telemetryService.listSources().length, 5);
+    assert.equal(h.telemetryService.listSources().length, 6);
   } finally {
     h.close();
   }

@@ -60,14 +60,12 @@
   <% } %>
   <% if (it.brewfatherCandidates && it.brewfatherCandidates.length > 0) { %>
     <section aria-labelledby="brewfather-candidates-heading">
-      <details class="disclosure">
-        <summary><span><strong id="brewfather-candidates-heading">Unlinked Brewfather batches</strong><small>Link a cached batch only when you are ready to manage it here.</small></span></summary>
+      <div class="header-row"><div><h2 id="brewfather-candidates-heading">Unlinked Brewfather batches</h2><p class="muted">Link a cached batch only when you are ready to manage it here.</p></div></div>
         <div class="auto-grid auto-grid--lg">
           <% for (const candidate of it.brewfatherCandidates) { %>
             <article class="card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>
           <% } %>
         </div>
-      </details>
     </section>
   <% } %>
 </main>

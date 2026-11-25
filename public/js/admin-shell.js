@@ -231,8 +231,7 @@ if (shell) {
     updateIndicators();
   }
 
-  // Confirmation values are intentionally displayed read-only. Copying one
-  // must never populate the separate typed confirmation field.
+  // Copying a confirmation value must never populate the typed confirmation field.
   const copyText = async (value) => {
     if (!value) return false;
     try {
@@ -292,7 +291,9 @@ if (shell) {
     });
   });
 
+  // Copy buttons stay hidden without JavaScript, where the value is plain selectable text.
   document.querySelectorAll("[data-copy-target]").forEach((button) => {
+    button.hidden = false;
     button.addEventListener("click", async () => {
       const targetId = button.dataset.copyTarget;
       const target = targetId ? document.getElementById(targetId) : null;
@@ -302,7 +303,7 @@ if (shell) {
           : (target?.textContent?.trim() ?? "");
       const copied = await copyText(value);
       const status = button.closest("[data-copy-group]")?.querySelector("[data-copy-status]");
-      if (status) status.textContent = copied ? "Copied." : "Select and copy the value manually.";
+      if (status) status.textContent = copied ? "Copied" : "Select and copy the value manually.";
       if (copied)
         window.setTimeout(() => {
           if (status) status.textContent = "";

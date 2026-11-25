@@ -23,6 +23,8 @@ import { requestUrl, actor, adminContext, messageLocation, type AdminContext } f
 import { adminTimestampLabel } from "./presentation.ts";
 import { invalidForm } from "./forms.ts";
 import { humanizeAdminIdentifier } from "./detector-presentation.ts";
+import { telemetryDisableBlockers } from "./blockers.ts";
+import { tapPagePath } from "./tap-detail.ts";
 import type {
   RegisterIntegrationPagesDependencies,
   RegisterOutboundMutationsDependencies,
@@ -177,6 +179,23 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
     );
   });
 
+  registerAdminGet(
+    dependencies,
+    "/admin/integrations/telemetry/new",
+    (request, response, context) => {
+      renderAdmin(
+        dependencies,
+        response,
+        request,
+        context,
+        "/admin/integrations-telemetry-new",
+        "New telemetry source",
+        "/admin/integrations/telemetry/new",
+        { breadcrumbParents: [TELEMETRY_CRUMB] },
+      );
+    },
+  );
+
   registerAdminGet(dependencies, "/admin/integrations/telemetry", (request, response, context) => {
     const params = requestUrl(request).searchParams;
     const requestedQuery = (params.get("q") ?? "").trim().slice(0, 80);
@@ -203,7 +222,6 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       id: source.id,
       name: source.name,
       keyPublicId: source.currentMachineKey.publicId,
-      keyLabel: source.currentMachineKey.label,
       keyCreatedAt: source.currentMachineKey.createdAt,
       keyCreatedAtLabel: adminTimestampLabel(source.currentMachineKey.createdAt),
       createdAt: source.createdAt,
@@ -254,6 +272,20 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           clientMessage: "Telemetry source was not found.",
         });
       }
+      const tapsById = new Map(dependencies.tapService.listTaps().map((tap) => [tap.id, tap]));
+      const usingTaps = dependencies.telemetryService
+        .listAuthorities()
+        .filter((authority) =>
+          [authority.level, authority.condition, authority.flow].some(
+            (role) => role?.sourceId === source.id,
+          ),
+        )
+        .flatMap((authority) => {
+          const tap = tapsById.get(authority.tapId);
+          return tap === undefined ? [] : [tap];
+        })
+        .sort((left, right) => left.tapNumber - right.tapNumber)
+        .map((tap) => ({ tapNumber: tap.tapNumber, sensorsHref: tapPagePath(tap.id, "sensors") }));
       renderAdmin(
         dependencies,
         response,
@@ -264,11 +296,11 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         `/admin/integrations/telemetry-sources/${encodeURIComponent(source.id)}`,
         {
           breadcrumbParents: [TELEMETRY_CRUMB],
+          disableBlockers: telemetryDisableBlockers(usingTaps),
           source: {
             id: source.id,
             name: source.name,
             keyPublicId: source.currentMachineKey.publicId,
-            keyLabel: source.currentMachineKey.label,
             keyCreatedAt: source.currentMachineKey.createdAt,
             keyCreatedAtLabel: adminTimestampLabel(source.currentMachineKey.createdAt),
             createdAt: source.createdAt,
@@ -564,7 +596,7 @@ export function registerIntegrationMutations(
             clientMessage: "The form could not be authorized. Reload and try again.",
           });
         const issued = dependencies.telemetryService.createSource(
-          { name: form.name, ...(form.label ? { label: form.label } : {}) },
+          { name: form.name },
           actor(context),
         );
         committed = true;
@@ -591,7 +623,7 @@ export function registerIntegrationMutations(
         redirect(
           response,
           messageLocation(
-            "/admin/integrations/telemetry",
+            committed ? "/admin/integrations/telemetry" : "/admin/integrations/telemetry/new",
             "error",
             context === undefined
               ? "The form could not be authorized. Reload and try again."
@@ -638,7 +670,7 @@ export function registerIntegrationMutations(
           });
         const issued = dependencies.telemetryService.rotateSourceKey(
           params.id!,
-          form.label ? { label: form.label } : {},
+          {},
           actor(context),
         );
         committed = true;

@@ -35,7 +35,7 @@
   </section>
 
   <section aria-labelledby="keg-fill-history">
-    <div class="header-row"><div><h2 id="keg-fill-history">Fill history</h2></div></div>
+    <div class="header-row"><div><h2 id="keg-fill-history">Fill history</h2></div><a class="button button--secondary button--small" href="/admin/keg-room">Keg Room</a></div>
     <% if (keg.fillHistory.length === 0) { %><p class="muted">No Filled Kegs recorded.</p><% } else { %>
       <table class="table"><caption class="sr-only">Filled Kegs in this Keg, newest first</caption><thead><tr><th scope="col">Beverage</th><th scope="col">Fill date</th><th scope="col">State</th><th scope="col">Ended</th></tr></thead><tbody><% for (const fill of keg.fillHistory) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a></th><td data-label="Fill date"><%= fill.fillDate %></td><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.stateLabel %></span></td><td data-label="Ended"><% if (fill.endedAt) { %><time datetime="<%= fill.endedAt %>"><%= fill.endedAtLabel %></time><% } else { %>—<% } %></td></tr><% } %></tbody></table>
     <% } %>
@@ -67,5 +67,8 @@
     </details>
   </section>
 
-  <section class="card card--danger" aria-labelledby="delete-keg"><div class="header-row"><div><h2 id="delete-keg">Permanent deletion</h2><p class="muted">Deletion removes this Keg and its tare and maintenance records.</p></div></div><div class="field confirmation-copy" data-copy-group><label for="keg-confirmation-value-<%= keg.id %>">Exact confirmation value</label><div class="confirmation-copy__row"><input id="keg-confirmation-value-<%= keg.id %>" readonly value="<%= keg.confirmationLabel %>" /><button class="button button--secondary button--small" type="button" data-copy-target="keg-confirmation-value-<%= keg.id %>">Copy</button></div><output data-copy-status aria-live="polite"></output></div><details class="disclosure"><summary>Delete Keg permanently</summary><form class="form" action="/admin/kegs/<%= keg.id %>/delete" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Type the exact value above to confirm <input name="confirmation" required autocomplete="off" /></label><label class="field">Reason <input name="reason" maxlength="255" /></label><p class="muted"><% for (const impact of keg.deletionImpacts) { %><%= impact.code %>: <%= impact.count %> · <% } %></p><button class="button button--danger button--small" type="submit">Permanently delete Keg</button></form></details></section>
+  <section class="card card--danger" aria-labelledby="delete-keg">
+    <div class="header-row"><div><h2 id="delete-keg">Permanent deletion</h2><p class="muted">Deletion removes this Keg and its tare and maintenance records.</p></div></div>
+    <%~ include("/partials/permanent-action", { id: `keg-delete-${keg.id}`, blockers: [], impact: keg.deletionImpact, action: `/admin/kegs/${keg.id}/delete`, hiddenFields: `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" />`, confirmation: { field: "confirmation", value: keg.confirmationLabel }, reason: true, disclosure: "Delete Keg permanently", buttonLabel: "Permanently delete Keg" }) %>
+  </section>
 </main>

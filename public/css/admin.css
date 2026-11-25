@@ -385,24 +385,23 @@
     align-items: center;
     gap: var(--space-2) var(--space-3);
   }
-  .confirmation-copy {
-    display: grid;
-    gap: var(--space-1-5);
-    margin-block: var(--space-3);
+  /* Copy-then-type confirmation: Type "value" [copy] to confirm, then the input. */
+  .confirm-prompt {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
     max-width: 42rem;
   }
-  .confirmation-copy__row {
-    display: flex;
-    align-items: end;
-    gap: var(--space-2);
-  }
-  .confirmation-copy__row input {
-    flex: 1 1 auto;
-    min-width: 0;
+  .confirm-prompt__value {
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    overflow-wrap: anywhere;
   }
-  .confirmation-copy output {
-    min-height: 1.2em;
+  .confirm-prompt .button--icon {
+    inline-size: 2rem;
+    block-size: 2rem;
+  }
+  .confirm-prompt__status {
     color: var(--muted);
     font-size: var(--text-small);
   }
@@ -999,13 +998,12 @@
     margin-block: var(--space-3);
     padding-left: var(--space-5);
   }
-  .impact-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    margin: 0 0 var(--space-4);
+  /* Why a permanent action is blocked: one line each, ending in the link to the fix. */
+  .blocker-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
     padding: 0;
-    color: var(--muted);
     list-style: none;
   }
   .source-recipe {

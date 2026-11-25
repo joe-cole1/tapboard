@@ -1,0 +1,33 @@
+<% /*
+  A permanent action (delete, retire, disable): its blockers, or its form.
+  it.id: unique prefix for element ids
+  it.blockers: BlockerLine[] from src/features/web/admin/blockers.ts; any blocker replaces the form
+  it.impact: optional sentence naming what else the action removes
+  it.action, it.hiddenFields (trusted HTML: CSRF and revision fields), it.buttonLabel
+  it.confirmation: optional { field, value } for copy-then-type confirmation
+  it.reason: true to ask for an optional reason
+  it.disclosure: optional summary text; the form then sits behind one destructive disclosure
+*/ %>
+<% if (it.blockers.length > 0) { %>
+  <ul class="blocker-list"><% for (const blocker of it.blockers) { %><li><%= blocker.text %> <a href="<%= blocker.href %>"><%= blocker.linkLabel %> <span aria-hidden="true">→</span></a></li><% } %></ul>
+<% } else { %>
+  <% if (it.impact) { %><p class="muted"><%= it.impact %></p><% } %>
+  <% if (it.disclosure) { %><details class="disclosure"><summary><%= it.disclosure %></summary><% } %>
+  <form class="form" action="<%= it.action %>" method="post">
+    <%~ it.hiddenFields %>
+    <% if (it.confirmation) { %>
+      <div class="field">
+        <div class="confirm-prompt" data-copy-group>
+          <label for="<%= it.id %>-confirmation">Type "<span id="<%= it.id %>-confirmation-value" class="confirm-prompt__value"><%= it.confirmation.value %></span>"<span class="sr-only"> to confirm</span></label>
+          <button class="button button--secondary button--icon" type="button" data-copy-target="<%= it.id %>-confirmation-value" aria-label="Copy <%= it.confirmation.value %>" title="Copy" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></svg></button>
+          <span aria-hidden="true">to confirm</span>
+          <output class="confirm-prompt__status" data-copy-status aria-live="polite"></output>
+        </div>
+        <input id="<%= it.id %>-confirmation" name="<%= it.confirmation.field %>" autocomplete="off" required />
+      </div>
+    <% } %>
+    <% if (it.reason) { %><label class="field">Reason <input name="reason" maxlength="255" /></label><% } %>
+    <div class="form-actions"><button class="button button--danger button--small" type="submit"><%= it.buttonLabel %></button></div>
+  </form>
+  <% if (it.disclosure) { %></details><% } %>
+<% } %>
