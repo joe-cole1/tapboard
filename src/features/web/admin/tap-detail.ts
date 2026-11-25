@@ -15,6 +15,7 @@ import {
   humanizeAdminIdentifier,
 } from "./detector-presentation.ts";
 import { HEALTH_SECTION_PRESENTATION } from "./health-presentation.ts";
+import { tapDeletionBlockers, tapRetireBlockers } from "./blockers.ts";
 import { renderAdmin } from "./layout.ts";
 import { presentActivityItems } from "./logs.ts";
 import { adminTimestampLabel } from "./presentation.ts";
@@ -223,6 +224,7 @@ function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapVie
       tapNumber: candidate.tapNumber,
       name: candidate.name,
     }));
+  const tapLabel = `Tap ${tap.tapNumber}`;
   let deletionImpact: ReturnType<TapService["getTapDeletionImpact"]> | null = null;
   try {
     deletionImpact = dependencies.tapService.getTapDeletionImpact(tap.id);
@@ -247,6 +249,17 @@ function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapVie
     assignableFills,
     moveTargets,
     deletionImpact,
+    blockers: {
+      retire: tapRetireBlockers(tapLabel, assignment !== null, "#assignment"),
+      delete:
+        deletionImpact === null
+          ? []
+          : tapDeletionBlockers(tapLabel, deletionImpact, {
+              assignment: "#assignment",
+              lifecycle: "#lifecycle",
+              history: tapPagePath(tap.id, "history"),
+            }),
+    },
   };
 }
 

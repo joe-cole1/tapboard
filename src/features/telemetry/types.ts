@@ -304,16 +304,14 @@ export interface TelemetrySourceTapStatus {
 
 export interface CreateTelemetrySourceInput {
   readonly name: string;
-  readonly label?: string;
 }
 
 export interface RenameTelemetrySourceInput {
   readonly name: string;
 }
 
-export interface RotateTelemetrySourceInput {
-  readonly label?: string;
-}
+/** Rotation takes no fields: the replacement key is labelled with the source name. */
+export type RotateTelemetrySourceInput = Readonly<Record<string, never>>;
 
 export interface AssignAuthorityInput {
   readonly levelSourceId: string | null;

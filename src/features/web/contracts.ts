@@ -86,6 +86,7 @@ export type RegisterIntegrationPagesDependencies = Pick<
   | "outboundService"
   | "renderer"
   | "router"
+  | "tapService"
   | "telemetryService"
 >;
 export type RegisterBeveragePagesDependencies = Pick<

@@ -340,7 +340,8 @@ test("Brew Story ignores ordinary telemetry reloads but reconciles Mystery updat
     `/api/admin/telemetry/sources/${source!.id}/rotate`,
     {
       headers: { origin: new URL(admin.url()).origin, "x-csrf-token": csrfToken },
-      data: { label: "Issue 77 Story live fixture" },
+      // Rotation takes no fields; the key is labelled with the source name (#253).
+      data: {},
     },
   );
   expect(rotateResponse.status()).toBe(200);

@@ -1,3 +1,4 @@
+import { deletionImpactSentence } from "./blockers.ts";
 import { VESSEL_IDS } from "../../story/index.ts";
 import { OFFLINE_RECIPE_ACCOUNT_ID } from "../../beverages/recipe-files/import.ts";
 import {
@@ -573,9 +574,12 @@ export function adminBeverageDetailDto(
             ? "unavailable"
             : "available",
     guidance: safeAdminGuidance(guidance),
-    deletionImpacts: deletionImpacts.map((impact) => ({
-      code: boundedAdminString(impact.code, 80) ?? "related records",
-      count: Number.isFinite(impact.count) && impact.count >= 0 ? impact.count : 0,
-    })),
+    deletionImpact: deletionImpactSentence(
+      deletionImpacts.map((impact) => ({
+        code: boundedAdminString(impact.code, 80) ?? "related",
+        count: Number.isFinite(impact.count) && impact.count >= 0 ? impact.count : 0,
+      })),
+      "beverages",
+    ),
   };
 }

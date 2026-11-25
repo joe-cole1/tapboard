@@ -26,7 +26,6 @@ import type {
 } from "./types.ts";
 
 const MAX_SOURCE_NAME_LENGTH = 120;
-const MAX_MACHINE_KEY_LABEL_LENGTH = 120;
 const MAX_EXTERNAL_BATCH_SIZE = 100;
 /** Metric names this format may be echoed back in an error message. */
 const ECHOABLE_METRIC_REGEX = /^[a-z0-9_]{1,64}$/;
@@ -45,7 +44,7 @@ export function validateTapNumber(value: unknown, field = "tapNumber"): number {
 
 export function validateCreateTelemetrySourceInput(input: unknown): CreateTelemetrySourceInput {
   const obj = requirePlainObject(input, "body");
-  rejectUnknownKeys(obj, ["name", "label"], "body");
+  rejectUnknownKeys(obj, ["name"], "body");
 
   const name = requireBoundedNonemptyString(obj.name, "name", {
     maxLength: MAX_SOURCE_NAME_LENGTH,
@@ -54,20 +53,7 @@ export function validateCreateTelemetrySourceInput(input: unknown): CreateTeleme
     throw validationError("name", `must not exceed ${MAX_SOURCE_NAME_LENGTH} UTF-8 bytes`);
   }
 
-  let label: string | undefined;
-  if (obj.label !== undefined) {
-    label = requireBoundedNonemptyString(obj.label, "label", {
-      maxLength: MAX_MACHINE_KEY_LABEL_LENGTH,
-    });
-    if (Buffer.byteLength(label, "utf8") > MAX_MACHINE_KEY_LABEL_LENGTH) {
-      throw validationError("label", `must not exceed ${MAX_MACHINE_KEY_LABEL_LENGTH} UTF-8 bytes`);
-    }
-  }
-
-  return {
-    name,
-    ...(label !== undefined ? { label } : {}),
-  };
+  return { name };
 }
 
 export function validateRenameTelemetrySourceInput(input: unknown): RenameTelemetrySourceInput {
@@ -88,22 +74,8 @@ export function validateRotateTelemetrySourceInput(input: unknown): RotateTeleme
   if (input === undefined || input === null || input === "") {
     return {};
   }
-  const obj = requirePlainObject(input, "body");
-  rejectUnknownKeys(obj, ["label"], "body");
-
-  let label: string | undefined;
-  if (obj.label !== undefined) {
-    label = requireBoundedNonemptyString(obj.label, "label", {
-      maxLength: MAX_MACHINE_KEY_LABEL_LENGTH,
-    });
-    if (Buffer.byteLength(label, "utf8") > MAX_MACHINE_KEY_LABEL_LENGTH) {
-      throw validationError("label", `must not exceed ${MAX_MACHINE_KEY_LABEL_LENGTH} UTF-8 bytes`);
-    }
-  }
-
-  return {
-    ...(label !== undefined ? { label } : {}),
-  };
+  rejectUnknownKeys(requirePlainObject(input, "body"), [], "body");
+  return {};
 }
 
 export function validateAssignAuthorityInput(input: unknown): AssignAuthorityInput {

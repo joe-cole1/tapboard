@@ -175,7 +175,7 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
     // A cider nobody pours yet, with its own recipe and tasting overrides, and an empty keg to
     // fill it into: the Beverage page's Recipe, Sensory and Current usage tabs, a non-beer
     // display colour, and a Physical Keg without a Fill.
-    beverageService.createCustomBeverage(
+    const cider = beverageService.createCustomBeverage(
       {
         name: "Sample Orchard Cider",
         beverageType: "cider",
@@ -204,6 +204,29 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
       },
       actor,
     );
+    // The other side of every permanent action: a never-used Tap that can be deleted or retired,
+    // a kicked Filled Keg that can be deleted, and a sensor no Tap uses, which can be disabled.
+    tapService.createTap({ tapNumber: 6, name: "Sample Spare Tap", enabled: false }, actor);
+    const kickedKeg = kegService.createKeg(
+      {
+        kegNumber: HISTORY_BEERS.length + 2,
+        label: "Sample Kicked Keg",
+        capacityMl: 19_000,
+        currentTareG: 4_200,
+      },
+      actor,
+    );
+    const kicked = fillService.createFill(
+      { beverageId: cider.beverage.id, kegId: kickedKeg.id },
+      actor,
+    );
+    // A custom beverage has no Brewfather batch, so the kick completes synchronously inside this
+    // transaction; the check below makes a failure roll the seed back.
+    fillService.kickFill(kicked.id, { reason: "Sample kicked keg" }, actor).catch(() => undefined);
+    if (fillService.getFill(kicked.id).state !== "ended") {
+      throw new Error("The sample kicked keg could not be ended.");
+    }
+    telemetryService.createSource({ name: "Simulation spare sensor" }, actor);
     setSeeded(database);
     return listSensors(database);
   });

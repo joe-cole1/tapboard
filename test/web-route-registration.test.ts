@@ -49,6 +49,7 @@ const EXPECTED_REGISTRATIONS: readonly RegistrationEvent[] = [
   ["GET", "/admin/integrations/outbound/new"],
   ["GET", "/admin/integrations/outbound/:id"],
   ["GET", "/admin/integrations/brewfather"],
+  ["GET", "/admin/integrations/telemetry/new"],
   ["GET", "/admin/integrations/telemetry"],
   ["GET", "/admin/integrations/telemetry-sources/:id"],
   ["GET", "/admin/beverages"],

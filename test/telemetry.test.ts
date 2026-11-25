@@ -371,10 +371,13 @@ void test("telemetry sources can be created, renamed, listed, and key-rotated", 
     const activitiesBeforeCreate = new Set(
       listActivity(harness.database).map((activity) => activity.id),
     );
-    const created = harness.telemetryService.createSource({
-      name: "Kegbot Bar 1",
-      label: "Initial key for Kegbot Bar 1",
-    });
+    // Keys are labelled with the source name; create and rotate take no label.
+    assert.throws(
+      () => harness.telemetryService.createSource({ name: "Kegbot Bar 1", label: "Custom" }),
+      (error: unknown) =>
+        error instanceof ApplicationError && error.code === "validation.invalid_value",
+    );
+    const created = harness.telemetryService.createSource({ name: "Kegbot Bar 1" });
 
     assert.equal(created.source.name, "Kegbot Bar 1");
     assert.match(created.initialToken, /^tbk_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$/);
@@ -411,6 +414,7 @@ void test("telemetry sources can be created, renamed, listed, and key-rotated", 
     assert.equal(list.length, 1);
     assert.equal(list[0]?.name, "Kegbot Bar 1");
     assert.equal(list[0]?.currentMachineKey.revokedAt, null);
+    assert.equal(list[0]?.currentMachineKey.label, "Kegbot Bar 1");
 
     // 3. Rename source
     const renamed = harness.telemetryService.renameSource(created.source.id, {
@@ -422,9 +426,16 @@ void test("telemetry sources can be created, renamed, listed, and key-rotated", 
     const activitiesBeforeRotate = new Set(
       listActivity(harness.database).map((activity) => activity.id),
     );
-    const rotated = harness.telemetryService.rotateSourceKey(created.source.id, {
-      label: "Rotated key for Cellar Taproom",
-    });
+    assert.throws(
+      () => harness.telemetryService.rotateSourceKey(created.source.id, { label: "Custom" }),
+      (error: unknown) =>
+        error instanceof ApplicationError && error.code === "validation.invalid_value",
+    );
+    const rotated = harness.telemetryService.rotateSourceKey(created.source.id, {});
+    assert.equal(
+      harness.telemetryService.listSources()[0]?.currentMachineKey.label,
+      "Kegbot Cellar Taproom",
+    );
     assert.match(rotated.replacementToken, /^tbk_/);
     assert.notEqual(rotated.replacementToken, created.initialToken);
     assert.notEqual(rotated.source.currentMachineKeyId, created.source.currentMachineKeyId);
@@ -462,9 +473,7 @@ void test("telemetry source disable revokes only the owned key and preserves saf
   const harness = createTestHarness({ clock: () => historyTime });
   try {
     const created = harness.telemetryService.createSource({ name: "Disable me" });
-    const rotated = harness.telemetryService.rotateSourceKey(created.source.id, {
-      label: "Disable me rotated",
-    });
+    const rotated = harness.telemetryService.rotateSourceKey(created.source.id, {});
     const activeSource = harness.telemetryService.createSource({ name: "Stay active" });
     const historyTap = harness.tapService.createTap({ tapNumber: 1, name: "History tap" });
     harness.telemetryService.setTapAuthority(historyTap.id, {
@@ -1428,7 +1437,7 @@ void test("source credentials are show-once, source identity survives rotation, 
     );
     assert.equal(first.outcome, "accepted");
 
-    const rotated = harness.telemetryService.rotateSourceKey(source.id, { label: "new key" });
+    const rotated = harness.telemetryService.rotateSourceKey(source.id, {});
     assert.equal(rotated.source.id, source.id);
     assert.notEqual(rotated.source.currentMachineKeyId, source.currentMachineKeyId);
     assert.equal(harness.telemetryService.getTapAuthority(tap.id).level?.sourceId, source.id);

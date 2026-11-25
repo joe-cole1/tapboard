@@ -43,10 +43,7 @@ const telemetry = new TelemetryService({
   authorityExtensionPort: detector,
   acceptedExtensionPort: detector,
 });
-const source = telemetry.createSource({
-  name: "Private fixture source",
-  label: "Private machine key",
-}).source;
+const source = telemetry.createSource({ name: "Private fixture source" }).source;
 beverages.configureBrewfatherAccount({
   userId: "PRIVATE_BREWFATHER_USER",
   apiKey: "PRIVATE_BREWFATHER_API_KEY",

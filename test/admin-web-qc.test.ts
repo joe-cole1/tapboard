@@ -359,6 +359,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const tapUpdateCalls: Array<{ id: unknown; input: unknown; actor: unknown }> = [];
   const tapCreateCalls: Array<{ input: unknown; actor: unknown }> = [];
   const telemetryDisableCalls: Array<{ id: unknown; actor: unknown }> = [];
+  const telemetryKeyInputs: unknown[] = [];
   const telemetryAuthorityCalls: Array<{ id: unknown; input: unknown; actor: unknown }> = [];
   const telemetryPageCalls: Array<{ q: string; state: string; page: number }> = [];
   const telemetrySources = [
@@ -427,6 +428,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
       fillCalls.push({ input, actor });
       return fill;
     },
+    getDeletionImpact: () => ({ impacts: [{ code: "fills", count: 1 }] }),
     deleteFill(id: unknown, input: unknown, actor: unknown) {
       fillDeleteCalls.push({ id, input, actor });
       const confirmation =
@@ -590,6 +592,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
     },
     telemetryService: {
       listSources: () => telemetrySources,
+      listAuthorities: () => [],
       listAdminSourcePage(input: { q: string; state: string; page: number }) {
         telemetryPageCalls.push(input);
         const items = telemetrySources.filter((source) =>
@@ -625,7 +628,8 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
         return { requiresFreshBaseline: values.levelSourceId !== "telemetry-active-qc" };
       },
       createSource(input: unknown, _actor: unknown) {
-        const values = input as { readonly name?: string; readonly label?: string };
+        telemetryKeyInputs.push(input);
+        const values = input as { readonly name?: string };
         const source = telemetrySources[0]!;
         return {
           source: {
@@ -634,13 +638,14 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
             name: values.name ?? "Created telemetry source",
             currentMachineKey: {
               ...source.currentMachineKey,
-              label: values.label ?? "Created key",
+              label: values.name ?? "Created telemetry source",
             },
           },
           initialToken: CREATED_TELEMETRY_TOKEN,
         };
       },
-      rotateSourceKey(_id: unknown, _input: unknown, _actor: unknown) {
+      rotateSourceKey(_id: unknown, input: unknown, _actor: unknown) {
+        telemetryKeyInputs.push(input);
         return {
           source: telemetrySources[0],
           replacementToken: ROTATED_TELEMETRY_TOKEN,
@@ -878,6 +883,8 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(rotatedKeyHtml, /http:\/\/127\.0\.0\.1:3000\/api\/v1\/telemetry\/taps\/1/);
   assert.doesNotMatch(rotatedKeyHtml, new RegExp(`Location[^\n]*${ROTATED_TELEMETRY_TOKEN}`));
   assert.equal(tokenInAttribute(rotatedKeyHtml, ROTATED_TELEMETRY_TOKEN), false);
+  // A posted key label is ignored: keys are labelled with the source name.
+  assert.deepEqual(telemetryKeyInputs, [{ name: "Created telemetry source" }, {}]);
 
   const disabledResponse = await fetch(
     `${base}/admin/integrations/telemetry-sources/telemetry-disabled-qc`,
@@ -1198,11 +1205,17 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const kegDetailHtml = await (
     await fetch(`${base}/admin/keg-room/kegs/${KEG_ID}`, { headers: getHeaders })
   ).text();
-  assert.match(kegDetailHtml, /readonly value="Keg 7 — QC Keg"/);
+  // Copy-then-type, inline: the value is selectable text and the copy icon waits for JavaScript.
+  assert.match(
+    kegDetailHtml,
+    /Type "<span [^>]*class="confirm-prompt__value">Keg 7 — QC Keg<\/span>"/,
+  );
+  assert.match(kegDetailHtml, /<button [^>]*data-copy-target="[^"]+"[^>]*hidden>/);
+  assert.doesNotMatch(kegDetailHtml, /readonly value=/);
   const fillDetailHtml = await (
     await fetch(`${base}/admin/keg-room/fills/${FILL_ID}`, { headers: getHeaders })
   ).text();
-  assert.match(fillDetailHtml, /readonly value="Historical Lager — Keg 7 — QC Keg"/);
+  assert.match(fillDetailHtml, /class="confirm-prompt__value">Historical Lager — Keg 7 — QC Keg</);
   assert.doesNotMatch(fillDetailHtml, /Featured on public card/);
   // These doubles have no pour history, so a stale cursor must not add a second message (#226).
   assert.match(fillDetailHtml, /Pour history is unavailable right now/);
@@ -1251,7 +1264,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.match(tapDetailHtml, /name="lineLengthMm"/);
   assert.match(tapDetailHtml, /name="lineDiameterMm"/);
   assert.match(tapDetailHtml, /name="notes"/);
-  assert.match(tapDetailHtml, /readonly value="Tap 3 — QC Tap"/);
+  assert.match(tapDetailHtml, /class="confirm-prompt__value">Tap 3 — QC Tap</);
 
   async function post(path: string, values: Readonly<Record<string, string>>, csrf = CSRF_TOKEN) {
     return fetch(`${base}${path}`, {

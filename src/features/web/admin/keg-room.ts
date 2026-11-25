@@ -27,6 +27,7 @@ import {
   decodeForecastHistoryCursor,
   type ForecastHistoryCursor,
 } from "../../forecasting/forecast-validation.ts";
+import { deletionImpactSentence, fillDeletionBlockers } from "./blockers.ts";
 import { nullable, optionalNumber, invalidForm } from "./forms.ts";
 import { actor, type AdminContext } from "./context.ts";
 import { safeVesselForDisplay, boundedAdminString } from "./beverage-presentation.ts";
@@ -181,7 +182,6 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           readonly recordedAt: string;
         }[];
       };
-      const impact = dependencies.kegService.getDeletionImpact(keg.id);
       const fills = fillsFor(keg.id);
       const currentFillView = fills.find((fill) => fill.state !== "ended");
       // The row icon: the keg filled to its current Fill, or empty.
@@ -235,7 +235,6 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           maintenanceType: item.maintenanceType,
           recordedAt: item.recordedAt,
         })),
-        deletionImpacts: impact.impacts,
       };
     });
     renderAdmin(
@@ -322,7 +321,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
               ...item,
               recordedAtLabel: adminTimestampLabel(item.recordedAt),
             })),
-            deletionImpacts: impact.impacts,
+            deletionImpact: deletionImpactSentence(impact.impacts, "kegs"),
             fillHistory,
             currentFill: fillHistory.find((fill) => fill.state !== "ended") ?? null,
           },
@@ -383,6 +382,10 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         {
           fill: card,
           fillRecord: fill,
+          deletion: {
+            blockers: fillDeletionBlockers(fill.state === "ended", "#filled-keg-lifecycle"),
+            impact: fill.state === "ended" ? fillDeletionImpact(dependencies, fill.id) : null,
+          },
           activeTap,
           availableTaps,
           pourHistory,
@@ -664,6 +667,25 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
     },
     "Fill deleted.",
   );
+}
+
+/** What else deleting an ended Fill removes; a failed lookup leaves the sentence out. */
+function fillDeletionImpact(
+  dependencies: RegisterKegRoomPagesDependencies,
+  fillId: string,
+): string | null {
+  try {
+    return deletionImpactSentence(
+      dependencies.fillService.getDeletionImpact(fillId).impacts,
+      "fills",
+    );
+  } catch (error) {
+    reportFailure(error, {
+      operation: "admin.fill.deletion_impact",
+      ...(dependencies.logger ? { logger: dependencies.logger } : {}),
+    });
+    return null;
+  }
 }
 
 export function fallbackAdminFillPage(
