@@ -1230,8 +1230,9 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
     await fetch(`${base}/admin/keg-room/fills/${onTapFill.id}`, { headers: getHeaders })
   ).text();
   assert.match(activeFillDetailHtml, /Featured on public card/);
-  assert.match(activeFillDetailHtml, /name="featured"/);
-  assert.match(activeFillDetailHtml, /option value="true" selected>On/);
+  // A featured Fill's switch is on and posts "false" to turn it off.
+  assert.match(activeFillDetailHtml, /name="featured" value="false"/);
+  assert.match(activeFillDetailHtml, /role="switch" aria-checked="true"/);
 
   const kegHtml = await (await fetch(`${base}/admin/kegs`, { headers: getHeaders })).text();
   assert.match(kegHtml, /Fill history/);

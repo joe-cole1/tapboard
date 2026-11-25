@@ -1,14 +1,68 @@
-import { registerAdminGet, registerAdminAction } from "./http.ts";
-import { requestUrl, actor } from "./context.ts";
+import {
+  registerAdminGet,
+  registerAdminAction,
+  autosaveFieldStrings,
+  validationFieldsFor,
+  type AutosaveValidationFields,
+} from "./http.ts";
+import { requestUrl, actor, type AdminContext } from "./context.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier } from "./detector-presentation.ts";
 import { invalidForm } from "./forms.ts";
 import { requireSystemService, systemFormFields, systemFormNumber } from "./system.ts";
-import type { SystemActivityItem } from "../../system/types.ts";
+import type { SystemActivityItem, SystemRetentionSettings } from "../../system/types.ts";
 import type {
   RegisterSystemPagesDependencies,
   RegisterSystemMutationsDependencies,
 } from "../contracts.ts";
+
+/** The Retention form's fields, every one required by each save. */
+const RETENTION_FIELDS = [
+  "activityDays",
+  "rawSeconds",
+  "receiptSeconds",
+  "reconnectSeconds",
+  "hourlyRollupDays",
+  "dailyRollupDays",
+  "outboxDays",
+] as const;
+
+/**
+ * The form field a service validation error belongs to. The receipt check across raw
+ * retention and the reconnect horizon is reported as "telemetry", and Receipts is the field
+ * the page's note tells the operator to raise.
+ */
+const RETENTION_SERVICE_FIELDS: Readonly<Record<string, string>> = {
+  "activity.retentionDays": "activityDays",
+  rawRetentionSeconds: "rawSeconds",
+  receiptRetentionSeconds: "receiptSeconds",
+  reconnectHorizonSeconds: "reconnectSeconds",
+  hourlyRollupRetentionDays: "hourlyRollupDays",
+  dailyRollupRetentionDays: "dailyRollupDays",
+  telemetry: "receiptSeconds",
+  "outbox.retentionDays": "outboxDays",
+};
+
+const retentionValidationFields: AutosaveValidationFields = (error) => {
+  const serviceField = String(error.details?.field ?? "").replace(/^telemetry\.(?=.)/u, "");
+  const field = RETENTION_SERVICE_FIELDS[serviceField];
+  return field === undefined
+    ? validationFieldsFor(RETENTION_FIELDS)(error)
+    : { [field]: error.clientMessage };
+};
+
+/** Retention settings by the form's field names. */
+function retentionFormValues(settings: SystemRetentionSettings): Record<string, number> {
+  return {
+    activityDays: settings.activity.retentionDays,
+    rawSeconds: settings.telemetry.rawRetentionSeconds,
+    receiptSeconds: settings.telemetry.receiptRetentionSeconds,
+    reconnectSeconds: settings.telemetry.reconnectHorizonSeconds,
+    hourlyRollupDays: settings.telemetry.hourlyRollupRetentionDays,
+    dailyRollupDays: settings.telemetry.dailyRollupRetentionDays,
+    outboxDays: settings.outbox.retentionDays,
+  };
+}
 
 /** Logs: the Activity log, Admin sessions and retention, as three tabs. */
 export function registerLogsPages(dependencies: RegisterSystemPagesDependencies): void {
@@ -83,36 +137,55 @@ export function registerLogsMutations(dependencies: RegisterSystemMutationsDepen
     },
     "Session revoked.",
   );
+  const saveRetention = (form: Readonly<Record<string, string>>, context: AdminContext) => {
+    systemFormFields(form, RETENTION_FIELDS);
+    // The service checks this too, with a generic message; here it names the field and the rule.
+    const receiptSeconds = systemFormNumber(form, "receiptSeconds");
+    if (
+      receiptSeconds < systemFormNumber(form, "rawSeconds") ||
+      receiptSeconds < systemFormNumber(form, "reconnectSeconds")
+    ) {
+      invalidForm(
+        "Keep receipts at least as long as raw telemetry and the reconnect horizon.",
+        "receiptSeconds",
+      );
+    }
+    return requireSystemService(dependencies).updateRetentionSettings(
+      {
+        activity: { retentionDays: systemFormNumber(form, "activityDays") },
+        telemetry: {
+          rawRetentionSeconds: systemFormNumber(form, "rawSeconds"),
+          receiptRetentionSeconds: systemFormNumber(form, "receiptSeconds"),
+          reconnectHorizonSeconds: systemFormNumber(form, "reconnectSeconds"),
+          hourlyRollupRetentionDays: systemFormNumber(form, "hourlyRollupDays"),
+          dailyRollupRetentionDays: systemFormNumber(form, "dailyRollupDays"),
+        },
+        outbox: { retentionDays: systemFormNumber(form, "outboxDays") },
+      },
+      { sessionId: context.session.id },
+    );
+  };
   registerAdminAction(
     dependencies,
     "/admin/logs/retention",
     "/admin/logs/retention",
     (form, context) => {
-      systemFormFields(form, [
-        "activityDays",
-        "rawSeconds",
-        "receiptSeconds",
-        "reconnectSeconds",
-        "hourlyRollupDays",
-        "dailyRollupDays",
-        "outboxDays",
-      ]);
-      requireSystemService(dependencies).updateRetentionSettings(
-        {
-          activity: { retentionDays: systemFormNumber(form, "activityDays") },
-          telemetry: {
-            rawRetentionSeconds: systemFormNumber(form, "rawSeconds"),
-            receiptRetentionSeconds: systemFormNumber(form, "receiptSeconds"),
-            reconnectHorizonSeconds: systemFormNumber(form, "reconnectSeconds"),
-            hourlyRollupRetentionDays: systemFormNumber(form, "hourlyRollupDays"),
-            dailyRollupRetentionDays: systemFormNumber(form, "dailyRollupDays"),
-          },
-          outbox: { retentionDays: systemFormNumber(form, "outboxDays") },
-        },
-        { sessionId: context.session.id },
-      );
+      saveRetention(form, context);
     },
     "Retention settings saved. Pruning runs automatically in bounded batches.",
+    {},
+    {
+      // Retention keeps no single revision, so the whole form saves as the form post does.
+      handle: (body, context) => ({
+        resource: retentionFormValues(
+          saveRetention(autosaveFieldStrings(body, RETENTION_FIELDS), context),
+        ),
+      }),
+      current: () => ({
+        current: retentionFormValues(requireSystemService(dependencies).getRetentionSettings()),
+      }),
+      validationFields: retentionValidationFields,
+    },
   );
 }
 

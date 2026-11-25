@@ -14,7 +14,9 @@ if (root) {
   // What guests see now (from /api/admin/tap-wars); undefined until the first refresh.
   let guestsSee;
 
-  root.querySelectorAll('form[method="post"][action^="/admin/tap-wars"]').forEach((form) => {
+  // A live-save form (admin-autosave.js) stays on the page, so it never stops refreshes.
+  const navigatingForms = 'form[method="post"][action^="/admin/tap-wars"]:not([data-autosave])';
+  root.querySelectorAll(navigatingForms).forEach((form) => {
     form.addEventListener("submit", () => {
       mutationNavigationPending = true;
     });
@@ -162,6 +164,26 @@ if (root) {
     },
     () => refresh(false),
   );
+  // The Mystery Tap switch saves live. Take its description from the server, then refresh
+  // the public titles and "What guests see", so redaction stays server-side.
+  const mysteryForm = root.querySelector("[data-tap-wars-mystery]");
+  mysteryForm?.addEventListener("tapboard:autosave-saved", async () => {
+    void refresh(false);
+    try {
+      const response = await fetch(window.location.pathname, {
+        credentials: "same-origin",
+        headers: { accept: "text/html" },
+      });
+      if (!response.ok) return;
+      const fresh = new window.DOMParser()
+        .parseFromString(await response.text(), "text/html")
+        .querySelector("#tap-wars-mystery-status");
+      const description = mysteryForm.querySelector("#tap-wars-mystery-status");
+      if (fresh && description) description.textContent = fresh.textContent;
+    } catch {
+      // The switch already shows the saved value; the description catches up on reload.
+    }
+  });
   // A browser can restore the selects on Back, so sync the Start form at once.
   if (pairForm instanceof HTMLFormElement) renderPair();
 }

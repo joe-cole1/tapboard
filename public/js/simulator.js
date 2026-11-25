@@ -73,7 +73,7 @@ if (page?.dataset.simulationEnabled === "true") {
       if (noise) noise.value = String(!sensor.noiseEnabled);
       const onlineButton = card.querySelector("[data-online-button]");
       if (onlineButton) {
-        onlineButton.textContent = sensor.online ? "Pause sensor" : "Bring online";
+        onlineButton.setAttribute("aria-checked", String(sensor.online));
         onlineButton.disabled = blocked;
       }
       const noiseButton = card.querySelector("[data-noise-button]");

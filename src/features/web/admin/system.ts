@@ -2,8 +2,13 @@ import { CURRENT_SCHEMA_VERSION } from "../../../infrastructure/database/migrati
 import { ApplicationError } from "../../../shared/errors.ts";
 import { APPLICATION_VERSION } from "../../../shared/version.ts";
 import type { SystemService } from "../../system/index.ts";
-import { registerAdminGet, registerAdminAction } from "./http.ts";
-import { actor } from "./context.ts";
+import {
+  registerAdminGet,
+  registerAdminAction,
+  autosaveFieldStrings,
+  validationFieldsFor,
+} from "./http.ts";
+import { actor, type AdminContext } from "./context.ts";
 import { renderAdmin } from "./layout.ts";
 import { invalidForm } from "./forms.ts";
 import type {
@@ -42,38 +47,96 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
 }
 
 export function registerSystemMutations(dependencies: RegisterSystemMutationsDependencies): void {
+  const calculationFields = ["fallbackFg", "servingSizeMl"] as const;
+  const saveCalculation = (form: Readonly<Record<string, string>>, context: AdminContext) => {
+    systemFormFields(form, calculationFields);
+    return requireSystemService(dependencies).updateCalculationSettings(
+      {
+        fallbackFg: systemFormNumber(form, "fallbackFg"),
+        servingSizeMl: systemFormNumber(form, "servingSizeMl"),
+      },
+      { sessionId: context.session.id },
+    );
+  };
   registerAdminAction(
     dependencies,
     "/admin/system/calculation",
     "/admin/system",
     (form, context) => {
-      systemFormFields(form, ["fallbackFg", "servingSizeMl"]);
-      requireSystemService(dependencies).updateCalculationSettings(
-        {
-          fallbackFg: systemFormNumber(form, "fallbackFg"),
-          servingSizeMl: systemFormNumber(form, "servingSizeMl"),
-        },
-        { sessionId: context.session.id },
-      );
+      saveCalculation(form, context);
     },
     "Calculation defaults saved.",
+    {},
+    {
+      // These settings keep no revision, so the whole form saves as the form post does.
+      handle: (body, context) => ({
+        resource: { ...saveCalculation(autosaveFieldStrings(body, calculationFields), context) },
+      }),
+      current: () => ({ current: requireSystemService(dependencies).getCalculationSettings() }),
+      validationFields: validationFieldsFor(calculationFields),
+    },
   );
+  const sessionPolicyFields = ["inactivityMinutes", "absoluteMinutes", "expectedRevision"] as const;
+  const saveSessionPolicy = (form: Readonly<Record<string, string>>, context: AdminContext) => {
+    systemFormFields(form, sessionPolicyFields);
+    // The auth service checks these too, but reports one message for both fields; checking
+    // here names the field that is wrong. The bounds match the inputs' min and max.
+    const lifetime = (field: string) => {
+      const milliseconds = systemDurationMinutes(form, field);
+      if (milliseconds < 60_000 || milliseconds > 525_600 * 60_000) {
+        invalidForm("Use one minute to one year (525,600 minutes).", field);
+      }
+      return milliseconds;
+    };
+    const inactivityMs = lifetime("inactivityMinutes");
+    const absoluteMs = lifetime("absoluteMinutes");
+    if (inactivityMs > absoluteMs) {
+      invalidForm("Inactivity can't be longer than the absolute lifetime.", "inactivityMinutes");
+    }
+    return dependencies.authService.updateSessionPolicy(
+      {
+        inactivityMs,
+        absoluteMs,
+        expectedRevision: systemFormNumber(form, "expectedRevision"),
+      },
+      actor(context),
+    );
+  };
+  /** The policy as the form shows it: minutes, and the revision a save must name. */
+  const sessionPolicyView = (
+    policy: ReturnType<typeof dependencies.authService.getSessionPolicy>,
+  ) => ({
+    resource: {
+      inactivityMinutes: policy.inactivityMs / 60_000,
+      absoluteMinutes: policy.absoluteMs / 60_000,
+    },
+    revision: policy.revision,
+  });
+  const sessionPolicySaved =
+    "Session lifetimes saved. Shorter limits apply to existing sessions immediately.";
   registerAdminAction(
     dependencies,
     "/admin/system/session-policy",
     "/admin/system",
     (form, context) => {
-      systemFormFields(form, ["inactivityMinutes", "absoluteMinutes", "expectedRevision"]);
-      dependencies.authService.updateSessionPolicy(
-        {
-          inactivityMs: systemDurationMinutes(form, "inactivityMinutes"),
-          absoluteMs: systemDurationMinutes(form, "absoluteMinutes"),
-          expectedRevision: systemFormNumber(form, "expectedRevision"),
-        },
-        actor(context),
-      );
+      saveSessionPolicy(form, context);
     },
-    "Session lifetimes saved. Shorter limits apply to existing sessions immediately.",
+    sessionPolicySaved,
+    {},
+    {
+      // The service checks expectedRevision, so a stale one answers 409.
+      handle: (body, context) => ({
+        ...sessionPolicyView(
+          saveSessionPolicy(autosaveFieldStrings(body, sessionPolicyFields), context),
+        ),
+        message: sessionPolicySaved,
+      }),
+      current: () => {
+        const view = sessionPolicyView(dependencies.authService.getSessionPolicy());
+        return { current: view.resource, revision: view.revision };
+      },
+      validationFields: validationFieldsFor(sessionPolicyFields),
+    },
   );
   registerAdminAction(
     dependencies,

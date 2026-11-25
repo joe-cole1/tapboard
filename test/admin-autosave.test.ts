@@ -154,7 +154,9 @@ let browserImport = 0;
 async function initializeBrowser(t: TestContext, forms: readonly BrowserForm[]) {
   const globals = {
     document: {
-      querySelectorAll: () => forms,
+      // `form[data-autosave="blur"]` or `form[data-autosave="submit"]`.
+      querySelectorAll: (selector: string) =>
+        forms.filter((form) => selector.includes(`"${form.dataset.autosave}"`)),
       createElement: () => new BrowserElement(),
     },
     window: {
@@ -557,4 +559,59 @@ void test("autosave shares acknowledged revisions with sibling forms and preserv
   nameForm.undoButton!.click();
   assert.deepEqual(requests[2]?.payload, { name: "A", updatedAt: "3" });
   await requests[2].respond(200, { resource: { name: "A" }, revision: 4 });
+});
+
+/** A one-setting switch form: posts the value it would change to. */
+class SwitchForm extends BrowserForm {
+  readonly switchButton = new BrowserElement();
+
+  constructor() {
+    super({ featured: "true" });
+    this.dataset.autosave = "submit";
+    this.switchButton.setAttribute("aria-checked", "false");
+  }
+
+  override querySelector(selector: string): BrowserElement | null {
+    return selector === '[role="switch"]' ? this.switchButton : super.querySelector(selector);
+  }
+}
+
+void test("a one-click switch shows the saved value and arms the next flip", async (t) => {
+  const form = new SwitchForm();
+  const requests = await initializeBrowser(t, [form]);
+  form.submit();
+  assert.deepEqual(requests[0]?.payload, { featured: "true", updatedAt: "1" });
+  await requests[0].respond(200, { resource: { featured: true }, revision: "2" });
+  assert.equal(form.switchButton.getAttribute("aria-checked"), "true");
+  assert.equal(form.control("featured").value, "false");
+  assert.equal(form.control("updatedAt").value, "2");
+  assert.equal(form.status.textContent, "Saved");
+
+  // A refused save leaves the switch as the server last confirmed it.
+  form.submit();
+  assert.deepEqual(requests[1]?.payload, { featured: "false", updatedAt: "2" });
+  await requests[1].respond(409, { message: "Ended fill cannot be featured." });
+  assert.equal(form.switchButton.getAttribute("aria-checked"), "true");
+  assert.equal(form.control("featured").value, "false");
+  assert.equal(form.status.dataset.autosaveState, "conflict");
+});
+
+void test("a number field being stepped saves once, when it loses focus", async (t) => {
+  const form = new BrowserForm({ servingSizeMl: "355" });
+  const field = form.control("servingSizeMl");
+  field.type = "number";
+  const requests = await initializeBrowser(t, [form]);
+  const page = globalThis.document as unknown as { activeElement: unknown };
+  page.activeElement = field;
+  form.edit("servingSizeMl", "356");
+  form.edit("servingSizeMl", "357");
+  assert.equal(requests.length, 0);
+  page.activeElement = null;
+  form.edit("servingSizeMl", "357", "blur");
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.payload.servingSizeMl, "357");
+  await requests[0]?.respond(200, { resource: { servingSizeMl: 357 } });
+  // A change that doesn't come from the focused field (a typed value, then blur) saves at once.
+  form.edit("servingSizeMl", "360");
+  assert.equal(requests.length, 2);
 });

@@ -18,7 +18,7 @@ import {
 } from "./http.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
 import { previewSampleCard } from "./tap-presentation.ts";
-import { actor } from "./context.ts";
+import { actor, type AdminContext } from "./context.ts";
 import type {
   RegisterDisplayPagesDependencies,
   RegisterDisplayMutationsDependencies,
@@ -189,28 +189,51 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
   );
   // Units and serving temperature are edited on the System page but stored with the
   // display settings; every other field keeps its current value.
+  const unitsFields = ["expectedDisplayRevision", "unitSystem", "showServingTemperature"];
+  const saveUnits = (form: Readonly<Record<string, string>>, context: AdminContext) => {
+    const current = dependencies.displayService.getSettings();
+    return dependencies.displayService.updateSettings(
+      {
+        // Named apart from the System page's other expectedRevision fields.
+        expectedRevision: Number(form.expectedDisplayRevision),
+        tapboardName: current.tapboardName,
+        theme: current.theme,
+        font: current.font,
+        accent: current.accent,
+        unitSystem: form.unitSystem,
+        showServingTemperature: form.showServingTemperature === "true",
+        layoutMode: current.layoutMode,
+      },
+      actor(context),
+    );
+  };
+  const unitsView = (settings: ReturnType<typeof dependencies.displayService.getSettings>) => ({
+    unitSystem: settings.unitSystem,
+    showServingTemperature: settings.showServingTemperature,
+  });
   registerAdminAction(
     dependencies,
     "/admin/system/units",
     "/admin/system",
     (form, context) => {
-      const current = dependencies.displayService.getSettings();
-      dependencies.displayService.updateSettings(
-        {
-          // Named apart from the System page's other expectedRevision fields.
-          expectedRevision: Number(form.expectedDisplayRevision),
-          tapboardName: current.tapboardName,
-          theme: current.theme,
-          font: current.font,
-          accent: current.accent,
-          unitSystem: form.unitSystem,
-          showServingTemperature: form.showServingTemperature === "true",
-          layoutMode: current.layoutMode,
-        },
-        actor(context),
-      );
+      saveUnits(form, context);
     },
     "Units saved.",
+    {},
+    {
+      // The display service checks the revision, so a stale one answers 409.
+      handle: (body, context) => {
+        const fields = autosaveFieldStrings(body, unitsFields);
+        requiredAutosaveField(fields, "expectedDisplayRevision");
+        const updated = saveUnits(fields, context);
+        return { resource: unitsView(updated), revision: updated.revision };
+      },
+      current: () => {
+        const current = dependencies.displayService.getSettings();
+        return { current: unitsView(current), revision: current.revision };
+      },
+      validationFields: validationFieldsFor(unitsFields),
+    },
   );
   registerAdminAction(
     dependencies,

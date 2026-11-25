@@ -9,7 +9,7 @@
   <section aria-labelledby="system-retention-heading">
     <h2 id="system-retention-heading" class="sr-only">Retention settings</h2>
     <p>Automatic pruning uses small batches. Kegs, fills, completed pours, telemetry epochs, calibration, maintenance, deletion audits, and a Tap's first-use history remain protected. Queued and leased deliveries remain protected.</p>
-    <form action="/admin/logs/retention" method="post" class="form form--wide">
+    <form action="/admin/logs/retention" method="post" class="form form--wide" data-autosave="blur" data-autosave-fields="activityDays,rawSeconds,receiptSeconds,reconnectSeconds,hourlyRollupDays,dailyRollupDays,outboxDays">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <div class="auto-grid auto-grid--md">
         <label class="field">Activity Log (days)<input type="number" name="activityDays" min="1" max="3650" step="1" required value="<%= it.retention.activity.retentionDays %>" /></label>
@@ -21,7 +21,7 @@
         <label class="field">Terminal outbound history (days)<input type="number" name="outboxDays" min="1" max="3650" step="1" required value="<%= it.retention.outbox.retentionDays %>" /></label>
       </div>
       <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon. Old raw measurements are pruned before their receipts. Reading history keeps hourly and daily minimum, maximum, mean and last values per Tap and metric after raw measurements are pruned.</p>
-      <button class="button button--primary" type="submit">Save retention settings</button>
+      <div class="form-actions"><button class="button button--primary" type="submit" data-autosave-fallback>Save retention settings</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
     </form>
   </section>
 </main>

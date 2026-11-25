@@ -635,21 +635,41 @@ export function registerKegRoomMutations(dependencies: RegisterKegRoomMutationsD
     },
     "Fill ended.",
   );
+  const saveFeatured = (
+    form: Readonly<Record<string, string>>,
+    context: AdminContext,
+    params: Readonly<Record<string, string>>,
+  ): AdminFillView => {
+    if (form.featured !== "true" && form.featured !== "false") {
+      invalidForm("Choose On or Off for the Featured setting.");
+    }
+    return dependencies.fillService.setFeatured(
+      params.id!,
+      { featured: form.featured === "true" },
+      actor(context),
+    );
+  };
   registerAdminAction(
     dependencies,
     "/admin/fills/:id/featured",
     (params) => `/admin/keg-room/fills/${encodeURIComponent(params.id ?? "")}`,
     (form, context, params) => {
-      if (form.featured !== "true" && form.featured !== "false") {
-        invalidForm("Choose On or Off for the Featured setting.");
-      }
-      dependencies.fillService.setFeatured(
-        params.id!,
-        { featured: form.featured === "true" },
-        actor(context),
-      );
+      saveFeatured(form, context, params);
     },
     "Featured setting updated.",
+    {},
+    {
+      // The service checks no revision, so this answers with the Fill's current one.
+      handle: (body, context, params) => {
+        const fill = saveFeatured(autosaveFieldStrings(body, ["featured"]), context, params);
+        return { resource: { featured: fill.featured === true }, revision: fill.updatedAt };
+      },
+      current: (params) => {
+        const fill = dependencies.fillService.getFill(params.id!);
+        return { current: { featured: fill.featured === true }, revision: fill.updatedAt };
+      },
+      validationFields: validationFieldsFor(["featured"]),
+    },
   );
   registerAdminAction(
     dependencies,
