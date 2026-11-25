@@ -159,8 +159,15 @@ void test("display presenters construct only the explicit safe fields", () => {
     theme: "modern_dark",
     font: "system",
     accent: "amber",
-    unitSystem: "us",
-    showServingTemperature: false,
+    layoutMode: "scroll",
+  });
+  // A custom accent answers as the form shows it: the Custom choice plus its colour.
+  assert.deepEqual(safeDisplayResource({ ...display, accent: "#3a7bd5" }), {
+    tapboardName: "Board",
+    theme: "modern_dark",
+    font: "system",
+    accent: "custom",
+    accentCustom: "#3a7bd5",
     layoutMode: "scroll",
   });
   assert.deepEqual(safeTapCardResource({ ...card, secret: "extra" } as TapCardDisplaySettings), {

@@ -187,3 +187,137 @@ test("the Tap Wars Mystery switch saves live and redraws what guests see", async
     await context.close();
   }
 });
+
+/** The radio card for `value` in a Display choice group (the radio itself is visually hidden). */
+function choice(page: Page, name: string, value: string) {
+  return page.locator(
+    `form[data-shared-display-form] label:has(input[name="${name}"][value="${value}"])`,
+  );
+}
+
+async function checkedValue(page: Page, name: string): Promise<string> {
+  return page
+    .locator(`form[data-shared-display-form] input[name="${name}"]:checked`)
+    .getAttribute("value") as Promise<string>;
+}
+
+/** Waits for the server redraw of the Display preview that follows a live save. */
+function previewRedraw(page: Page) {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/admin/display/shared",
+  );
+}
+
+for (const javaScriptEnabled of [true, false]) {
+  const mode = javaScriptEnabled ? "with JavaScript" : "without JavaScript";
+
+  test(`Display Default theme saves ${mode} and the preview and public page follow`, async ({
+    browser,
+  }) => {
+    const { context, page } = await adminPage(browser, javaScriptEnabled);
+    await page.goto("/admin/display/shared");
+    const form = page.locator("form[data-shared-display-form]");
+    const save = form.getByRole("button", { name: "Save Default Theme" });
+    const originalTheme = await checkedValue(page, "theme");
+    const theme = originalTheme === "warm_pub" ? "cyberpunk" : "warm_pub";
+    try {
+      if (javaScriptEnabled) await expect(save).toBeHidden();
+      else await expect(save).toBeVisible();
+      const redraw = javaScriptEnabled ? previewRedraw(page) : undefined;
+      await choice(page, "theme", theme).click();
+      await saveLive(form, "Save Default Theme");
+      if (javaScriptEnabled) {
+        await redraw;
+        await expect(form.getByRole("status")).toHaveText("Saved");
+        await expect(page).toHaveURL(/\/admin\/display\/shared$/u);
+      } else await expect(page).toHaveURL(/\/admin\/display\/shared\?notice=/u);
+      await expect(page.locator("[data-display-preview]")).toHaveAttribute(
+        "data-preview-theme",
+        theme,
+      );
+      const guest = await context.newPage();
+      await guest.goto("/");
+      await expect(guest.locator("html")).toHaveAttribute("data-theme", theme);
+      await guest.close();
+      await page.goto("/admin/display/shared");
+      expect(await checkedValue(page, "theme")).toBe(theme);
+    } finally {
+      await page.goto("/admin/display/shared");
+      if ((await checkedValue(page, "theme")) !== originalTheme) {
+        await choice(page, "theme", originalTheme).click();
+        await saveLive(form, "Save Default Theme");
+        await page.goto("/admin/display/shared");
+        expect(await checkedValue(page, "theme")).toBe(originalTheme);
+      }
+      await context.close();
+    }
+  });
+
+  test(`Display Tap-card metrics save ${mode} and the preview follows`, async ({ browser }) => {
+    const { context, page } = await adminPage(browser, javaScriptEnabled);
+    await page.goto("/admin/display/shared");
+    const form = page.locator('form[action="/admin/display/tap-card"]');
+    const srm = form.getByRole("switch", { name: "SRM", exact: true });
+    const previewSrm = page.locator('[data-display-preview] [data-metric-key="srm"]');
+    const wasShown = await srm.isChecked();
+    try {
+      await page.setViewportSize({ width: 1280, height: 500 });
+      await srm.scrollIntoViewIfNeeded();
+      const scrolled = await page.evaluate(() => window.scrollY);
+      const redraw = javaScriptEnabled ? previewRedraw(page) : undefined;
+      await srm.setChecked(!wasShown);
+      await saveLive(form, "Save Tap-card settings");
+      if (javaScriptEnabled) {
+        await redraw;
+        await expect(form.getByRole("status")).toHaveText("Saved");
+        expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+        await expect(page).toHaveURL(/\/admin\/display\/shared$/u);
+      } else await expect(page).toHaveURL(/\/admin\/display\/shared\?notice=/u);
+      await expect(previewSrm).toHaveCount(wasShown ? 0 : 1);
+      await page.goto("/admin/display/shared");
+      await expect(srm).toBeChecked({ checked: !wasShown });
+      await expect(previewSrm).toHaveCount(wasShown ? 0 : 1);
+    } finally {
+      await page.goto("/admin/display/shared");
+      if ((await srm.isChecked()) !== wasShown) {
+        await srm.setChecked(wasShown);
+        await saveLive(form, "Save Tap-card settings");
+        await page.goto("/admin/display/shared");
+        await expect(srm).toBeChecked({ checked: wasShown });
+      }
+      await context.close();
+    }
+  });
+}
+
+test("a Units save on System makes an open Default theme form stale", async ({ browser }) => {
+  const { context, page } = await adminPage(browser, true);
+  const system = await context.newPage();
+  await page.goto("/admin/display/shared");
+  const form = page.locator("form[data-shared-display-form]");
+  const originalTheme = await checkedValue(page, "theme");
+  const theme = originalTheme === "warm_pub" ? "cyberpunk" : "warm_pub";
+  await system.goto("/admin/system");
+  const units = system.locator('form[action="/admin/system/units"]');
+  const unitSystem = units.getByLabel("Units");
+  const originalUnits = await unitSystem.inputValue();
+  try {
+    await unitSystem.selectOption(originalUnits === "us" ? "metric" : "us");
+    await saveLive(units, "Save units");
+    await choice(page, "theme", theme).click();
+    await expect(form.getByRole("status")).toHaveText(
+      "Conflict — reload to review the current value",
+    );
+    await page.reload();
+    expect(await checkedValue(page, "theme")).toBe(originalTheme);
+  } finally {
+    await system.goto("/admin/system");
+    if ((await unitSystem.inputValue()) !== originalUnits) {
+      await unitSystem.selectOption(originalUnits);
+      await saveLive(units, "Save units");
+    }
+    await context.close();
+  }
+});

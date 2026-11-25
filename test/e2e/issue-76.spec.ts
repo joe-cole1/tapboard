@@ -41,8 +41,7 @@ async function saveSharedTapboardName(page: Page, name: string): Promise<void> {
   await page.goto("/admin/display/shared");
   const form = page.locator("form[data-shared-display-form]");
   await form.getByLabel("Tapboard name").fill(name);
-  await form.getByRole("button", { name: "Save Default Theme" }).click();
-  await expect(page).toHaveURL(/\/admin\/display\/shared\?notice=/u);
+  await saveLive(form, "Save Default Theme");
 }
 
 test("authoritative SSR works without JavaScript and keeps private APIs protected", async ({
@@ -744,10 +743,11 @@ test("shared changes update inherited fields but retain explicit local overrides
   const admin = await context.newPage();
   await login(admin);
   await admin.goto("/admin/display/shared");
+  // Each change saves live: the name when focus leaves it, each choice when it is made.
   await admin.getByLabel("Tapboard name").fill("Shared renamed Tapboard");
   await admin.getByText("Cyberpunk", { exact: true }).click();
   await admin.getByText("Blue", { exact: true }).click();
-  await admin.getByRole("button", { name: "Save Default Theme" }).click();
+  await saveLive(admin.locator("form[data-shared-display-form]"), "Save Default Theme");
   await expect(display.locator("html")).toHaveAttribute("data-theme", "warm_pub");
   await expect(display.locator("html")).toHaveAttribute("data-accent", "blue");
   await expect(display.locator(".public-header h1")).toHaveText("Shared renamed Tapboard");

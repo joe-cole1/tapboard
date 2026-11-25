@@ -1,4 +1,5 @@
 import { displayStylesheetHref } from "../../display/palette.ts";
+import { invalidForm } from "./forms.ts";
 import {
   displayAccentLabel,
   displayAccentOptions,
@@ -76,13 +77,6 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
         accentOptions: displayAccentOptions(),
         tapCardSettings,
         previewTap,
-        previewMetricCatalog: {
-          abv: "5.0%",
-          ibu: "42",
-          og: "1.054",
-          fg: "1.012",
-          srm: "4.0",
-        },
         displayStylesheetHref: displayStylesheetHref(
           sharedDisplay.theme,
           sharedDisplay.accent,
@@ -119,72 +113,62 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
 }
 
 export function registerDisplayMutations(dependencies: RegisterDisplayMutationsDependencies): void {
+  const sharedFields = [
+    "expectedRevision",
+    "tapboardName",
+    "theme",
+    "font",
+    "accent",
+    "accentCustom",
+    "layoutMode",
+  ];
+  /** The Default theme form's save, shared by the form post and the live save. */
+  const saveShared = (form: Readonly<Record<string, string>>, context: AdminContext) => {
+    if (!form.tapboardName?.trim()) invalidForm("Enter a Tapboard name.", "tapboardName");
+    // The Custom choice posts accent=custom plus the colour picker's #rrggbb.
+    const accent = form.accent === "custom" ? form.accentCustom?.toLowerCase() : form.accent;
+    if (form.accent === "custom" && !/^#[0-9a-f]{6}$/u.test(accent ?? ""))
+      invalidForm("Choose a custom color as #rrggbb.", "accentCustom");
+    // Units and serving temperature live on the System page; keep their current values.
+    // expectedRevision still rejects the save if either changed meanwhile.
+    const current = dependencies.displayService.getSettings();
+    return dependencies.displayService.updateSettings(
+      {
+        expectedRevision: Number(form.expectedRevision),
+        tapboardName: form.tapboardName,
+        theme: form.theme,
+        font: form.font,
+        accent,
+        unitSystem: current.unitSystem,
+        showServingTemperature: current.showServingTemperature,
+        layoutMode: form.layoutMode,
+      },
+      actor(context),
+    );
+  };
   registerAdminAction(
     dependencies,
     "/admin/display/shared",
     "/admin/display/shared",
     (form, context) => {
-      // Units and serving temperature live on the System page; keep their current
-      // values. expectedRevision still rejects the save if either changed meanwhile.
-      const current = dependencies.displayService.getSettings();
-      dependencies.displayService.updateSettings(
-        {
-          expectedRevision: Number(form.expectedRevision),
-          tapboardName: form.tapboardName,
-          theme: form.theme,
-          font: form.font,
-          accent: form.accent === "custom" ? form.accentCustom?.toLowerCase() : form.accent,
-          unitSystem: current.unitSystem,
-          showServingTemperature: current.showServingTemperature,
-          layoutMode: form.layoutMode,
-        },
-        actor(context),
-      );
+      saveShared(form, context);
     },
     "Default theme saved.",
     {},
     {
+      // The display service checks the revision, so a stale one (a Units save on System
+      // counts) answers 409.
       handle: (body, context) => {
-        const fields = autosaveFieldStrings(body, [
-          "expectedRevision",
-          "tapboardName",
-          "theme",
-          "font",
-          "accent",
-          "layoutMode",
-        ]);
-        // As in the form save above, units and serving temperature belong to System.
-        const current = dependencies.displayService.getSettings();
-        const updated = dependencies.displayService.updateSettings(
-          {
-            expectedRevision: Number(requiredAutosaveField(fields, "expectedRevision")),
-            tapboardName: fields.tapboardName,
-            theme: fields.theme,
-            font: fields.font,
-            accent: fields.accent,
-            unitSystem: current.unitSystem,
-            showServingTemperature: current.showServingTemperature,
-            layoutMode: fields.layoutMode,
-          },
-          actor(context),
-        );
-        return {
-          resource: safeDisplayResource(updated),
-          revision: updated.revision,
-        };
+        const fields = autosaveFieldStrings(body, sharedFields);
+        requiredAutosaveField(fields, "expectedRevision");
+        const updated = saveShared(fields, context);
+        return { resource: safeDisplayResource(updated), revision: updated.revision };
       },
       current: () => {
         const current = dependencies.displayService.getSettings();
-        return { current, revision: current.revision };
+        return { current: safeDisplayResource(current), revision: current.revision };
       },
-      validationFields: validationFieldsFor([
-        "expectedRevision",
-        "tapboardName",
-        "theme",
-        "font",
-        "accent",
-        "layoutMode",
-      ]),
+      validationFields: validationFieldsFor(sharedFields),
     },
   );
   // Units and serving temperature are edited on the System page but stored with the
@@ -235,67 +219,51 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
       validationFields: validationFieldsFor(unitsFields),
     },
   );
+  const tapCardFields = [
+    "expectedRevision",
+    "showAbv",
+    "showIbu",
+    "showOg",
+    "showFg",
+    "showSrm",
+    "remainingMode",
+  ];
+  /** The Tap-card metrics form's save; an unchecked switch posts nothing (or "false"). */
+  const saveTapCard = (form: Readonly<Record<string, string>>, context: AdminContext) =>
+    dependencies.displayService.updateTapCardSettings(
+      {
+        expectedRevision: Number(form.expectedRevision),
+        showAbv: form.showAbv === "true",
+        showIbu: form.showIbu === "true",
+        showOg: form.showOg === "true",
+        showFg: form.showFg === "true",
+        showSrm: form.showSrm === "true",
+        remainingMode: form.remainingMode,
+      },
+      actor(context),
+    );
   registerAdminAction(
     dependencies,
     "/admin/display/tap-card",
     "/admin/display/shared",
     (form, context) => {
-      dependencies.displayService.updateTapCardSettings(
-        {
-          expectedRevision: Number(form.expectedRevision),
-          showAbv: form.showAbv === "true",
-          showIbu: form.showIbu === "true",
-          showOg: form.showOg === "true",
-          showFg: form.showFg === "true",
-          showSrm: form.showSrm === "true",
-          remainingMode: form.remainingMode,
-        },
-        actor(context),
-      );
+      saveTapCard(form, context);
     },
     "Shared Tap-card settings saved.",
     {},
     {
+      // The display service checks this form's own revision, so a stale one answers 409.
       handle: (body, context) => {
-        const fields = autosaveFieldStrings(body, [
-          "expectedRevision",
-          "showAbv",
-          "showIbu",
-          "showOg",
-          "showFg",
-          "showSrm",
-          "remainingMode",
-        ]);
-        const updated = dependencies.displayService.updateTapCardSettings(
-          {
-            expectedRevision: Number(requiredAutosaveField(fields, "expectedRevision")),
-            showAbv: fields.showAbv === "true",
-            showIbu: fields.showIbu === "true",
-            showOg: fields.showOg === "true",
-            showFg: fields.showFg === "true",
-            showSrm: fields.showSrm === "true",
-            remainingMode: fields.remainingMode,
-          },
-          actor(context),
-        );
-        return {
-          resource: safeTapCardResource(updated),
-          revision: updated.revision,
-        };
+        const fields = autosaveFieldStrings(body, tapCardFields);
+        requiredAutosaveField(fields, "expectedRevision");
+        const updated = saveTapCard(fields, context);
+        return { resource: safeTapCardResource(updated), revision: updated.revision };
       },
       current: () => {
         const current = dependencies.displayService.getTapCardSettings();
-        return { current, revision: current.revision };
+        return { current: safeTapCardResource(current), revision: current.revision };
       },
-      validationFields: validationFieldsFor([
-        "expectedRevision",
-        "showAbv",
-        "showIbu",
-        "showOg",
-        "showFg",
-        "showSrm",
-        "remainingMode",
-      ]),
+      validationFields: validationFieldsFor(tapCardFields),
     },
   );
 }
