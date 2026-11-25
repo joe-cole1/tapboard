@@ -3,6 +3,7 @@ import type { TapService } from "../taps/service.ts";
 import { tapWarPercentages, type TapWarService } from "./service.ts";
 import type {
   EligibleParticipant,
+  PublicTapWarBannerView,
   PublicTapWarEligiblePreview,
   PublicTapWarSideView,
   PublicTapWarView,
@@ -40,6 +41,43 @@ export class PublicTapWarsService {
       .listEligibleParticipants()
       .find((participant) => participant.assignmentId === assignmentId);
     return eligible === undefined ? null : this.#eligiblePreview(eligible);
+  }
+
+  /**
+   * The banner a war between two eligible assignments would open with: voting open, 0 votes,
+   * and each side's public title, so a Mystery Tap stays "Mystery Tap". Null unless both are
+   * eligible and different.
+   */
+  previewMatchup(
+    side1AssignmentId: string,
+    side2AssignmentId: string,
+  ): PublicTapWarBannerView | null {
+    if (side1AssignmentId === side2AssignmentId) return null;
+    const eligible = this.#tapWars.listEligibleParticipants();
+    const first = eligible.find((item) => item.assignmentId === side1AssignmentId);
+    const second = eligible.find((item) => item.assignmentId === side2AssignmentId);
+    if (first === undefined || second === undefined) return null;
+    const side = (number: 1 | 2, participant: EligibleParticipant) => ({
+      side: number,
+      tapId: participant.tapId,
+      tapNumber: participant.tapNumber,
+      title: this.#currentTitle(participant.tapId, participant.assignmentId),
+      isCardParticipant: false,
+      voteCount: 0,
+      percentage: null,
+      meterLabel: "No votes yet",
+    });
+    return {
+      status: "active",
+      side1: side(1, first),
+      side2: side(2, second),
+      totalVotes: 0,
+      result: null,
+      winnerSide: null,
+      leaderSide: null,
+      isTie: false,
+      statusLabel: "No votes yet",
+    };
   }
 
   #eligiblePreview(eligible: EligibleParticipant): PublicTapWarEligiblePreview {

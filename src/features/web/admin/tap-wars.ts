@@ -5,7 +5,7 @@ import { tapWarPercentages } from "../../tap-wars/service.ts";
 import type { EligibilityReason, TapWar } from "../../tap-wars/types.ts";
 import { registerAdminGet, registerAdminAction } from "./http.ts";
 import { renderAdmin } from "./layout.ts";
-import { adminContext, actor } from "./context.ts";
+import { adminContext, actor, requestUrl } from "./context.ts";
 import type {
   RegisterTapWarsPagesDependencies,
   RegisterAdminTapWarsApiDependencies,
@@ -16,6 +16,25 @@ import type {
 
 export function registerTapWarsPages(dependencies: RegisterTapWarsPagesDependencies): void {
   registerAdminGet(dependencies, "/admin/tap-wars", (request, response, context) => {
+    const data = adminTapWarsPageData(dependencies);
+    // Without JavaScript, the preview button reloads the page with the chosen pair (a GET form,
+    // so the CSRF token never enters the URL). Only eligible assignments are kept.
+    const query = requestUrl(request).searchParams;
+    const eligibleIds = new Set(
+      (data.eligible as readonly { readonly assignmentId: string }[]).map(
+        (item) => item.assignmentId,
+      ),
+    );
+    const chosen = (name: string) => {
+      const value = query.get(name) ?? "";
+      return eligibleIds.has(value) ? value : "";
+    };
+    const side1 = data.current === null ? chosen("side1") : "";
+    const side2 = data.current === null ? chosen("side2") : "";
+    const banner =
+      side1 === "" || side2 === ""
+        ? null
+        : dependencies.publicTapWarsService.previewMatchup(side1, side2);
     renderAdmin(
       dependencies,
       response,
@@ -25,7 +44,10 @@ export function registerTapWarsPages(dependencies: RegisterTapWarsPagesDependenc
       "Tap Wars",
       "/admin/tap-wars",
       {
-        tapWars: adminTapWarsPageData(dependencies),
+        tapWars: {
+          ...data,
+          matchup: { side1, side2, duplicate: side1 !== "" && side1 === side2, banner },
+        },
         // The "What guests see" preview renders the public banner partial.
         includeDashboardStyles: true,
       },

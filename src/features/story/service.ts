@@ -423,33 +423,6 @@ export class PublicStoryService {
   }
 
   /**
-   * Build the same safe public card as getCard while hypothetically applying
-   * only metric visibility. This is read-only and deliberately does not
-   * change the persisted Display settings or the card's runtime projection.
-   */
-  getCardPreview(
-    tapId: string,
-    metricSettings: PublicTapCardMetricSettings,
-  ): PublicTapCardView | undefined {
-    try {
-      const context = this.#contextForTap(tapId);
-      if (!context.tap.enabled || context.tap.isRetired) return undefined;
-      return this.#cardForContext(context, metricSettings);
-    } catch (error) {
-      if (
-        isApplicationError(error) &&
-        (error.category === "validation" ||
-          error.code === "tap.not_found" ||
-          error.code === "fill.not_found" ||
-          error.code === "beverage.not_found")
-      ) {
-        return undefined;
-      }
-      throw error;
-    }
-  }
-
-  /**
    * Resolve only the safe title for one exact assignment.  This intentionally
    * does not require the Tap to be enabled: Tap Wars may remain visible after
    * an original competitor is disabled, while replacement assignments must
@@ -765,7 +738,6 @@ export class PublicStoryService {
   #metricsFor(
     tapId: string,
     presentation: PublicStoryPresentationView,
-    hypotheticalSettings?: PublicTapCardMetricSettings,
   ): readonly PublicTapMetricView[] {
     let settings: {
       readonly showAbv: boolean;
@@ -774,9 +746,7 @@ export class PublicStoryService {
       readonly showFg: boolean;
       readonly showSrm: boolean;
     } = DEFAULT_TAP_CARD_METRICS;
-    if (hypotheticalSettings !== undefined) {
-      settings = hypotheticalSettings;
-    } else if (this.#dependencies.displayService !== undefined) {
+    if (this.#dependencies.displayService !== undefined) {
       try {
         settings = this.#dependencies.displayService.getEffectiveTapCardSettings(tapId).settings;
       } catch (error) {
@@ -800,10 +770,7 @@ export class PublicStoryService {
       .map(([key, _enabled, value]) => metricValue(key, value));
   }
 
-  #cardForContext(
-    context: StoryContext,
-    hypotheticalSettings?: PublicTapCardMetricSettings,
-  ): PublicTapCardView {
+  #cardForContext(context: StoryContext): PublicTapCardView {
     const tap = context.tap;
     const overview = this.#healthOverview(tap.id);
     if (context.assignment === null || context.beverage === null || context.fill === null) {
@@ -852,7 +819,7 @@ export class PublicStoryService {
       beverageName: visiblePresentation.beverageName,
       style: visiblePresentation.style,
       abv: visiblePresentation.abv,
-      metrics: this.#metricsFor(tap.id, visiblePresentation, hypotheticalSettings),
+      metrics: this.#metricsFor(tap.id, visiblePresentation),
       description: visiblePresentation.description,
       title,
       accessibleLabel: policy.enabled

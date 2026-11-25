@@ -125,6 +125,7 @@ export type RegisterTapPagesDependencies = Pick<
   | "logger"
   | "renderer"
   | "router"
+  | "systemService"
   | "tapService"
   | "telemetryService"
 >;
@@ -220,6 +221,7 @@ export type RenderTapDetailDependencies = Pick<
   | "healthService"
   | "logger"
   | "renderer"
+  | "systemService"
   | "tapService"
   | "telemetryService"
 >;

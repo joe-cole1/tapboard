@@ -915,17 +915,62 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.doesNotMatch(newTapHtml, /Tap 3 — QC Tap/);
   assert.equal(tapGetCalls.includes("new"), false);
 
-  const tapDetailResponse = await fetch(`${base}/admin/taps/${TAP_ID}`, { headers: getHeaders });
-  assert.equal(tapDetailResponse.status, 200);
-  const tapDetailHtml = await tapDetailResponse.text();
-  assert.match(tapDetailHtml, /<h1>Tap 3 — QC Tap<\/h1>/);
-  assert.match(tapDetailHtml, /Identity and lifecycle/);
-  assert.ok(
-    tapDetailHtml.indexOf('id="assignment-heading"') <
-      tapDetailHtml.indexOf('id="tap-identity-heading"'),
+  // #253: the Tap page is five tabs, each with only its own sections, in this order. The
+  // content checks further down read all five pages together.
+  const tapTabs = [
+    ["", "Public card", ["public-preview-heading", "public-card-heading", "mystery-heading"]],
+    [
+      "/identity",
+      "Identity",
+      ["tap-identity-heading", "assignment-heading", "lifecycle-heading", "tap-delete-heading"],
+    ],
+    ["/sensors", "Sensors", ["sensors-heading", "advanced-heading"]],
+    ["/maintenance", "Maintenance", ["maintenance-heading"]],
+    ["/history", "History", ["fill-history-heading", "tap-activity-heading"]],
+  ] as const;
+  const allSections = tapTabs.flatMap(([, , sections]) => sections);
+  const tapTabHtml: string[] = [];
+  for (const [path, label, sections] of tapTabs) {
+    const response = await fetch(`${base}/admin/taps/${TAP_ID}${path}`, { headers: getHeaders });
+    assert.equal(response.status, 200, path);
+    const html = await response.text();
+    tapTabHtml.push(html);
+    assert.match(html, /<h1>Tap 3 — QC Tap<\/h1>/);
+    const tabs = /<nav class="tabs"[\s\S]*?<\/nav>/u.exec(html)?.[0] ?? "";
+    assert.equal(tabs.match(/<a /g)?.length, 5, path);
+    assert.equal(tabs.match(/aria-current="page"/g)?.length, 1, path);
+    assert.match(
+      tabs,
+      new RegExp(`href="/admin/taps/${TAP_ID}${path}" aria-current="page">${label}<`, "u"),
+    );
+    const order = sections.map((id) => html.indexOf(`id="${id}"`));
+    assert.ok(
+      order.every((index) => index >= 0),
+      path,
+    );
+    assert.deepEqual(
+      order,
+      [...order].sort((left, right) => left - right),
+      path,
+    );
+    for (const other of allSections.filter((id) => !(sections as readonly string[]).includes(id)))
+      assert.equal(html.includes(`id="${other}"`), false, `${path} shows ${other}`);
+  }
+  const [cardHtml, identityHtml, sensorsHtml] = tapTabHtml as [string, string, string];
+  // Expert tuning sits behind the one Advanced settings disclosure on Sensors; the only other
+  // disclosure is Retire on Identity, and everyday forms are open.
+  assert.equal(cardHtml.match(/<details class="disclosure">/g), null);
+  assert.equal(identityHtml.match(/<details class="disclosure">/g)?.length, 1);
+  assert.equal(sensorsHtml.match(/<details class="disclosure">/g)?.length, 1);
+  assert.match(
+    sensorsHtml,
+    /<details class="disclosure">\s*<summary id="advanced-heading">Advanced settings[\s\S]*?<h3>Pour detector<\/h3>[\s\S]*?<h3>Health rules<\/h3>[\s\S]*?<\/details>/u,
   );
+  // Sub-tabs add the Tap to the breadcrumb, linked.
+  assert.match(sensorsHtml, new RegExp(`href="/admin/taps/${TAP_ID}">Tap 3 — QC Tap</a>`, "u"));
+  const tapDetailHtml = tapTabHtml.join("\n");
   assert.match(tapDetailHtml, /name="updatedAt"/);
-  assert.match(tapDetailHtml, /Telemetry authority/);
+  assert.match(tapDetailHtml, /<h2 id="sensors-heading">Sensors<\/h2>/);
   assert.match(tapDetailHtml, /Level: QC telemetry source · Condition and flow: none/);
   assert.match(tapDetailHtml, /Latest pressure: 82\.7 kPa, measured Aug 1, 2026, 12:05 AM UTC/);
   assert.match(tapDetailHtml, /name="levelSourceId"/);
@@ -937,17 +982,15 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   unitSystem = "us";
   try {
     const usTapDetailHtml = await (
-      await fetch(`${base}/admin/taps/${TAP_ID}`, { headers: getHeaders })
+      await fetch(`${base}/admin/taps/${TAP_ID}/sensors`, { headers: getHeaders })
     ).text();
     assert.match(usTapDetailHtml, /Latest pressure: 12\.0 psi, measured Aug 1, 2026/);
   } finally {
     unitSystem = "metric";
   }
-  assert.match(tapDetailHtml, /Mystery Tap reveal fields/);
+  assert.match(tapDetailHtml, /<h2 id="mystery-heading">Mystery Tap<\/h2>/);
   assert.match(tapDetailHtml, /Permanent deletion/);
-  assert.match(tapDetailHtml, /class="table"/);
-  assert.match(tapDetailHtml, /<th scope="col">First used<\/th>/);
-  assert.match(tapDetailHtml, /<td data-label="First used">Never<\/td>/);
+  assert.match(tapDetailHtml, /<dt>First used<\/dt><dd>Never<\/dd>/);
   assert.match(tapDetailHtml, /Aug 1, 2026, 12:00 AM UTC/);
   assert.match(tapDetailHtml, /Detection start/);
   assert.match(tapDetailHtml, /Candidate loss \(mL\)/);
@@ -967,9 +1010,15 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
     headers: getHeaders,
   });
   assert.equal(normalNamedTapDetailResponse.status, 200);
-  const normalNamedTapDetailHtml = await normalNamedTapDetailResponse.text();
-  assert.match(normalNamedTapDetailHtml, /Normal-style-only/);
-  assert.match(normalNamedTapDetailHtml, /normal beverage identity/);
+  const normalNamedCardHtml = await normalNamedTapDetailResponse.text();
+  assert.match(normalNamedCardHtml, /Normal-style-only/);
+  assert.match(normalNamedCardHtml, /normal beverage identity/);
+  // The Filled Keg on tap, and its actions, are on the Identity tab.
+  const normalNamedIdentityResponse = await fetch(`${base}/admin/taps/${TAP_ID}/identity`, {
+    headers: getHeaders,
+  });
+  assert.equal(normalNamedIdentityResponse.status, 200);
+  const normalNamedTapDetailHtml = await normalNamedIdentityResponse.text();
   assert.match(normalNamedTapDetailHtml, /href="\/admin\/keg-room\/fills\/fill-on-tap-qc"/);
   assert.match(normalNamedTapDetailHtml, /href="\/admin\/keg-room\/kegs\/keg-qc"/);
   assert.match(normalNamedTapDetailHtml, /Aug 2, 2026, 12:30 PM UTC/);
@@ -1172,10 +1221,10 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(tapWarsResponse.status, 200);
   const tapWarsHtml = await tapWarsResponse.text();
   assert.match(tapWarsHtml, /Start a Tap War/);
-  assert.match(tapWarsHtml, /data-tap-wars-start/);
-  assert.match(tapWarsHtml, /data-tap-wars-selector="1"[^>]*disabled/);
-  assert.match(tapWarsHtml, /data-tap-wars-selector="2"[^>]*disabled/);
-  assert.match(tapWarsHtml, /data-tap-wars-start-submit[^>]*disabled/);
+  // Fewer than two eligible Taps: the setup note replaces the pair and Start forms, so no
+  // control shows that can't be used (#253).
+  assert.match(tapWarsHtml, /Two eligible Tap assignments are needed/);
+  assert.doesNotMatch(tapWarsHtml, /data-tap-wars-start|data-tap-wars-selector/);
   assert.match(tapWarsHtml, /href="\/admin\/keg-room"/);
   assert.match(tapWarsHtml, /href="\/admin\/taps"/);
   assert.doesNotMatch(tapHtml, /name="gasType"/);
@@ -1252,7 +1301,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(tapNameResponse.status, 303);
   assert.match(
     tapNameResponse.headers.get("location") ?? "",
-    new RegExp(`^/admin/taps/${TAP_ID}\\?notice=`),
+    new RegExp(`^/admin/taps/${TAP_ID}/identity\\?notice=`),
   );
   assert.deepEqual(tapAutosaveCalls.at(-1), {
     id: TAP_ID,
@@ -1381,7 +1430,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(tapUpdateResponse.status, 303);
   assert.match(
     tapUpdateResponse.headers.get("location") ?? "",
-    new RegExp(`^/admin/taps/${TAP_ID}\\?notice=`),
+    new RegExp(`^/admin/taps/${TAP_ID}/identity\\?notice=`),
   );
   assert.deepEqual(tapUpdateCalls.at(-1), {
     id: TAP_ID,
@@ -1403,7 +1452,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   assert.equal(tapAssignResponse.status, 303);
   assert.match(
     tapAssignResponse.headers.get("location") ?? "",
-    new RegExp(`^/admin/taps/${TAP_ID}\\?notice=`),
+    new RegExp(`^/admin/taps/${TAP_ID}/identity\\?notice=`),
   );
   assert.deepEqual(tapAssignCalls.at(-1), {
     id: TAP_ID,

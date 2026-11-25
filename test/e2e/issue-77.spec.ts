@@ -2,6 +2,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
+import { saveLive } from "./helpers.ts";
+
 const MYSTERY_SECRET = "MYSTERY_SECRET_DO_NOT_LEAK_77";
 const LIVE_MYSTERY_SECRET = "LIVE_MYSTERY_SECRET_77";
 
@@ -273,7 +275,7 @@ test("authenticated article-card updates preserve pour-preview controls and do n
   await admin.goto("/admin/taps");
   const adminRow = admin.locator(`tr[data-tap-id="${tapId}"]`);
   await adminRow.getByRole("link", { name: /^Open Tap /u }).click();
-  await admin.getByText("Edit tap name", { exact: true }).click();
+  await admin.getByRole("link", { name: "Identity", exact: true }).click();
   const nameForm = admin.locator('form[data-tap-name-form][data-autosave="blur"]');
   await expect(nameForm).toHaveAttribute("data-autosave-initialized", "true");
   await admin.getByLabel("Tap name").fill("Dynamic article preview tap");
@@ -282,7 +284,7 @@ test("authenticated article-card updates preserve pour-preview controls and do n
       request.method() === "GET" &&
       new URL(request.url()).pathname === `/api/public/dashboard/taps/${tapId}`,
   );
-  await admin.getByRole("button", { name: "Save name" }).click();
+  await saveLive(nameForm, "Save name");
   await publicTapRefresh;
   await expect(nameForm.locator("[data-autosave-status]")).toHaveText("Saved");
   await expect(article.locator('[data-field="tap-name"]')).toHaveText("Empty Tap");
@@ -385,10 +387,8 @@ test("Brew Story ignores ordinary telemetry reloads but reconciles Mystery updat
   await admin.goto("/admin/taps");
   const normalAdminRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
   await normalAdminRow.getByRole("link", { name: /^Open Tap /u }).click();
-  await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").check();
-  await admin.getByRole("button", { name: "Save Mystery settings" }).click();
-  await expect(admin).toHaveURL(new RegExp(`/admin/taps/${normalTapId}\\?notice=`));
+  await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
 
   await expect(storyPage.getByRole("heading", { name: "Mystery Tap" })).toBeVisible();
   expect(navigations).toBeGreaterThan(0);
@@ -398,10 +398,8 @@ test("Brew Story ignores ordinary telemetry reloads but reconciles Mystery updat
   await admin.goto("/admin/taps");
   const cleanupRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
   await cleanupRow.getByRole("link", { name: /^Open Tap /u }).click();
-  await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").uncheck();
-  await admin.getByRole("button", { name: "Save Mystery settings" }).click();
-  await expect(admin).toHaveURL(new RegExp(`/admin/taps/${normalTapId}\\?notice=`));
+  await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
   await context.close();
 });
 
@@ -479,10 +477,8 @@ test("Mystery redaction, reveal, finite graphics, and stable roots", async ({ br
   await admin.goto("/admin/taps");
   const normalAdminRow = admin.locator(`tr[data-tap-id="${normalTapId}"]`);
   await normalAdminRow.getByRole("link", { name: /^Open Tap /u }).click();
-  await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Enable Mystery Tap").check();
-  await admin.getByRole("button", { name: "Save Mystery settings" }).click();
-  await expect(admin).toHaveURL(new RegExp(`/admin/taps/${normalTapId}\\?notice=`));
+  await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
   const findMysteryFrame = async (): Promise<string | null> =>
     page.evaluate(
       (tapId) =>
@@ -570,10 +566,8 @@ test("Mystery redaction, reveal, finite graphics, and stable roots", async ({ br
   await admin.goto("/admin/taps");
   const adminRow = admin.locator(`tr[data-tap-id="${storyId}"]`);
   await adminRow.getByRole("link", { name: /^Open Tap /u }).click();
-  await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
   await admin.getByLabel("Style").check();
-  await admin.getByRole("button", { name: "Save Mystery settings" }).click();
-  await expect(admin).toHaveURL(new RegExp(`/admin/taps/${storyId}\\?notice=`));
+  await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
   await expect
     .poll(async () => {
       const response = await page.request.get(`/api/public/taps/${storyId}/story`);

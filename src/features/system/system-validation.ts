@@ -166,10 +166,17 @@ export function encodeActivityCursor(cursor: SystemActivityCursor): string {
 export function validateActivityPageQuery(input: unknown): {
   category?: ActivityCategory;
   cursor?: SystemActivityCursor;
+  tapId?: string;
 } {
-  const object = inputObject(input, ["category", "cursor"], "activityPage");
+  const object = inputObject(input, ["category", "cursor", "tapId"], "activityPage");
   let category: ActivityCategory | undefined;
   let cursor: SystemActivityCursor | undefined;
+  let tapId: string | undefined;
+  if (Object.hasOwn(object, "tapId")) {
+    if (typeof object.tapId !== "string" || !UUID.test(object.tapId))
+      throw invalid("tapId", "is invalid");
+    tapId = object.tapId;
+  }
   if (Object.hasOwn(object, "category")) {
     if (typeof object.category !== "string" || !isActivityCategory(object.category))
       throw invalid("category", "is unsupported");
@@ -206,5 +213,6 @@ export function validateActivityPageQuery(input: unknown): {
   return {
     ...(category === undefined ? {} : { category }),
     ...(cursor === undefined ? {} : { cursor }),
+    ...(tapId === undefined ? {} : { tapId }),
   };
 }

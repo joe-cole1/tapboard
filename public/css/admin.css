@@ -950,6 +950,15 @@
     max-width: 34rem;
     margin-inline: auto;
   }
+  /* Tap page's public-card switches: inline, wrapping, each with its reset button beside it. */
+  .tap-card-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-6);
+    margin: 0 0 var(--space-5);
+    padding: 0;
+    list-style: none;
+  }
   :is(.display-preview, [data-display-preview])[data-preview-unit-system="metric"]
     [data-unit="metric"],
   :is(.display-preview, [data-display-preview])[data-preview-unit-system="us"] [data-unit="us"] {
@@ -1365,20 +1374,11 @@
   .tap-wars-start__form select {
     width: 100%;
   }
-  .tap-wars-preview {
+  .tap-wars-start__form > :not(label) {
     grid-column: 1 / -1;
-    min-height: 2.75rem;
-    padding: var(--space-3);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-  }
-  .tap-wars-preview p {
     margin: 0;
-    color: var(--muted);
   }
   .tap-wars-setup {
-    grid-column: 1 / -1;
     display: grid;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
@@ -1395,9 +1395,6 @@
     flex-wrap: wrap;
     gap: var(--space-2);
     margin-top: var(--space-1);
-  }
-  .tap-wars-start__form button {
-    width: fit-content;
   }
   .tap-wars-history-table td > div + div {
     margin-top: var(--space-2);

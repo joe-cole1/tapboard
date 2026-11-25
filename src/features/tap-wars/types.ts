@@ -99,6 +99,15 @@ export interface PublicTapWarView {
   readonly statusLabel: string;
 }
 
+/**
+ * What the public banner shows: a war guests can see, or (on the Admin page) a matchup that
+ * hasn't started, at 0 votes.
+ */
+export type PublicTapWarBannerView = Omit<
+  PublicTapWarView,
+  "id" | "startedAt" | "completedAt" | "canVote" | "votePath"
+>;
+
 /** Safe selector-preview data for the authenticated Tap Wars page. */
 export interface PublicTapWarEligiblePreview {
   readonly tapId: string;

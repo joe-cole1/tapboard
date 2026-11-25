@@ -28,8 +28,7 @@ async function closeCurrentWar(page: Page): Promise<void> {
 
 async function startWar(page: Page): Promise<void> {
   await page.goto("/admin/tap-wars");
-  const form = page.locator("[data-tap-wars-start]");
-  const selects = form.locator("[data-tap-wars-selector]");
+  const selects = page.locator("[data-tap-wars-selector]");
   for (const [index, tapNumber] of [4, 5].entries()) {
     const value = await selects
       .nth(index)
@@ -38,7 +37,10 @@ async function startWar(page: Page): Promise<void> {
     if (value === null) throw new Error(`Expected fixture Tap ${tapNumber}.`);
     await selects.nth(index).selectOption(value);
   }
-  await form.getByRole("button", { name: "Start Tap War" }).click();
+  // Without JavaScript the Start form gets the pair from the previewed page.
+  const update = page.getByRole("button", { name: "Update preview" });
+  if (await update.isVisible()) await update.click();
+  await page.getByRole("button", { name: "Start Tap War" }).click();
   await expect(page.getByRole("heading", { name: "Current Tap War" })).toBeVisible();
 }
 

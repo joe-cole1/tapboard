@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 import { expect, test, type Page } from "@playwright/test";
+
+import { saveLive } from "./helpers.ts";
 import type { PublicStoryView } from "../../src/features/story/types.ts";
 
 async function noOverflow(page: Page) {
@@ -135,10 +137,9 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
     }
 
     await admin.goto(`/admin/taps/${tap.id}`);
-    await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByLabel("Enable Mystery Tap").check();
     await admin.getByRole("switch", { name: "Recipe", exact: true }).check();
-    await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
     await expect(page.locator("[data-recipe-sheet] h3")).toHaveText("Mystery Tap");
     const redacted = (await (await page.request.get(api)).json()) as PublicStoryView;
     expect(redacted.title).toBe("Mystery Tap");
@@ -156,26 +157,23 @@ test("guests can read a responsive recipe sheet with units, print layout and ind
       page.getByRole("region", { name: "Recipe targets", exact: true }),
     ).not.toContainText("6.3%");
     await expect(page.locator("[data-recipe-sheet]")).not.toContainText("Oktoberfest");
-    await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByRole("switch", { name: "ABV", exact: true }).check();
-    await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
     await expect(page.getByRole("region", { name: "Recipe targets", exact: true })).toContainText(
       "6.3%",
     );
     const revealed = (await (await page.request.get(api)).json()) as PublicStoryView;
     expect(revealed.recipes!.sources[0]!.sheet!.summary.og).toBeNull();
-    await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByRole("switch", { name: "Recipe", exact: true }).uncheck();
-    await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
     await expect(page.locator("[data-recipe-sheet]")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "View recipe", exact: true })).toHaveCount(0);
   } finally {
     await admin.goto(`/admin/taps/${tap.id}`);
-    await admin.getByText("Mystery Tap reveal fields", { exact: true }).click();
     await admin.getByLabel("Enable Mystery Tap").uncheck();
     await admin.getByRole("switch", { name: "Recipe", exact: true }).uncheck();
     await admin.getByRole("switch", { name: "ABV", exact: true }).uncheck();
-    await admin.getByRole("button", { name: "Save Mystery settings", exact: true }).click();
+    await saveLive(admin.locator('form[action$="/mystery"]'), "Save Mystery settings");
     if (!wasSimulation) {
       await admin.goto("/admin/simulator");
       await admin.getByRole("switch", { name: "Enable simulation", exact: true }).click();

@@ -284,10 +284,31 @@ void test(TEST_NAME, async (context) => {
   const tapDetailResponse = await fetch(`${base}/admin/taps/${TAP_ID}`, { headers });
   assert.equal(tapDetailResponse.status, 200);
   const tapDetailHtml = await tapDetailResponse.text();
-  assert.match(tapDetailHtml, /Public display override/);
-  assert.match(tapDetailHtml, /name="showIbu"/);
-  assert.match(tapDetailHtml, /value="hide" selected/);
-  assert.match(tapDetailHtml, /Remaining mode follows Display/);
+  assert.match(tapDetailHtml, /On the public card/);
+  // Each metric is a switch showing its effective state. IBU is hidden for this Tap only, so
+  // it offers a reset; ABV follows the Display default and doesn't.
+  assert.match(
+    tapDetailHtml,
+    /name="showIbu" value="show" \/><button[^>]*role="switch" aria-checked="false"[\s\S]*?IBU <small[^>]*>This Tap only<\/small>/u,
+  );
+  assert.match(
+    tapDetailHtml,
+    /name="showIbu" value="inherit" \/><button[^>]*aria-label="Reset IBU to Display default"/u,
+  );
+  assert.match(
+    tapDetailHtml,
+    /name="showAbv" value="hide" \/><button[^>]*aria-checked="true"[\s\S]*?ABV <small[^>]*>Display default<\/small>/u,
+  );
+  // A reset shows only for an overridden metric (live save reveals it later without a reload).
+  assert.match(
+    tapDetailHtml,
+    /<form[^>]*data-metric-reset>(?:(?!<\/form>)[\s\S])*Reset IBU to Display default/u,
+  );
+  assert.match(
+    tapDetailHtml,
+    /<form[^>]*data-metric-reset hidden>(?:(?!<\/form>)[\s\S])*Reset ABV to Display default/u,
+  );
+  assert.match(tapDetailHtml, /href="\/admin\/display\/shared"/u);
   assert.match(tapDetailHtml, new RegExp(`action="/admin/taps/${TAP_ID}/display"`));
   const publicPreviewHtml = tapDetailHtml.match(
     /<section [^>]*aria-labelledby="public-preview-heading"[\s\S]*?<\/section>/u,
@@ -346,6 +367,15 @@ void test(TEST_NAME, async (context) => {
     showFg: null,
     showSrm: false,
   });
+
+  // A switch posts only its own metric, and only that metric changes.
+  const switchResponse = await post(`/admin/taps/${TAP_ID}/display`, { showOg: "show" });
+  assert.equal(switchResponse.status, 303);
+  assert.match(switchResponse.headers.get("location") ?? "", /\?notice=/u);
+  assert.deepEqual(overrideCalls.at(-1), { showOg: true });
+  const resetResponse = await post(`/admin/taps/${TAP_ID}/display`, { showIbu: "inherit" });
+  assert.equal(resetResponse.status, 303);
+  assert.deepEqual(overrideCalls.at(-1), { showIbu: null });
 
   const inheritResponse = await post(`/admin/taps/${TAP_ID}/display`, {
     showAbv: "inherit",

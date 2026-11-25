@@ -4,6 +4,7 @@ import { adminTabs, renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier } from "./detector-presentation.ts";
 import { invalidForm } from "./forms.ts";
 import { requireSystemService, systemFormFields, systemFormNumber } from "./system.ts";
+import type { SystemActivityItem } from "../../system/types.ts";
 import type {
   RegisterSystemPagesDependencies,
   RegisterSystemMutationsDependencies,
@@ -28,14 +29,7 @@ export function registerLogsPages(dependencies: RegisterSystemPagesDependencies)
         ...activity,
         category,
         hasCursor: url.searchParams.has("cursor"),
-        items: activity.items.map((item) => ({
-          ...item,
-          actionLabel: humanizeAdminIdentifier(item.action.replaceAll(".", " ")),
-          categoryLabel: humanizeAdminIdentifier(item.category),
-          actorLabel: humanizeAdminIdentifier(item.actorType),
-          entityLabel: `${humanizeAdminIdentifier(item.entityType, "—")}${item.entityId === null ? "" : ` ${item.entityId.slice(0, 8)}`}`,
-          entityHref: activityEntityHref(item.entityType, item.entityId),
-        })),
+        items: presentActivityItems(activity.items),
         nextHref: activity.nextCursor === null ? null : `/admin/logs?${nextQuery}`,
       },
     });
@@ -120,6 +114,18 @@ export function registerLogsMutations(dependencies: RegisterSystemMutationsDepen
     },
     "Retention settings saved. Pruning runs automatically in bounded batches.",
   );
+}
+
+/** Activity log rows with readable labels and a link to each entry's resource. */
+export function presentActivityItems(items: readonly SystemActivityItem[]) {
+  return items.map((item) => ({
+    ...item,
+    actionLabel: humanizeAdminIdentifier(item.action.replaceAll(".", " ")),
+    categoryLabel: humanizeAdminIdentifier(item.category),
+    actorLabel: humanizeAdminIdentifier(item.actorType),
+    entityLabel: `${humanizeAdminIdentifier(item.entityType, "—")}${item.entityId === null ? "" : ` ${item.entityId.slice(0, 8)}`}`,
+    entityHref: activityEntityHref(item.entityType, item.entityId),
+  }));
 }
 
 export function activityEntityHref(

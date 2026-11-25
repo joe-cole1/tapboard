@@ -98,54 +98,6 @@ export function safeDashboardTap(
   }
 }
 
-export const ALL_TAP_CARD_METRICS: PublicTapCardMetricSettings = Object.freeze({
-  showAbv: true,
-  showIbu: true,
-  showOg: true,
-  showFg: true,
-  showSrm: true,
-});
-
-export function safeDashboardTapPreview(
-  dashboardService: DashboardService,
-  tapId: string,
-  settings?: PublicTapCardMetricSettings,
-  logger?: Logger,
-): PublicTapCardView | null {
-  const candidate = dashboardService as DashboardService & {
-    readonly getTapPreview?: (
-      id: string,
-      metricSettings: PublicTapCardMetricSettings,
-    ) => PublicTapCardView | undefined;
-  };
-  if (settings !== undefined && typeof candidate.getTapPreview === "function") {
-    try {
-      const card = candidate.getTapPreview(tapId, settings);
-      return card === undefined ? null : card;
-    } catch (error) {
-      reportFailure(error, {
-        operation: "admin.projection.dashboard_preview",
-        ...(logger ? { logger } : {}),
-      });
-      return null;
-    }
-  }
-  return safeDashboardTap(dashboardService, tapId, logger);
-}
-
-export function previewMetricCatalog(
-  card: PublicTapCardView | null,
-): Readonly<Record<string, string>> {
-  if (card === null) return {};
-  const result: Record<string, string> = {};
-  if (typeof card.abv === "number" && Number.isFinite(card.abv))
-    result.abv = `${card.abv.toFixed(1)}%`;
-  for (const metric of card.metrics) {
-    if (["ibu", "og", "fg", "srm"].includes(metric.key)) result[metric.key] = metric.value;
-  }
-  return result;
-}
-
 export function previewSampleCard(metricSettings: PublicTapCardMetricSettings): PublicTapCardView {
   const metrics = [
     ["abv", "ABV", "5.0%"],

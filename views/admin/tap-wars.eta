@@ -10,15 +10,13 @@
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <output class="sr-only" aria-live="polite" data-tap-wars-live-status></output>
 
+  <% const matchup = data.matchup || { side1: "", side2: "", duplicate: false, banner: null }; const guestBanner = current ? publicVisible : (matchup.banner || publicVisible); %>
   <section aria-labelledby="tap-wars-guest-preview-title">
-    <div class="header-row"><div><h2 id="tap-wars-guest-preview-title">What guests see</h2><p class="muted">The banner on the public Tapboard, in its current theme. View results opens the same dialog guests get.</p></div></div>
-    <% if (publicVisible) { %>
-      <div class="display-preview tap-wars-guest-preview__frame" data-tap-wars-guest-preview>
-        <%~ include("/partials/tap-wars-banner", { tapWars: publicVisible }) %>
-      </div>
-    <% } else { %>
-      <p class="muted" data-tap-wars-guest-preview-empty>Guests don't see a Tap War right now.</p>
-    <% } %>
+    <div class="header-row"><div><h2 id="tap-wars-guest-preview-title">What guests see</h2><p class="muted" data-tap-wars-caption="live"<% if (!current && matchup.banner) { %> hidden<% } %>>The banner on the public Tapboard, in its current theme. View results opens the same dialog guests get.</p><p class="muted" data-tap-wars-caption="matchup"<% if (current || !matchup.banner) { %> hidden<% } %>>How the banner opens for the two Taps chosen below, at 0 votes. Guests see it once you start the Tap War.</p></div></div>
+    <div class="display-preview tap-wars-guest-preview__frame" data-tap-wars-guest-preview<% if (!guestBanner) { %> hidden<% } %>>
+      <%~ include("/partials/tap-wars-banner", { tapWars: guestBanner }) %>
+    </div>
+    <p class="muted" data-tap-wars-guest-preview-empty<% if (guestBanner) { %> hidden<% } %>>Guests don't see a Tap War right now.<% if (!current && eligible.length >= 2) { %> Choose two Taps below to preview a matchup.<% } %></p>
   </section>
 
   <% if (current) { %>
@@ -31,7 +29,24 @@
       <div class="cluster"><% if (current.status === "paused" && data.canResume) { %><form action="/admin/tap-wars/<%= current.id %>/resume" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary button--small" type="submit">Resume Tap War</button></form><% } %><form action="/admin/tap-wars/<%= current.id %>/stop" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" type="submit">Stop Tap War</button></form></div>
     </section>
   <% } else { %>
-    <section class="tap-wars-start" aria-labelledby="tap-wars-start-title"><div class="header-row"><div><p class="eyebrow">Next matchup</p><h2 id="tap-wars-start-title">Start a Tap War</h2><p class="muted">Choose two different eligible Tap assignments. Server validation remains authoritative.</p></div></div><form class="form tap-wars-start__form" action="/admin/tap-wars/start" method="post" data-tap-wars-start><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><% for (const side of [1, 2]) { %><label class="field">Side <%= side %><select name="competitor<%= side %>AssignmentId" required data-tap-wars-selector="<%= side %>"<% if (eligible.length < 2) { %> disabled<% } %>><option value="">Choose a Tap</option><% for (const item of eligible) { %><option value="<%= item.assignmentId %>" data-title="<%= item.preview?.title || "Mystery Tap" %>" data-tap-number="<%= item.preview?.tapNumber || item.tapNumber %>">Tap <%= item.preview?.tapNumber || item.tapNumber %> · <%= item.preview?.title || "Mystery Tap" %></option><% } %></select></label><% } %><% if (eligible.length < 2) { %><div class="tap-wars-setup" role="note"><strong>Two eligible Tap assignments are needed before voting can start.</strong><p>Enable two non-retired Taps and give each one an active Filled Keg. The server will re-check eligibility when you start a war.</p><div class="tap-wars-setup__links"><a class="button button--primary button--small" href="/admin/keg-room">Set up Keg Room</a><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div></div><% } else { %><div class="tap-wars-preview" aria-live="polite" data-tap-wars-preview><p>Select two Tap assignments to preview the exact public-safe matchup.</p></div><% } %><button class="button button--primary button--small" type="submit" data-tap-wars-start-submit<% if (eligible.length < 2) { %> disabled<% } %>>Start Tap War</button></form></section>
+    <section class="tap-wars-start" aria-labelledby="tap-wars-start-title">
+      <div class="header-row"><div><p class="eyebrow">Next matchup</p><h2 id="tap-wars-start-title">Start a Tap War</h2><p class="muted">Choose two different Taps that each have a Filled Keg.</p></div></div>
+      <% if (eligible.length < 2) { %>
+        <div class="tap-wars-setup" role="note"><strong>Two eligible Tap assignments are needed before voting can start.</strong><p>Enable two non-retired Taps and give each one an active Filled Keg.</p><div class="tap-wars-setup__links"><a class="button button--primary button--small" href="/admin/keg-room">Set up Keg Room</a><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div></div>
+      <% } else { %>
+        <form class="form tap-wars-start__form" action="/admin/tap-wars" method="get" data-tap-wars-pair>
+          <% for (const side of [1, 2]) { %><label class="field">Side <%= side %><select name="side<%= side %>" required data-tap-wars-selector="<%= side %>"><option value="">Choose a Tap</option><% for (const item of eligible) { %><option value="<%= item.assignmentId %>" data-title="<%= item.preview?.title || "Mystery Tap" %>" data-tap-number="<%= item.preview?.tapNumber || item.tapNumber %>"<% if (matchup[`side${side}`] === item.assignmentId) { %> selected<% } %>>Tap <%= item.preview?.tapNumber || item.tapNumber %> · <%= item.preview?.title || "Mystery Tap" %></option><% } %></select></label><% } %>
+          <p class="error" data-tap-wars-pair-status aria-live="polite"<% if (!matchup.duplicate) { %> hidden<% } %>>Choose two different Taps.</p>
+          <div data-tap-wars-preview-update><button class="button button--secondary button--small" type="submit">Update preview</button></div>
+        </form>
+        <form action="/admin/tap-wars/start" method="post" data-tap-wars-start>
+          <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+          <input type="hidden" name="competitor1AssignmentId" value="<%= matchup.banner ? matchup.side1 : "" %>" data-tap-wars-competitor="1" />
+          <input type="hidden" name="competitor2AssignmentId" value="<%= matchup.banner ? matchup.side2 : "" %>" data-tap-wars-competitor="2" />
+          <div><button class="button button--primary button--small" type="submit" data-tap-wars-start-submit<% if (!matchup.banner) { %> disabled<% } %>>Start Tap War</button></div>
+        </form>
+      <% } %>
+    </section>
   <% } %>
 
   <% if (published) { %>

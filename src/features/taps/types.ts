@@ -28,6 +28,20 @@ export interface TapAssignmentLifecycle {
   readonly createdAt: string;
 }
 
+/** One Fill that was or is on a Tap, newest first on the Tap page's History tab. */
+export interface TapFillHistoryEntry {
+  readonly assignmentId: string;
+  readonly fillId: string;
+  readonly beverageName: string | null;
+  readonly kegId: string | null;
+  readonly kegNumber: number | null;
+  readonly kegLabel: string | null;
+  readonly assignedAt: string;
+  readonly endedAt: string | null;
+  /** Why it left the Tap: "unassigned", "moved" or "fill_ended"; null while on tap. */
+  readonly endReason: string | null;
+}
+
 export interface ActiveAssignmentDetails {
   readonly id: string;
   readonly fillId: string;

@@ -74,14 +74,22 @@ function projectActivity(row: SafeActivityRow): SystemActivityItem {
 /** Select only presentation-safe columns; never load Activity details or session identifiers. */
 export function readSystemActivityPageRows(
   database: DatabaseExecutor,
-  query: { readonly category?: ActivityCategory; readonly cursor?: SystemActivityCursor },
+  query: {
+    readonly category?: ActivityCategory;
+    readonly cursor?: SystemActivityCursor;
+    /** Only entries recorded against this Tap (the Tap page's History tab). */
+    readonly tapId?: string;
+  },
 ): SystemActivityItem[] {
   const category = query.category ?? null;
   const occurredAt = query.cursor?.occurredAt ?? null;
   const id = query.cursor?.id ?? null;
+  const tapId = query.tapId ?? null;
   return database
     .prepare<
       [
+        string | null,
+        string | null,
         string | null,
         string | null,
         string | null,
@@ -95,10 +103,21 @@ export function readSystemActivityPageRows(
       `SELECT id, occurred_at, category, action, actor_type, entity_type, entity_id
      FROM activity_log
      WHERE (? IS NULL OR category = ?)
+       AND (? IS NULL OR (entity_type = 'tap' AND entity_id = ?))
        AND (? IS NULL OR occurred_at < ? OR (occurred_at = ? AND id < ?))
      ORDER BY occurred_at DESC, id DESC LIMIT ?`,
     )
-    .all(category, category, occurredAt, occurredAt, occurredAt, id, SYSTEM_ACTIVITY_PAGE_SIZE + 1)
+    .all(
+      category,
+      category,
+      tapId,
+      tapId,
+      occurredAt,
+      occurredAt,
+      occurredAt,
+      id,
+      SYSTEM_ACTIVITY_PAGE_SIZE + 1,
+    )
     .map(projectActivity);
 }
 
