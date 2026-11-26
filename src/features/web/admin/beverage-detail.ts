@@ -1,16 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { BeverageService, BeverageDetailResult } from "../../beverages/service.ts";
-import { BEVERAGE_TYPES } from "../../beverages/types.ts";
 import { beverageDisplayColor } from "../../story/vessels.ts";
+import { SENSORY_LABELS } from "../../story/index.ts";
 import { type AdminContext } from "./context.ts";
 import { renderAdmin } from "./layout.ts";
 import {
   adminBeverageDetailDto,
+  BEVERAGE_TYPE_OPTIONS,
   displayColourPicker,
+  SENSORY_AXIS_OPTIONS,
   fillGlassOptions,
   safeColorForDisplay,
 } from "./beverage-presentation.ts";
-import { adminTimestampLabel, type AutosaveForm, type PageHeader } from "./presentation.ts";
+import {
+  fillStateLabel,
+  timestampLabel,
+  type AutosaveForm,
+  type PageHeader,
+} from "./presentation.ts";
 import type { RegisterBeveragePagesDependencies } from "../contracts.ts";
 
 /** The Beverage page's tabs, in order; the first is the Beverage's own URL. */
@@ -24,18 +31,6 @@ export const BEVERAGE_TABS = [
 ] as const;
 
 export type BeverageTab = (typeof BEVERAGE_TABS)[number]["id"];
-
-/** The sensory axes in display order, with the names the Sensory tab shows. */
-const SENSORY_AXES = [
-  { key: "malt", label: "Malt character" },
-  { key: "hops", label: "Hop character" },
-  { key: "bitterness", label: "Bitterness" },
-  { key: "sweetness", label: "Sweetness" },
-  { key: "body", label: "Body" },
-  { key: "roast", label: "Roast" },
-  { key: "tartness", label: "Tartness" },
-  { key: "alcohol", label: "Alcohol warmth" },
-] as const;
 
 /** The fields a linked beverage can override, and whether each can be cleared. */
 const OVERRIDE_FIELDS = [
@@ -67,7 +62,7 @@ function beverageForms(id: string): Readonly<Record<string, AutosaveForm>> {
       OVERRIDE_FIELDS.flatMap(([field]) => [`${field}Mode`, field]).join(","),
     ),
     recipe: form("recipe", "recipeJson"),
-    sensory: form("sensory", SENSORY_AXES.map((axis) => axis.key).join(",")),
+    sensory: form("sensory", SENSORY_AXIS_OPTIONS.map((axis) => axis.key).join(",")),
   };
 }
 
@@ -162,7 +157,7 @@ export function renderBeverageDetail(
         },
         updated: {
           datetime: detail.beverage.updatedAt,
-          label: adminTimestampLabel(detail.beverage.updatedAt),
+          label: timestampLabel(detail.beverage.updatedAt),
         },
       } satisfies PageHeader,
       tabs: {
@@ -178,17 +173,17 @@ export function renderBeverageDetail(
         : { breadcrumbParents: [{ label: name, href: beveragePagePath(id, "info") }] }),
       beverage: {
         ...beverage,
-        updatedAtLabel: adminTimestampLabel(detail.beverage.updatedAt),
+        updatedAtLabel: timestampLabel(detail.beverage.updatedAt),
         lastSyncedAtLabel:
           detail.brewfatherLink?.lastSyncedAt == null
             ? null
-            : adminTimestampLabel(detail.brewfatherLink.lastSyncedAt),
+            : timestampLabel(detail.brewfatherLink.lastSyncedAt),
       },
-      beverageTypes: BEVERAGE_TYPES,
+      beverageTypes: BEVERAGE_TYPE_OPTIONS,
       linked: detail.beverage.ownershipType === "brewfather",
       forms: beverageForms(id),
-      sensoryAxes: SENSORY_AXES,
-      axisLabels: Object.fromEntries(SENSORY_AXES.map((axis) => [axis.key, axis.label])),
+      sensoryAxes: SENSORY_AXIS_OPTIONS,
+      axisLabels: SENSORY_LABELS,
       recipeImportHeading:
         beverage.recipeImport === "imported"
           ? {
@@ -251,7 +246,7 @@ function usageTab(
   return {
     currentFills: currentFills.map((fill) => ({
       ...fill,
-      badge: { label: fill.state.replaceAll("_", " "), tone: fill.state },
+      badge: { label: fillStateLabel(fill.state), tone: fill.state },
     })),
     availableKegs,
   };

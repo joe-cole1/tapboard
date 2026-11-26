@@ -15,7 +15,7 @@
         eyebrow: "Beverage source",
         badge: it.brewfather.badge,
       }) %>
-      <p><%= it.brewfather.apiKeyConfigured ? "Beverage data is available for linking." : "Add an API key to import and refresh beverage data." %></p>
+      <p><%= it.brewfather.summary %></p>
       <dl class="integration-resource-card__summary">
         <div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div>
         <div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div>

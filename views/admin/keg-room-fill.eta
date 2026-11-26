@@ -22,7 +22,7 @@
       </div>
       <div><dt>Remaining estimate</dt><dd><%= it.fill.remainingEstimate %></dd></div>
       <div><dt>Fill date</dt><dd><%= it.fill.fillDate %></dd></div>
-      <div><dt>Updated</dt><dd><time datetime="<%= it.fill.updatedAt %>"><%= it.fill.updatedAt %></time></dd></div>
+      <div><dt>Updated</dt><dd><%~ include("/partials/timestamp", { datetime: it.fill.updatedAt, label: it.fill.updatedAtLabel }) %></dd></div>
     </dl>
     </section>
     <section id="pour-history" aria-labelledby="filled-keg-pours">

@@ -13,7 +13,7 @@
       intro: "Authentication and key information for this source.",
       badge: it.source.badge,
     }) %>
-    <table class="table"><tbody>
+    <table class="table" aria-labelledby="source-status-heading"><tbody>
       <tr><th scope="row">Key ID (audit reference)</th><td><code><%= it.source.keyPublicId %></code><br /><span class="muted">Reference only; it is not sent in the URL or request.</span></td></tr>
       <tr><th scope="row">Source created</th><td><time datetime="<%= it.source.createdAt %>"><%= it.source.createdAtLabel %></time></td></tr>
       <tr><th scope="row">Key created</th><td><time datetime="<%= it.source.keyCreatedAt %>"><%= it.source.keyCreatedAtLabel %></time></td></tr>

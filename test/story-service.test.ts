@@ -14,6 +14,8 @@ import type {
 } from "../src/features/beverages/types.ts";
 import { batchFixture } from "./fixtures/flavor/corpus.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
+import { displayThemeColors } from "../src/features/display/palette.ts";
+import { storyLabels } from "../src/features/web/public-routes.ts";
 import { buildSensoryRadar } from "../src/features/story/index.ts";
 import type { PublicStoryView } from "../src/features/story/types.ts";
 import { temperature, volume } from "../src/features/web/admin/presentation.ts";
@@ -965,6 +967,7 @@ void test("flavor summary follows the sensory reveal and renders only without a 
   const html = (story: PublicStoryView) =>
     renderer.render("/public/story", {
       sharedDisplay: { theme: "modern_dark", unitSystem: "us" },
+      themeColors: displayThemeColors("modern_dark"),
       header: { tapboardName: "Tapboard", connectivity: "connected", connectivityLabel: "Online" },
       ssePath: "/api/public/events",
       tapId: TAP_ID,
@@ -976,6 +979,7 @@ void test("flavor summary follows the sensory reveal and renders only without a 
       recipeMass,
       recipeNumber,
       story,
+      labels: storyLabels(story),
     });
   const described = fixture({ flavorBatch: batchFixture("B011") });
   const withDescription = described.service.getStory(TAP_ID)!;

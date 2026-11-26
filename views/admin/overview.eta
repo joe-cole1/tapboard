@@ -56,7 +56,7 @@
         link: { label: "Add a Tap", href: "/admin/taps" },
       }) %>
     <% } else { %>
-      <table class="table">
+      <table class="table" aria-labelledby="tap-summary-heading">
         <thead>
           <tr>
             <th scope="col">Tap</th>

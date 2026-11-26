@@ -1,9 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import {
-  BEVERAGE_SENSORY_AXES,
-  BEVERAGE_TYPES,
-  type UpdateCustomBeverageInput,
-} from "../../beverages/types.ts";
+import { BEVERAGE_SENSORY_AXES, type UpdateCustomBeverageInput } from "../../beverages/types.ts";
 import type { BeverageDetailResult } from "../../beverages/service.ts";
 import { SAFE_DISPLAY_COLOR } from "../../story/vessels.ts";
 import { MAX_BATCH_JSON_BODY_BYTES } from "../../../infrastructure/http/security/body.ts";
@@ -16,16 +12,18 @@ import {
   type AdminAutosaveSpec,
 } from "./http.ts";
 import { renderAdmin } from "./layout.ts";
-import { numberedPageNavigation } from "./presentation.ts";
+import { filterForm, numberedPageNavigation } from "./presentation.ts";
 import {
   adminBeverageListItem,
   adminBrewfatherCandidate,
+  BEVERAGE_TYPE_OPTIONS,
   colourPickerResource,
   displayColourPicker,
   fillGlassOptions,
   sensoryOverridesFromForm,
   vesselFromForm,
   recipeFromForm,
+  SENSORY_AXIS_OPTIONS,
   withPickedSrm,
 } from "./beverage-presentation.ts";
 import {
@@ -67,7 +65,11 @@ export function registerBeveragePages(dependencies: RegisterBeveragePagesDepende
         brewfatherCandidates: dependencies.beverageService
           .listCandidates()
           .map(adminBrewfatherCandidate),
-        query: index.query,
+        filter: filterForm({
+          action: "/admin/beverages",
+          label: "Search beverages",
+          search: { value: index.query, placeholder: "Name, style, type, or source" },
+        }),
         empty: index.query
           ? {
               title: "No matching beverages",
@@ -111,7 +113,8 @@ export function registerBeveragePages(dependencies: RegisterBeveragePagesDepende
       "New Beverage",
       "/admin/beverages/new",
       {
-        beverageTypes: BEVERAGE_TYPES,
+        beverageTypes: BEVERAGE_TYPE_OPTIONS,
+        sensoryAxes: SENSORY_AXIS_OPTIONS,
         fillGlassOptions: fillGlassOptions(),
         // SRM and colour start unset: a new beer's colour matches its SRM.
         colourPicker: displayColourPicker({

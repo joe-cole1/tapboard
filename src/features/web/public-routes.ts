@@ -5,15 +5,18 @@ import { redirect, sendHtml } from "../../infrastructure/http/html.ts";
 import { requireMutationOrigin } from "../../infrastructure/http/security/origin.ts";
 import { ApplicationError, isApplicationError } from "../../shared/errors.ts";
 import { errorStatus, reportFailure } from "../../shared/diagnostics.ts";
+import { displayThemeColors } from "../display/palette.ts";
 import { buildSensoryRadar } from "../story/index.ts";
 import { adminContext, messageLocation } from "./admin/context.ts";
 import {
   pourHistoryEntry,
   temperature,
+  timestampLabel,
   volume,
   type PourHistoryEntry,
 } from "./admin/presentation.ts";
-import type { PublicStoryHistoryItem } from "../story/types.ts";
+import { beverageTypeLabel } from "./admin/beverage-presentation.ts";
+import type { PublicStoryHistoryItem, PublicStoryView } from "../story/types.ts";
 import { recipeAmount, recipeMass, recipeNumber } from "./recipe-presentation.ts";
 import { acceptsJson, oneRequestHeader } from "./admin/http.ts";
 import type {
@@ -30,14 +33,27 @@ function storyPourHistory(
   return history.map((item) => pourHistoryEntry(item, now));
 }
 
+/** Readable forms of the story values the page shows as text. */
+export function storyLabels(story: PublicStoryView) {
+  const { beverageType } = story.presentation;
+  const { assignedAt } = story.currentFill;
+  return {
+    beverageType: beverageType === null ? null : beverageTypeLabel(beverageType),
+    assigned:
+      assignedAt === null ? null : { datetime: assignedAt, label: timestampLabel(assignedAt) },
+  };
+}
+
 export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependencies): void {
   dependencies.router.get("/", (request, response) => {
     const isAdmin = adminContext(request, dependencies.authService) !== undefined;
+    const dashboard = dependencies.dashboardService.getDashboard();
     sendHtml(
       response,
       200,
       dependencies.renderer.render("/public/dashboard", {
-        ...dependencies.dashboardService.getDashboard(),
+        ...dashboard,
+        themeColors: displayThemeColors(dashboard.sharedDisplay.theme),
         adminPourPreview: isAdmin,
       }),
       { vary: "Cookie" },
@@ -46,12 +62,15 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
   dependencies.router.get("/taps/:tapId/story", (request, response, params) => {
     const isAdmin = adminContext(request, dependencies.authService) !== undefined;
     const story = dependencies.storyService.getStory(params.tapId!);
+    const sharedDisplay = dependencies.dashboardService.getDisplayDefaults();
+    const themeColors = displayThemeColors(sharedDisplay.theme);
     if (story === undefined) {
       sendHtml(
         response,
         404,
         dependencies.renderer.render("/public/story", {
-          sharedDisplay: dependencies.dashboardService.getDisplayDefaults(),
+          sharedDisplay,
+          themeColors,
           header: dependencies.dashboardService.getHeader(),
           story: undefined,
           isAdmin,
@@ -64,7 +83,8 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
       response,
       200,
       dependencies.renderer.render("/public/story", {
-        sharedDisplay: dependencies.dashboardService.getDisplayDefaults(),
+        sharedDisplay,
+        themeColors,
         header: dependencies.dashboardService.getHeader(),
         ssePath: isAdmin ? "/api/admin/events" : "/api/public/events",
         tapId: params.tapId,
@@ -76,6 +96,7 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
         recipeMass,
         recipeNumber,
         story,
+        labels: storyLabels(story),
         pourHistory: isAdmin ? storyPourHistory(story.history) : null,
       }),
       { vary: "Cookie" },

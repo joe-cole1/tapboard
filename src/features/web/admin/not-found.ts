@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { redirect, sendHtml } from "../../../infrastructure/http/html.ts";
 import { ApplicationError } from "../../../shared/errors.ts";
-import { displayStylesheetHref } from "../../display/palette.ts";
+import { ADMIN_THEME_COLORS, displayStylesheetHref } from "../../display/palette.ts";
 import { type AdminContext, pageMessage, adminContext } from "./context.ts";
 import { adminBreadcrumbs, adminNav } from "./layout.ts";
 import type {
@@ -28,6 +28,7 @@ export function renderAdminNotFound(
         breadcrumbs,
         csrfToken: context.csrfToken,
         siteName: display.tapboardName,
+        themeColors: ADMIN_THEME_COLORS,
         displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       },
       nav: adminNav(pathname, breadcrumbs),

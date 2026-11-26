@@ -1,4 +1,4 @@
-<% layout("/layouts/public", { sharedDisplay: it.sharedDisplay, header: it.header }) %>
+<% layout("/layouts/public", { sharedDisplay: it.sharedDisplay, header: it.header, themeColors: it.themeColors }) %>
 <%~ include("/partials/public-header", { header: it.header }) %>
 <main id="main-content" data-dashboard data-admin-pour-preview="<%= it.adminPourPreview === true %>" data-sse-path="<%= it.ssePath %>">
   <%~ include("/partials/tap-wars-banner", { tapWars: it.tapWars }) %>

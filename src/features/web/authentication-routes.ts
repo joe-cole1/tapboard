@@ -9,7 +9,7 @@ import {
 import { requireMutationOrigin } from "../../infrastructure/http/security/origin.ts";
 import { ApplicationError } from "../../shared/errors.ts";
 import { reportFailure } from "../../shared/diagnostics.ts";
-import { displayStylesheetHref } from "../display/palette.ts";
+import { ADMIN_THEME_COLORS, displayStylesheetHref } from "../display/palette.ts";
 import { adminContext, pageMessage, cookieValue, messageLocation } from "./admin/context.ts";
 import type { RegisterAuthenticationRoutesDependencies } from "./contracts.ts";
 
@@ -34,6 +34,7 @@ export function registerAuthenticationRoutes(
       title: "Admin sign in",
       path: "/admin/login",
       siteName: display.tapboardName,
+      themeColors: ADMIN_THEME_COLORS,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       ...pageMessage(request),
     };

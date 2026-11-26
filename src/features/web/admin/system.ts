@@ -11,6 +11,7 @@ import {
 import { actor, type AdminContext } from "./context.ts";
 import { renderAdmin } from "./layout.ts";
 import { invalidForm } from "./forms.ts";
+import { timestampLabel } from "./presentation.ts";
 import type {
   RegisterSystemPagesDependencies,
   RegisterSystemMutationsDependencies,
@@ -41,6 +42,21 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
           liveClients: dependencies.liveUpdates.stats(),
           connectivity: dependencies.dashboardService.getHeader().connectivityLabel,
           diagnostics,
+          retention: {
+            outcome:
+              diagnostics.retention.lastOutcome === "completed"
+                ? "Completed"
+                : diagnostics.retention.lastOutcome === "failed"
+                  ? "Failed; will retry"
+                  : "Not yet run",
+            checked:
+              diagnostics.retention.lastRunAt === null
+                ? null
+                : {
+                    datetime: diagnostics.retention.lastRunAt,
+                    label: timestampLabel(diagnostics.retention.lastRunAt),
+                  },
+          },
           calculation: service.getCalculationSettings(),
           display: dependencies.displayService.getSettings(),
           sessionPolicy: dependencies.authService.getSessionPolicy(),

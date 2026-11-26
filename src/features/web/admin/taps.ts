@@ -21,7 +21,7 @@ import {
   tapRemainingLabel,
 } from "./tap-presentation.ts";
 import { renderAdmin } from "./layout.ts";
-import { numberedPageNavigation, type StatusBadge } from "./presentation.ts";
+import { filterForm, numberedPageNavigation, type StatusBadge } from "./presentation.ts";
 import { renderTapDetail, TAP_TABS, tapPagePath } from "./tap-detail.ts";
 import { nullable, nullableNumber, invalidForm } from "./forms.ts";
 import { actor, type AdminContext } from "./context.ts";
@@ -92,8 +92,26 @@ export function registerTapPages(dependencies: RegisterTapPagesDependencies): vo
     });
     renderAdmin(dependencies, response, request, context, "/admin/taps", "Taps", "/admin/taps", {
       taps: rows,
-      query: index.query,
-      state: index.state,
+      filter: filterForm({
+        action: "/admin/taps",
+        label: "Filter Taps",
+        search: { value: index.query, placeholder: "Tap number, name, assignment, or keg" },
+        selects: [
+          {
+            name: "state",
+            label: "Show",
+            value: index.state,
+            defaultValue: "all",
+            options: [
+              { value: "all", label: "All" },
+              { value: "assigned", label: "Assigned" },
+              { value: "unassigned", label: "Unassigned" },
+              { value: "disabled", label: "Disabled" },
+              { value: "retired", label: "Retired" },
+            ],
+          },
+        ],
+      }),
       empty:
         index.query || index.state !== "all"
           ? {

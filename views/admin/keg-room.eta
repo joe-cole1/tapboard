@@ -14,25 +14,7 @@
       title: "Find a Filled Keg",
       intro: `${it.pagination.total} result${it.pagination.total === 1 ? "" : "s"}`,
     }) %>
-    <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">
-      <label class="field">Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
-      <label class="field">Show <select name="state">
-      <option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option>
-      <option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option>
-      <option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option>
-      <option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option>
-      <option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option>
-      <option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option>
-      </select></label>
-      <label class="field">Sort <select name="sort">
-      <option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option>
-      <option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option>
-      <option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option>
-      <option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option>
-      <option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option>
-      </select></label>
-      <button class="button button--secondary button--small" type="submit">Apply</button>
-    </form>
+    <%~ include("/partials/filter-form", it.filter) %>
   </section>
   <% for (const section of it.sections) { %>
     <section class="keg-room-section" aria-labelledby="keg-room-section-<%= section.id %>"<% if (section.id === "on-deck") { %> data-admin-reorder<% } %>>

@@ -196,7 +196,7 @@
       <tbody>
         <% for (const war of history) { %>
           <tr>
-            <td><time datetime="<%= war.completedAt %>"><%= war.completedAt || "Unknown" %></time><br /><small>Started <%= war.startedAt || "Unknown" %></small></td>
+            <td><%~ include("/partials/timestamp", war.completed) %><br /><small>Started <%~ include("/partials/timestamp", war.started) %></small></td>
             <td data-label="Matchup">
               <% for (const side of war.competitors) { %>
                 <div><strong>Tap <%= side.tapNumber %></strong> · <%= side.adminBeverageTitle %><br /><small>Public

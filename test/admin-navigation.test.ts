@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { adminBreadcrumbs, adminNav, adminTabs } from "../src/features/web/admin/layout.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
+import { ADMIN_THEME_COLORS } from "../src/features/display/palette.ts";
 
 void test("a section's own page ends its breadcrumb at the section", () => {
   assert.deepEqual(adminBreadcrumbs("/admin/taps", "/admin/taps", "Taps"), [
@@ -92,7 +93,13 @@ void test("the Admin shell renders one menu button and a linked breadcrumb trail
     [{ label: "Physical Kegs", href: "/admin/keg-room/kegs" }],
   );
   const html = createRenderer().render("/admin/not-found", {
-    page: { title, path: "/admin/keg-room/kegs", breadcrumbs, csrfToken: "safe" },
+    page: {
+      title,
+      path: "/admin/keg-room/kegs",
+      breadcrumbs,
+      csrfToken: "safe",
+      themeColors: ADMIN_THEME_COLORS,
+    },
     nav: adminNav("/admin/keg-room/kegs", breadcrumbs),
   });
   assert.equal(html.match(/data-admin-menu-toggle/gu)?.length, 1);

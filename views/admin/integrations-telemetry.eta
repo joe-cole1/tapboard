@@ -16,11 +16,7 @@
     </ol>
     <p>Endpoint: <code>POST /api/v1/telemetry/taps/{tapNumber}</code></p>
   </section>
-  <form class="form" method="get" action="/admin/integrations/telemetry"
-    role="search"><label class="field">Search sources <input type="search" name="q" value="<%= it.query || "" %>"
-    maxlength="80" /></label><button class="button button--secondary button--small"
-    type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small"
-    href="/admin/integrations/telemetry">Clear</a><% } %></form>
+  <%~ include("/partials/filter-form", it.filter) %>
   <section aria-labelledby="active-telemetry-heading">
     <%~ include("/partials/section-heading", {
       id: "active-telemetry-heading",

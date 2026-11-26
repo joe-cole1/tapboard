@@ -119,7 +119,7 @@ test("Issue 80 System and Logs support no-JS save, Activity filtering, selected/
 
     await page.goto("/admin/logs");
     await page.getByLabel("Activity category").selectOption("admin");
-    await page.getByRole("button", { name: "Filter Activity log" }).click();
+    await page.getByRole("button", { name: "Apply" }).click();
     await expect(page).toHaveURL(/\/admin\/logs\?category=admin$/u);
     const rows = page.locator("#activity tbody tr");
     expect(await rows.count()).toBeGreaterThan(0);

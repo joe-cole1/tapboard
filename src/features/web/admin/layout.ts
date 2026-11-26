@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendHtml } from "../../../infrastructure/http/html.ts";
-import { displayStylesheetHref } from "../../display/palette.ts";
+import { ADMIN_THEME_COLORS, displayStylesheetHref } from "../../display/palette.ts";
 import { type AdminContext, pageMessage, requestUrl } from "./context.ts";
 import type { RenderAdminDependencies } from "../contracts.ts";
 
@@ -233,6 +233,7 @@ export function renderAdmin(
     breadcrumbs,
     csrfToken: context.csrfToken,
     siteName: display.tapboardName,
+    themeColors: ADMIN_THEME_COLORS,
     ...(requestedDashboardStyles === true ? { includeDashboardStyles: true } : {}),
     // Every authenticated Admin page receives the configured external display
     // stylesheet. Dedicated preview pages may explicitly request a different

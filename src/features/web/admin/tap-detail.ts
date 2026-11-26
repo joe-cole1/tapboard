@@ -18,7 +18,7 @@ import { HEALTH_SECTION_PRESENTATION } from "./health-presentation.ts";
 import { tapDeletionBlockers, tapRetireBlockers } from "./blockers.ts";
 import { renderAdmin } from "./layout.ts";
 import { presentActivityItems } from "./logs.ts";
-import { adminTimestampLabel, type PageHeader } from "./presentation.ts";
+import { timestampLabel, type PageHeader } from "./presentation.ts";
 import type { RenderTapDetailDependencies } from "../contracts.ts";
 
 const KPA_PER_PSI = TELEMETRY_METRICS.pressure!.units.psi!(1);
@@ -105,14 +105,14 @@ export function renderTapDetail(
           name: tap.name,
           createdAt: tap.createdAt,
           updatedAt: tap.updatedAt,
-          updatedAtLabel: adminTimestampLabel(tap.updatedAt),
+          updatedAtLabel: timestampLabel(tap.updatedAt),
           confirmationLabel: tapDeletionConfirmationLabel(tap),
         },
         lifecycle: {
           enabled: tap.enabled,
           isRetired: tap.isRetired,
           firstUsedAt: tap.firstUsedAt,
-          firstUsedAtLabel: adminTimestampLabel(tap.firstUsedAt),
+          firstUsedAtLabel: timestampLabel(tap.firstUsedAt),
           retiredAt: tap.retiredAt,
         },
         ...tabData,
@@ -287,7 +287,7 @@ function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapVie
       active:
         assignment === null
           ? null
-          : { ...assignment, assignedAtLabel: adminTimestampLabel(assignment.assignedAt) },
+          : { ...assignment, assignedAtLabel: timestampLabel(assignment.assignedAt) },
       actions: assignmentActions(assignment),
     },
     assignableFills,
@@ -370,7 +370,7 @@ function sensorsTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView
       const value = metric
         ? `${pressure.value.toFixed(1)} kPa`
         : `${(pressure.value / KPA_PER_PSI).toFixed(1)} psi`;
-      pressureLabel = `${value}, measured ${adminTimestampLabel(
+      pressureLabel = `${value}, measured ${timestampLabel(
         new Date(pressure.measuredAtMs).toISOString(),
       )}`;
     }
@@ -490,7 +490,7 @@ function maintenanceTab(
         return {
           typeLabel: humanizeAdminIdentifier(record.maintenanceType),
           performedAt,
-          performedAtLabel: adminTimestampLabel(performedAt),
+          performedAtLabel: timestampLabel(performedAt),
         };
       });
   } catch (error) {
@@ -511,8 +511,8 @@ function historyTab(
   try {
     fills = dependencies.tapService.listFillHistory(tap.id).map((entry) => ({
       ...entry,
-      assignedAtLabel: adminTimestampLabel(entry.assignedAt),
-      endedAtLabel: entry.endedAt === null ? null : adminTimestampLabel(entry.endedAt),
+      assignedAtLabel: timestampLabel(entry.assignedAt),
+      endedAtLabel: entry.endedAt === null ? null : timestampLabel(entry.endedAt),
       endLabel:
         entry.endedAt === null
           ? "On tap now"

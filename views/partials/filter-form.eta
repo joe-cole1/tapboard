@@ -1,0 +1,21 @@
+<% /*
+  A list page's GET filter: an optional search box, any selects, Apply, and Clear while filtered.
+  it: FilterForm from admin/presentation.ts (action, label, search, selects, clearHref)
+*/ %>
+<form class="form filter-form" method="get" action="<%= it.action %>" role="search" aria-label="<%= it.label %>">
+  <% if (it.search) { %>
+    <label class="field">Search <input type="search" name="q" value="<%= it.search.value %>" maxlength="80"
+      placeholder="<%= it.search.placeholder %>" /></label>
+  <% } %>
+  <% for (const select of it.selects) { %>
+    <label class="field"><%= select.label %> <select name="<%= select.name %>">
+      <% for (const option of select.options) { %>
+        <option value="<%= option.value %>"<% if (option.selected) { %> selected<% } %>><%= option.label %></option>
+      <% } %>
+    </select></label>
+  <% } %>
+  <div class="filter-form__actions">
+    <button class="button button--secondary button--small" type="submit">Apply</button>
+    <% if (it.clearHref) { %><a class="button button--secondary button--small" href="<%= it.clearHref %>">Clear</a><% } %>
+  </div>
+</form>

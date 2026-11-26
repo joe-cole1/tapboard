@@ -10,6 +10,7 @@ import {
   validationFieldsFor,
 } from "./http.ts";
 import { renderAdmin } from "./layout.ts";
+import { timestampLabel } from "./presentation.ts";
 import { invalidForm } from "./forms.ts";
 import { adminContext, actor, requestUrl, type AdminContext } from "./context.ts";
 import type {
@@ -269,6 +270,7 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
   const isTie =
     war.status === "completed" ? war.result === "tie" : totalVotes > 0 && leaderSide === null;
   const shownLeader = war.status === "completed" ? null : leaderSide;
+  const started = { datetime: war.startedAt, label: timestampLabel(war.startedAt) };
   return {
     id: war.id,
     status: war.status,
@@ -281,13 +283,14 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
     heading: {
       title: war.status === "active" ? "Current Tap War" : "Tap War paused",
       eyebrow: war.status === "active" ? "Now accepting votes" : "Needs attention",
-      started: { datetime: war.startedAt, label: war.startedAt || "Unknown" },
+      started,
       badge:
         war.status === "active"
           ? { label: "Voting open" }
           : { label: "Voting paused", tone: "warning" },
     },
-    completed: { datetime: war.completedAt ?? "", label: war.completedAt || "Unknown" },
+    started,
+    completed: { datetime: war.completedAt ?? "", label: timestampLabel(war.completedAt) },
     totalVotes,
     voteWord: totalVotes === 1 ? "vote" : "votes",
     resultLabel:

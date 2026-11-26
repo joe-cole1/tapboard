@@ -1,5 +1,5 @@
 import { deletionImpactSentence } from "./blockers.ts";
-import { VESSEL_IDS } from "../../story/index.ts";
+import { SENSORY_LABELS, VESSEL_IDS } from "../../story/index.ts";
 import { OFFLINE_RECIPE_ACCOUNT_ID } from "../../beverages/recipe-files/import.ts";
 import {
   beverageDisplayColor,
@@ -11,12 +11,45 @@ import {
   BEVERAGE_SENSORY_AXES,
   BEVERAGE_SENSORY_CANONICAL_MAX,
   BEVERAGE_SENSORY_CANONICAL_MIN,
+  BEVERAGE_TYPES,
   type BeverageListRecord,
+  type BeverageType,
   type BrewfatherCandidate,
   type UpdateCustomBeverageInput,
 } from "../../beverages/types.ts";
 import type { BeverageDetailResult } from "../../beverages/service.ts";
 import { invalidForm, nullableNumber } from "./forms.ts";
+import { humanizeAdminIdentifier } from "./detector-presentation.ts";
+
+const BEVERAGE_TYPE_LABELS: Readonly<Record<BeverageType, string>> = {
+  beer: "Beer",
+  cider: "Cider",
+  mead: "Mead",
+  seltzer: "Seltzer",
+  soda: "Soda",
+  water: "Water",
+  cocktail: "Cocktail",
+  kombucha: "Kombucha",
+  coffee: "Coffee",
+  other: "Other",
+};
+
+/** The readable name of a stored beverage type; unknown values pass through unchanged. */
+export function beverageTypeLabel(value: string): string {
+  return (BEVERAGE_TYPE_LABELS as Readonly<Record<string, string>>)[value] ?? value;
+}
+
+/** Beverage type choices for a dropdown, in the stored order. */
+export const BEVERAGE_TYPE_OPTIONS: readonly {
+  readonly value: BeverageType;
+  readonly label: string;
+}[] = BEVERAGE_TYPES.map((value) => ({ value, label: BEVERAGE_TYPE_LABELS[value] }));
+
+/** The sensory axes in display order, with the names Story and Admin show. */
+export const SENSORY_AXIS_OPTIONS = BEVERAGE_SENSORY_AXES.map((key) => ({
+  key,
+  label: SENSORY_LABELS[key],
+}));
 
 export function safeSensoryOverride(value: unknown): number | null {
   return typeof value === "number" &&
@@ -295,11 +328,13 @@ export function safeAdminFlavorDetails(value: unknown) {
       "apparentAttenuation",
     ].map((key) => {
       const item = object(scalars[key]);
+      const provenance = boundedAdminString(item.provenance, 40);
       return {
         key,
         value: boundedAdminNumber(item.value),
         unit: boundedAdminString(item.unit, 24),
-        provenance: boundedAdminString(item.provenance, 40),
+        provenance,
+        provenanceLabel: humanizeAdminIdentifier(provenance, "Unavailable"),
         sourcePath: boundedAdminString(item.sourcePath, 160),
         limitations: boundedStrings(item.limitations, 5),
       };
@@ -317,13 +352,17 @@ export function safeAdminFlavorDetails(value: unknown) {
     }),
     axes: BEVERAGE_SENSORY_AXES.map((key) => {
       const item = object(axes[key]);
+      const reasons = boundedStrings(item.reasons, 8);
+      const limitations = boundedStrings(item.limitations, 8);
       return {
         key,
         value: boundedAdminNumber(item.value),
         source: boundedAdminString(item.source, 40),
         support: boundedAdminString(item.support, 24),
-        reasons: boundedStrings(item.reasons, 8),
-        limitations: boundedStrings(item.limitations, 8),
+        reasons,
+        reasonsLabel: reasons.map((reason) => humanizeAdminIdentifier(reason)).join("; "),
+        limitations,
+        limitationsLabel: limitations.map((reason) => humanizeAdminIdentifier(reason)).join("; "),
       };
     }),
     diagnostics: boundedStrings(raw.diagnostics, 30),
@@ -338,6 +377,7 @@ export function safeAdminGuidance(value: unknown): {
       {
         readonly value: number | null;
         readonly source: string;
+        readonly sourceLabel: string;
         readonly confidence: string | null;
         readonly evidence: string;
       }
@@ -360,6 +400,7 @@ export function safeAdminGuidance(value: unknown): {
     {
       readonly value: number | null;
       readonly source: string;
+      readonly sourceLabel: string;
       readonly confidence: string | null;
       readonly evidence: string;
     }
@@ -367,9 +408,11 @@ export function safeAdminGuidance(value: unknown): {
   for (const axis of BEVERAGE_SENSORY_AXES) {
     const raw = rawSensory[axis];
     const result = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+    const source = boundedAdminString(result.source, 64) ?? "unavailable";
     sensory[axis] = {
       value: boundedAdminNumber(result.value),
-      source: boundedAdminString(result.source, 64) ?? "unavailable",
+      source,
+      sourceLabel: humanizeAdminIdentifier(source),
       confidence: boundedAdminString(result.confidence, 32),
       evidence: boundedAdminString(result.evidence, 240) ?? "Guidance unavailable.",
     };
@@ -462,6 +505,7 @@ export function adminBeverageListItem(item: BeverageListRecord): Record<string, 
     ownershipType: item.beverage.ownershipType,
     source: item.beverage.ownershipType === "brewfather" ? "Brewfather" : "Custom",
     beverageType: item.effectivePresentation.beverageType,
+    beverageTypeLabel: beverageTypeLabel(item.effectivePresentation.beverageType),
     style: item.effectivePresentation.style,
     abv: item.effectivePresentation.abv,
     displayColor: beverageDisplayColor(item.effectivePresentation),
@@ -500,6 +544,8 @@ export function adminBeverageDetailDto(
       : {
           name: source.name,
           beverageType: source.beverageType,
+          beverageTypeLabel:
+            source.beverageType === null ? null : beverageTypeLabel(source.beverageType),
           style: source.style,
           abv: source.abv,
           ibu: source.ibu,
@@ -541,6 +587,7 @@ export function adminBeverageDetailDto(
     ownershipType: detail.beverage.ownershipType,
     name: effective.name,
     beverageType: effective.beverageType,
+    beverageTypeLabel: beverageTypeLabel(effective.beverageType),
     style: effective.style,
     abv: effective.abv,
     ibu: effective.ibu,

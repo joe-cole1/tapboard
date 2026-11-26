@@ -37,8 +37,7 @@
     margin: 8vh auto;
     padding: var(--space-6);
   }
-  .system-revoke-form,
-  .system-activity-filter {
+  .system-revoke-form {
     display: flex;
     max-width: none;
     flex-wrap: wrap;
@@ -259,11 +258,14 @@
     display: grid;
     gap: var(--space-4);
   }
-  .admin-nav-group h2 {
+  /* Group labels name their list but are not headings, so each page's <h1> comes first. */
+  .admin-nav-group__label {
     margin: 0 0 var(--space-1-5);
     padding-inline: var(--space-2-5);
     color: var(--muted);
+    font-family: var(--font-heading);
     font-size: var(--text-caption);
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -435,13 +437,22 @@
     align-items: center;
     gap: var(--space-2);
   }
-  /* Columns come from .config-grid, so the fields wrap instead of Apply covering Sort. */
-  .keg-room-filter-form {
+  /* List filters (partials/filter-form): fields wrap at 13rem to 24rem; Apply and Clear come last. */
+  .filter-form {
+    display: flex;
     max-width: none;
+    flex-wrap: wrap;
     align-items: end;
+    gap: var(--space-3);
   }
-  .keg-room-filter-form > button {
-    justify-self: start;
+  .filter-form > .field {
+    flex: 1 1 13rem;
+    max-width: 24rem;
+  }
+  .filter-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
   /* One labelled row per everyday action; Kick keg sits apart below a divider. */
   .tap-assignment-actions {
@@ -847,23 +858,12 @@
   }
 
   /* Beverage library and read-first detail surfaces. */
-  .admin-search {
-    padding: var(--space-4) var(--space-4);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-  }
-  .admin-search__controls,
   .form-actions,
   .pagination {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2-5);
-  }
-  .admin-search__controls input {
-    flex: 1 1 16rem;
-    min-width: 0;
   }
   .beverage-color-cue {
     display: inline-block;

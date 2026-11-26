@@ -29,7 +29,7 @@
           <label class="field">Name <input name="name" value="<%= bev.name %>" maxlength="160" required /></label>
           <label class="field">Type <select name="beverageType">
           <% for (const type of it.beverageTypes) { %>
-            <option value="<%= type %>"<% if (bev.beverageType === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option>
+            <option value="<%= type.value %>"<% if (bev.beverageType === type.value) { %> selected<% } %>><%= type.label %></option>
           <% } %>
           </select></label>
           <label class="field">Style <input name="style" value="<%= bev.style || "" %>" maxlength="120" /></label>
@@ -46,7 +46,7 @@
     <% } else { %>
       <p class="muted">Brewfather supplies these values. Change any of them for this beverage on <a href="/admin/beverages/<%= bev.id %>/presentation">Presentation</a>.</p>
       <dl class="key-value-list">
-        <div><dt>Type and style</dt><dd><%= bev.beverageType %><% if (bev.style) { %> · <%= bev.style %><% } %></dd></div>
+        <div><dt>Type and style</dt><dd><%= bev.beverageTypeLabel %><% if (bev.style) { %> · <%= bev.style %><% } %></dd></div>
         <div><dt>ABV</dt><dd><%= bev.abv === null ? "—" : `${bev.abv}%` %></dd></div>
         <div><dt>IBU</dt><dd><%= bev.ibu ?? "—" %></dd></div>
         <div><dt>Original gravity</dt><dd><%= bev.og ?? "—" %></dd></div>
@@ -99,11 +99,11 @@
               value="<%= o.name || bev.name %>" maxlength="160" /></label></fieldset>
           <fieldset class="fieldset">
             <legend>Type</legend>
-            <p><strong>Source:</strong> <%= bev.source.beverageType %></p>
-            <p><strong>Effective:</strong> <%= bev.beverageType %></p>
+            <p><strong>Source:</strong> <%= bev.source.beverageTypeLabel %></p>
+            <p><strong>Effective:</strong> <%= bev.beverageTypeLabel %></p>
             <%~ include("/partials/override-mode", it.overrideModes.beverageType) %><label class="field">Override value <select name="beverageType">
             <% for (const type of it.beverageTypes) { %>
-              <option value="<%= type %>"<% if ((o.beverageType || bev.beverageType) === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option>
+              <option value="<%= type.value %>"<% if ((o.beverageType || bev.beverageType) === type.value) { %> selected<% } %>><%= type.label %></option>
             <% } %>
             </select></label></fieldset>
           <fieldset class="fieldset">
@@ -334,7 +334,7 @@
           <div>
             <dt><%= axis.label %></dt>
             <dd><%= result.value === null ? "Unavailable" : `${Number(result.value.toFixed(1))} / 5` %> ·
-              <%= result.source.replace(/_/gu, " ") %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd>
+              <%= result.sourceLabel %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd>
           </div>
         <% } %>
       </dl>
@@ -369,6 +369,7 @@
       }) %>
       <h3>Selected brewing inputs</h3>
       <table class="table">
+        <caption class="sr-only">Selected brewing inputs</caption>
         <thead>
           <tr>
             <th scope="col">Input</th>
@@ -381,8 +382,7 @@
             <tr>
               <th scope="row"><%= scalar.key %></th>
               <td data-label="Selected value"><%= scalar.value === null ? "Unavailable" : Number(scalar.value.toPrecision(5)) %> <%= scalar.value === null ? "" : scalar.unit || "" %></td>
-              <td data-label="Source"><%= scalar.provenance?.replaceAll("_",
-                " ") || "Unavailable" %><% if (scalar.sourcePath) { %><br
+              <td data-label="Source"><%= scalar.provenanceLabel %><% if (scalar.sourcePath) { %><br
                 /><small><%= scalar.sourcePath %></small><% } %><% if (scalar.limitations.length) { %><br
                 /><small><%= scalar.limitations.join("; ") %></small><% } %></td>
             </tr>
@@ -403,10 +403,9 @@
         <% for (const axis of details.axes) { %>
           <div>
             <dt><%= it.axisLabels[axis.key] || axis.key %></dt>
-            <dd><%= axis.support || "Unavailable" %><% if (axis.reasons.length) { %> ·
-              <%= axis.reasons.map(reason => reason.replaceAll("_",
-              " ")).join("; ") %><% } %><% if (axis.limitations.length) { %><br
-              /><small><%= axis.limitations.map(reason => reason.replaceAll("_", " ")).join("; ") %></small><% } %></dd>
+            <dd><%= axis.support || "Unavailable" %><% if (axis.reasonsLabel) { %> ·
+              <%= axis.reasonsLabel %><% } %><% if (axis.limitationsLabel) { %><br
+              /><small><%= axis.limitationsLabel %></small><% } %></dd>
           </div>
         <% } %>
       </dl>
