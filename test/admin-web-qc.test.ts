@@ -472,6 +472,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
         font: "system",
         showServingTemperature: true,
         layoutMode: "scroll",
+        timeZone: "UTC",
       }),
     },
     beverageService: {

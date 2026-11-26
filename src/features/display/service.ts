@@ -72,7 +72,8 @@ function equal(
     current.accent === input.accent &&
     current.unitSystem === input.unitSystem &&
     current.showServingTemperature === input.showServingTemperature &&
-    current.layoutMode === input.layoutMode
+    current.layoutMode === input.layoutMode &&
+    current.timeZone === input.timeZone
   );
 }
 function conflict(): never {

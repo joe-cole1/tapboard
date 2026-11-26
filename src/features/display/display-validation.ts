@@ -20,6 +20,7 @@ import {
   type UpdateDisplaySettingsInput,
   isDisplayAccent,
 } from "./types.ts";
+import { isTimeZone } from "../../shared/time-zone.ts";
 
 function enumValue<T extends string>(value: unknown, field: string, allowed: readonly T[]): T {
   if (typeof value !== "string" || !allowed.includes(value as T))
@@ -30,6 +31,11 @@ function enumValue<T extends string>(value: unknown, field: string, allowed: rea
 function accentValue(value: unknown): DisplayAccent {
   if (!isDisplayAccent(value))
     throw invalid("accent", "must be a named accent or lowercase #rrggbb");
+  return value;
+}
+
+function timeZoneValue(value: unknown): string {
+  if (!isTimeZone(value)) throw invalid("timeZone", "has an unsupported value");
   return value;
 }
 
@@ -44,6 +50,7 @@ export function validateUpdateDisplaySettingsInput(input: unknown): UpdateDispla
     "unitSystem",
     "showServingTemperature",
     "layoutMode",
+    "timeZone",
   ] as const;
   rejectUnknownKeys(object, keys, "body");
   if (Object.keys(object).length !== keys.length || keys.some((key) => !Object.hasOwn(object, key)))
@@ -73,6 +80,7 @@ export function validateUpdateDisplaySettingsInput(input: unknown): UpdateDispla
     unitSystem: enumValue<DisplayUnitSystem>(object.unitSystem, "unitSystem", DISPLAY_UNIT_SYSTEMS),
     showServingTemperature: object.showServingTemperature,
     layoutMode: enumValue<DisplayLayoutMode>(object.layoutMode, "layoutMode", DISPLAY_LAYOUT_MODES),
+    timeZone: timeZoneValue(object.timeZone),
   };
 }
 

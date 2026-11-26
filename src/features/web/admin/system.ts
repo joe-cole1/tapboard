@@ -12,17 +12,51 @@ import { actor, type AdminContext } from "./context.ts";
 import { renderAdmin } from "./layout.ts";
 import { invalidForm } from "./forms.ts";
 import { timestampLabel } from "./presentation.ts";
+import { TIME_ZONES } from "../../../shared/time-zone.ts";
 import type {
   RegisterSystemPagesDependencies,
   RegisterSystemMutationsDependencies,
   RequireSystemServiceDependencies,
 } from "../contracts.ts";
 
+export interface TimeZoneOption {
+  readonly value: string;
+  readonly label: string;
+  readonly selected: boolean;
+}
+
+/**
+ * The time zone select: UTC first, then every zone under its region ("America"), labelled
+ * by the rest of its name ("New York", "North Dakota / New Salem").
+ */
+export function timeZoneGroups(
+  selected: string,
+): readonly { readonly label: string; readonly options: readonly TimeZoneOption[] }[] {
+  const groups = new Map<string, TimeZoneOption[]>();
+  for (const zone of TIME_ZONES) {
+    const slash = zone.indexOf("/");
+    const region = slash === -1 ? zone : zone.slice(0, slash);
+    const label =
+      slash === -1
+        ? zone
+        : zone
+            .slice(slash + 1)
+            .replaceAll("_", " ")
+            .replaceAll("/", " / ");
+    const options = groups.get(region) ?? [];
+    options.push({ value: zone, label, selected: zone === selected });
+    groups.set(region, options);
+  }
+  return [...groups].map(([label, options]) => ({ label, options }));
+}
+
 export function registerSystemPages(dependencies: RegisterSystemPagesDependencies): void {
   registerAdminGet(dependencies, "/admin/system", (request, response, context) => {
     const service = requireSystemService(dependencies);
     const diagnostics = service.getDiagnostics();
     const ready = dependencies.isReady?.() ?? true;
+    const display = dependencies.displayService.getSettings();
+    const { timeZone } = display;
     renderAdmin(
       dependencies,
       response,
@@ -54,11 +88,12 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
                 ? null
                 : {
                     datetime: diagnostics.retention.lastRunAt,
-                    label: timestampLabel(diagnostics.retention.lastRunAt),
+                    label: timestampLabel(diagnostics.retention.lastRunAt, timeZone),
                   },
           },
           calculation: service.getCalculationSettings(),
-          display: dependencies.displayService.getSettings(),
+          display,
+          timeZoneGroups: timeZoneGroups(timeZone),
           sessionPolicy: dependencies.authService.getSessionPolicy(),
         },
       },

@@ -356,7 +356,9 @@ function isFillNew(fillDate: string, now: Date): boolean {
   const todayDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   if (fillDay === null) return false;
   const ageDays = Math.floor((todayDay - fillDay) / 86_400_000);
-  return ageDays >= 0 && ageDays <= 6;
+  // Days count in UTC so the public page never reveals the display time zone, but a Fill is
+  // dated in that zone: east of UTC its date can be one day past UTC's today.
+  return ageDays >= -1 && ageDays <= 6;
 }
 
 export class PublicStoryService {

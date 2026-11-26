@@ -100,7 +100,11 @@ for (const javaScriptEnabled of [true, false]) {
 test("System and Logs settings save live with no Save buttons", async ({ browser }) => {
   const { context, page } = await adminPage(browser, true);
   await page.goto("/admin/system");
-  for (const name of ["Save calculation defaults", "Save units", "Save session lifetimes"]) {
+  for (const name of [
+    "Save calculation defaults",
+    "Save units and time zone",
+    "Save session lifetimes",
+  ]) {
     await expect(page.getByRole("button", { name })).toBeHidden();
   }
   // The PIN change stays an explicit action.
@@ -305,7 +309,7 @@ test("a Units save on System makes an open Default theme form stale", async ({ b
   const originalUnits = await unitSystem.inputValue();
   try {
     await unitSystem.selectOption(originalUnits === "us" ? "metric" : "us");
-    await saveLive(units, "Save units");
+    await saveLive(units, "Save units and time zone");
     await choice(page, "theme", theme).click();
     await expect(form.getByRole("status")).toHaveText(
       "Conflict — reload to review the current value",
@@ -316,7 +320,31 @@ test("a Units save on System makes an open Default theme form stale", async ({ b
     await system.goto("/admin/system");
     if ((await unitSystem.inputValue()) !== originalUnits) {
       await unitSystem.selectOption(originalUnits);
-      await saveLive(units, "Save units");
+      await saveLive(units, "Save units and time zone");
+    }
+    await context.close();
+  }
+});
+
+test("the System time zone saves live and Admin dates follow it", async ({ browser }) => {
+  const { context, page } = await adminPage(browser, true);
+  await page.goto("/admin/system");
+  const units = page.locator('form[action="/admin/system/units"]');
+  const zone = units.getByLabel("Time zone");
+  const original = await zone.inputValue();
+  try {
+    await zone.selectOption("America/New_York");
+    await saveLive(units, "Save units and time zone");
+    await page.goto("/admin/logs");
+    await expect(page.getByRole("columnheader", { name: "Time", exact: true })).toBeVisible();
+    await expect(page.locator("table time").first()).toHaveText(/ [AP]M E[SD]T$/u);
+    await page.goto("/admin/system");
+    await expect(zone).toHaveValue("America/New_York");
+  } finally {
+    await page.goto("/admin/system");
+    if ((await zone.inputValue()) !== original) {
+      await zone.selectOption(original);
+      await saveLive(units, "Save units and time zone");
     }
     await context.close();
   }

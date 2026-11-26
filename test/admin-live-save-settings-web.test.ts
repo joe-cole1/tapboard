@@ -168,7 +168,11 @@ void test("System › Units save live with the display revision", async (context
     showServingTemperature: "true",
   });
   assert.equal(saved.status, 200);
-  assert.deepEqual(saved.body.resource, { unitSystem: "metric", showServingTemperature: true });
+  assert.deepEqual(saved.body.resource, {
+    unitSystem: "metric",
+    showServingTemperature: true,
+    timeZone: "UTC",
+  });
   const page = await admin.get("/admin/system");
   assert.equal(inputValue(page, "expectedDisplayRevision"), String(saved.body.revision));
   assert.notEqual(String(saved.body.revision), revision);

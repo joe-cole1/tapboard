@@ -461,7 +461,10 @@ void test("public card badges derive actionable low, UTC new, and featured in ca
   assert.deepEqual(service.getCard(TAP_ID)?.badges, ["low", "new", "featured"]);
 
   setLowKeg("degraded", "none");
+  // A Fill dated in a zone east of UTC can be a day past UTC's today; two days past is not new.
   setFillDate("2026-08-18");
+  assert.deepEqual(service.getCard(TAP_ID)?.badges, ["new", "featured"]);
+  setFillDate("2026-08-19");
   assert.deepEqual(service.getCard(TAP_ID)?.badges, ["featured"]);
   setFillDate("2026-08-10");
   assert.deepEqual(service.getCard(TAP_ID)?.badges, ["featured"]);
@@ -979,7 +982,7 @@ void test("flavor summary follows the sensory reveal and renders only without a 
       recipeMass,
       recipeNumber,
       story,
-      labels: storyLabels(story),
+      labels: storyLabels(story, "UTC"),
     });
   const described = fixture({ flavorBatch: batchFixture("B011") });
   const withDescription = described.service.getStory(TAP_ID)!;

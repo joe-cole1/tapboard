@@ -113,7 +113,7 @@ void test("Admin dates read as text in <time>, never as raw ISO", async (context
     sessions,
     /<time datetime="\d{4}-\d{2}-\d{2}T[^"]+">[A-Z][a-z]{2} \d{1,2}, \d{4}, /u,
   );
-  assert.equal(timestampLabel("2026-11-26T04:18:00.000Z"), "Nov 26, 2026, 4:18 AM UTC");
+  assert.equal(timestampLabel("2026-11-26T04:18:00.000Z", "UTC"), "Nov 26, 2026, 4:18 AM UTC");
 });
 
 void test("stored beverage types read as words in selects and text", async (context) => {

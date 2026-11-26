@@ -33,6 +33,7 @@ void test("Admin errors authenticate before parsing, preserve statuses and corre
     theme: "dark",
     font: "system",
     accent: "amber",
+    timeZone: "UTC",
   };
   const dependencies = {
     router: new Router(logger),

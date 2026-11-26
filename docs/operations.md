@@ -206,7 +206,7 @@ The sample database sits beside the normal one with `.simulation.sqlite3` append
 
 ## System administration
 
-**Admin → System** shows application readiness and version, local storage and delivery counts, calculation defaults, units and readouts, and Admin access (session lifetimes and the PIN). **Admin → Logs** has three tabs: a category-filtered **Activity log**, the active **Admin sessions**, and **Retention** settings. All are ordinary forms that work without JavaScript. Activity pages hold up to 50 entries. Diagnostics never call an external service or show credentials, private notes, raw payloads, or configured endpoints.
+**Admin → System** shows application readiness and version, local storage and delivery counts, calculation defaults, units and readouts, and Admin access (session lifetimes and the PIN). Units and readouts also holds the household's time zone (UTC until changed), which Admin dates, pour-history days ("yesterday") and the default date of a new Filled Keg use; public displays never show it. **Admin → Logs** has three tabs: a category-filtered **Activity log**, the active **Admin sessions**, and **Retention** settings. All are ordinary forms that work without JavaScript. Activity pages hold up to 50 entries. Diagnostics never call an external service or show credentials, private notes, raw payloads, or configured endpoints.
 
 Calculation defaults set the Beverage fallback final gravity and the forecast serving size; a Beverage's own density and pour-size overrides take precedence. Changes apply to future telemetry and keep completed pours.
 

@@ -258,7 +258,10 @@ export function tapWarUnavailabilityLabel(reason: EligibilityReason | null): str
   }
 }
 
-export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string, unknown>> | null {
+export function adminTapWarView(
+  war: TapWar | undefined,
+  timeZone: string,
+): Readonly<Record<string, unknown>> | null {
   if (war === undefined) return null;
   const [first, second] = war.competitors;
   const firstVotes = war.status === "completed" ? (first.finalVoteCount ?? 0) : first.voteCount;
@@ -270,7 +273,7 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
   const isTie =
     war.status === "completed" ? war.result === "tie" : totalVotes > 0 && leaderSide === null;
   const shownLeader = war.status === "completed" ? null : leaderSide;
-  const started = { datetime: war.startedAt, label: timestampLabel(war.startedAt) };
+  const started = { datetime: war.startedAt, label: timestampLabel(war.startedAt, timeZone) };
   return {
     id: war.id,
     status: war.status,
@@ -290,7 +293,10 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
           : { label: "Voting paused", tone: "warning" },
     },
     started,
-    completed: { datetime: war.completedAt ?? "", label: timestampLabel(war.completedAt) },
+    completed: {
+      datetime: war.completedAt ?? "",
+      label: timestampLabel(war.completedAt, timeZone),
+    },
     totalVotes,
     voteWord: totalVotes === 1 ? "vote" : "votes",
     resultLabel:
@@ -345,16 +351,17 @@ export function adminTapWarsPageData(
 ): Readonly<Record<string, unknown>> {
   const rawCurrent = dependencies.tapWarsService.getCurrentUnfinished();
   const publicVisible = dependencies.publicTapWarsService.getVisible();
+  const { timeZone } = dependencies.displayService.getSettings();
   return {
-    current: withPublicTitles(adminTapWarView(rawCurrent), publicVisible),
+    current: withPublicTitles(adminTapWarView(rawCurrent, timeZone), publicVisible),
     published: withPublicTitles(
-      adminTapWarView(dependencies.tapWarsService.getPublishedResult()),
+      adminTapWarView(dependencies.tapWarsService.getPublishedResult(), timeZone),
       publicVisible,
     ),
     publicVisible,
     history: dependencies.tapWarsService
       .listCompletedHistory()
-      .map((completed) => adminTapWarView(completed)!),
+      .map((completed) => adminTapWarView(completed, timeZone)!),
     eligible: dependencies.tapWarsService.listEligibleParticipants().map((participant) => ({
       assignmentId: participant.assignmentId,
       tapId: participant.tapId,

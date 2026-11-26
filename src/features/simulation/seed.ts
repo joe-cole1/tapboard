@@ -90,9 +90,19 @@ function upgradeLegacy(dependencies: SimulationDependencies): void {
 }
 
 /** Seed only a new, dedicated simulation database, through ordinary domain services. */
+/** The sample household's zone, so its Admin dates show a zone other than UTC. */
+export const SIMULATION_TIME_ZONE = "America/New_York";
+
 export function seedSimulation(dependencies: SimulationDependencies): readonly SimulationSensor[] {
-  const { database, tapService, kegService, beverageService, fillService, telemetryService } =
-    dependencies;
+  const {
+    database,
+    tapService,
+    kegService,
+    beverageService,
+    fillService,
+    telemetryService,
+    displayService,
+  } = dependencies;
   return database.withTransaction(() => {
     if (readSettings(database).seeded) {
       upgradeLegacy(dependencies);
@@ -113,6 +123,18 @@ export function seedSimulation(dependencies: SimulationDependencies): readonly S
       });
     }
     const actor = { actorType: "system" } as const;
+    const display = displayService.getSettings();
+    displayService.updateSettings({
+      expectedRevision: display.revision,
+      tapboardName: display.tapboardName,
+      theme: display.theme,
+      font: display.font,
+      accent: display.accent,
+      unitSystem: display.unitSystem,
+      showServingTemperature: display.showServingTemperature,
+      layoutMode: display.layoutMode,
+      timeZone: SIMULATION_TIME_ZONE,
+    });
     for (const [index, beer] of HISTORY_BEERS.entries()) {
       const number = index + 1;
       const beverage = beverageService.createCustomBeverage(beer.profile, actor);

@@ -141,6 +141,8 @@ const display: DisplaySettings = {
   unitSystem: "us",
   showServingTemperature: false,
   layoutMode: "scroll",
+  // Not part of any display resource: the zone stays out of every projection below.
+  timeZone: "America/New_York",
 };
 const card: TapCardDisplaySettings = {
   revision: 1,
@@ -218,6 +220,7 @@ const displayKeys: Equal<
   | "unitSystem"
   | "showServingTemperature"
   | "layoutMode"
+  | "timeZone"
 > = true;
 const cardKeys: Equal<
   keyof UpdateTapCardDisplaySettingsInput,

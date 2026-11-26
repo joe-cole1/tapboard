@@ -18,6 +18,7 @@ const input = (revision = 1) => ({
   unitSystem: "us",
   showServingTemperature: false,
   layoutMode: "scroll",
+  timeZone: "UTC",
 });
 
 void test("display settings defaults, exact validation, CAS, no-op, and Activity", () => {
@@ -33,6 +34,7 @@ void test("display settings defaults, exact validation, CAS, no-op, and Activity
       unitSystem: "us",
       showServingTemperature: false,
       layoutMode: "scroll",
+      timeZone: "UTC",
       updatedAt: service.getSettings().updatedAt,
     });
     for (const bad of [
@@ -50,6 +52,7 @@ void test("display settings defaults, exact validation, CAS, no-op, and Activity
       { ...input(), accent: "#abcde\n" },
       { ...input(), accent: "#abcdef\u0000" },
       { ...input(), showServingTemperature: 0 },
+      { ...input(), timeZone: "Mars/Base" },
       { ...input(), expectedRevision: 1.5 },
     ])
       assert.throws(() => validateUpdateDisplaySettingsInput(bad));

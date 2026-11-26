@@ -104,13 +104,17 @@ export function registerLogsPages(dependencies: RegisterSystemPagesDependencies)
         ...activity,
         category,
         hasCursor: url.searchParams.has("cursor"),
-        items: presentActivityItems(activity.items),
+        items: presentActivityItems(
+          activity.items,
+          dependencies.displayService.getSettings().timeZone,
+        ),
         nextHref: activity.nextCursor === null ? null : `/admin/logs?${nextQuery}`,
       },
     });
   });
 
   registerAdminGet(dependencies, "/admin/logs/sessions", (request, response, context) => {
+    const { timeZone } = dependencies.displayService.getSettings();
     renderAdmin(
       dependencies,
       response,
@@ -131,7 +135,7 @@ export function registerLogsPages(dependencies: RegisterSystemPagesDependencies)
               { term: "Last used", datetime: session.lastUsedAt },
               { term: "Expires", datetime: session.expiresAt },
               { term: "Absolute expiry", datetime: session.absoluteExpiresAt },
-            ].map((time) => ({ ...time, label: timestampLabel(time.datetime) })),
+            ].map((time) => ({ ...time, label: timestampLabel(time.datetime, timeZone) })),
           })),
       },
     );
@@ -220,10 +224,10 @@ export function registerLogsMutations(dependencies: RegisterSystemMutationsDepen
 }
 
 /** Activity log rows with readable labels and a link to each entry's resource. */
-export function presentActivityItems(items: readonly SystemActivityItem[]) {
+export function presentActivityItems(items: readonly SystemActivityItem[], timeZone: string) {
   return items.map((item) => ({
     ...item,
-    occurredAtLabel: timestampLabel(item.occurredAt),
+    occurredAtLabel: timestampLabel(item.occurredAt, timeZone),
     actionLabel: humanizeAdminIdentifier(item.action.replaceAll(".", " ")),
     categoryLabel: humanizeAdminIdentifier(item.category),
     actorLabel: humanizeAdminIdentifier(item.actorType),

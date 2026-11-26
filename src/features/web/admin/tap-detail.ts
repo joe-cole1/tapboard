@@ -65,6 +65,7 @@ export function renderTapDetail(
     });
   const tapTitle = `Tap ${tap.tapNumber}${tap.name ? ` — ${tap.name}` : ""}`;
   const current = TAP_TABS.find((item) => item.id === tab)!;
+  const { timeZone } = dependencies.displayService.getSettings();
   const tabData =
     tab === "card"
       ? cardTab(dependencies, tap, report)
@@ -105,14 +106,14 @@ export function renderTapDetail(
           name: tap.name,
           createdAt: tap.createdAt,
           updatedAt: tap.updatedAt,
-          updatedAtLabel: timestampLabel(tap.updatedAt),
+          updatedAtLabel: timestampLabel(tap.updatedAt, timeZone),
           confirmationLabel: tapDeletionConfirmationLabel(tap),
         },
         lifecycle: {
           enabled: tap.enabled,
           isRetired: tap.isRetired,
           firstUsedAt: tap.firstUsedAt,
-          firstUsedAtLabel: timestampLabel(tap.firstUsedAt),
+          firstUsedAtLabel: timestampLabel(tap.firstUsedAt, timeZone),
           retiredAt: tap.retiredAt,
         },
         ...tabData,
@@ -222,6 +223,7 @@ function cardTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, r
 
 /** Identity: details, the Filled Keg on tap, retiring and deleting. */
 function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, report: Report) {
+  const { timeZone } = dependencies.displayService.getSettings();
   const assignment = tap.activeAssignment ?? null;
   let assignableFills: readonly Record<string, unknown>[] = [];
   try {
@@ -287,7 +289,7 @@ function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapVie
       active:
         assignment === null
           ? null
-          : { ...assignment, assignedAtLabel: timestampLabel(assignment.assignedAt) },
+          : { ...assignment, assignedAtLabel: timestampLabel(assignment.assignedAt, timeZone) },
       actions: assignmentActions(assignment),
     },
     assignableFills,
@@ -357,10 +359,13 @@ function sensorsTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView
 
   let pressureLabel = "No reading";
   let metric = false;
+  let timeZone = "UTC";
   try {
-    metric = dependencies.displayService.getSettings().unitSystem === "metric";
+    const display = dependencies.displayService.getSettings();
+    metric = display.unitSystem === "metric";
+    timeZone = display.timeZone;
   } catch (error) {
-    // The reading is still worth showing; US units are the default.
+    // The reading is still worth showing; US units and UTC are the defaults.
     report("admin.tap.unit_system", error);
   }
   try {
@@ -372,6 +377,7 @@ function sensorsTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView
         : `${(pressure.value / KPA_PER_PSI).toFixed(1)} psi`;
       pressureLabel = `${value}, measured ${timestampLabel(
         new Date(pressure.measuredAtMs).toISOString(),
+        timeZone,
       )}`;
     }
   } catch (error) {
@@ -481,6 +487,7 @@ function maintenanceTab(
   tap: AdminTapView,
   report: Report,
 ) {
+  const { timeZone } = dependencies.displayService.getSettings();
   let records: readonly Record<string, unknown>[] = [];
   try {
     records = dependencies.healthService
@@ -490,7 +497,7 @@ function maintenanceTab(
         return {
           typeLabel: humanizeAdminIdentifier(record.maintenanceType),
           performedAt,
-          performedAtLabel: timestampLabel(performedAt),
+          performedAtLabel: timestampLabel(performedAt, timeZone),
         };
       });
   } catch (error) {
@@ -507,12 +514,13 @@ function historyTab(
   request: IncomingMessage,
   report: Report,
 ) {
+  const { timeZone } = dependencies.displayService.getSettings();
   let fills: readonly Record<string, unknown>[] = [];
   try {
     fills = dependencies.tapService.listFillHistory(tap.id).map((entry) => ({
       ...entry,
-      assignedAtLabel: timestampLabel(entry.assignedAt),
-      endedAtLabel: entry.endedAt === null ? null : timestampLabel(entry.endedAt),
+      assignedAtLabel: timestampLabel(entry.assignedAt, timeZone),
+      endedAtLabel: entry.endedAt === null ? null : timestampLabel(entry.endedAt, timeZone),
       endLabel:
         entry.endedAt === null
           ? "On tap now"
@@ -530,7 +538,7 @@ function historyTab(
         ...(cursor === null ? {} : { cursor }),
       });
       activity = {
-        items: presentActivityItems(page.items),
+        items: presentActivityItems(page.items, timeZone),
         hasCursor: cursor !== null,
         nextHref:
           page.nextCursor === null

@@ -651,9 +651,12 @@ class FoundationApplication implements Application {
           return typeof closed === "object" && closed !== null ? closed : undefined;
         },
       };
+      // Built before the Fill service, which dates an undated Fill in the display time zone.
+      const rawDisplayService = createDisplaySettingsService(this.#database);
       const rawFillService = createFillService(this.#database, {
         beverageService,
         assignmentPort: fillAssignmentPort,
+        timeZone: () => rawDisplayService.getSettings().timeZone,
         onFillEnded: (database, context: FillEndedContext) => {
           if (context.assignmentId !== null && context.tapId !== null) {
             outboundService.assignmentClosed(
@@ -794,7 +797,6 @@ class FoundationApplication implements Application {
         updateCalculationSettings: () => publishAllTaps("fill.updated"),
       });
       this.#systemService = rawSystemService;
-      const rawDisplayService = createDisplaySettingsService(this.#database);
       const displayService = observeCommittedCalls(rawDisplayService, {
         updateSettings: () => liveUpdates.publish({ name: "display.updated", target: "display" }),
         updateTapCardSettings: () =>

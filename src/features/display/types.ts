@@ -56,6 +56,8 @@ export interface DisplaySettings {
   readonly unitSystem: DisplayUnitSystem;
   readonly showServingTemperature: boolean;
   readonly layoutMode: DisplayLayoutMode;
+  /** IANA zone (or "UTC") for Admin dates. Admin-only: it reveals the household's location. */
+  readonly timeZone: string;
   readonly updatedAt: string;
 }
 

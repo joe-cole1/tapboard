@@ -1026,6 +1026,7 @@ void test("an exact v1 database upgrades to v22 with all ledger entries", (conte
         { version: 29, name: "telemetry-flow" },
         { version: 30, name: "telemetry-rollups" },
         { version: 31, name: "health-threshold-checks" },
+        { version: 32, name: "display-time-zone" },
       ],
     );
   } finally {

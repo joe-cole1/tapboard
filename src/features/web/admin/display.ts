@@ -151,6 +151,7 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
         unitSystem: current.unitSystem,
         showServingTemperature: current.showServingTemperature,
         layoutMode: form.layoutMode,
+        timeZone: current.timeZone,
       },
       actor(context),
     );
@@ -180,9 +181,14 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
       validationFields: validationFieldsFor(sharedFields),
     },
   );
-  // Units and serving temperature are edited on the System page but stored with the
-  // display settings; every other field keeps its current value.
-  const unitsFields = ["expectedDisplayRevision", "unitSystem", "showServingTemperature"];
+  // Units, serving temperature and the time zone are edited on the System page but stored
+  // with the display settings; every other field keeps its current value.
+  const unitsFields = [
+    "expectedDisplayRevision",
+    "unitSystem",
+    "showServingTemperature",
+    "timeZone",
+  ];
   const saveUnits = (form: Readonly<Record<string, string>>, context: AdminContext) => {
     const current = dependencies.displayService.getSettings();
     return dependencies.displayService.updateSettings(
@@ -196,6 +202,8 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
         unitSystem: form.unitSystem,
         showServingTemperature: form.showServingTemperature === "true",
         layoutMode: current.layoutMode,
+        // A System page opened before this field existed posts none; keep the saved zone.
+        timeZone: form.timeZone ?? current.timeZone,
       },
       actor(context),
     );
@@ -203,6 +211,7 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
   const unitsView = (settings: ReturnType<typeof dependencies.displayService.getSettings>) => ({
     unitSystem: settings.unitSystem,
     showServingTemperature: settings.showServingTemperature,
+    timeZone: settings.timeZone,
   });
   registerAdminAction(
     dependencies,
@@ -211,7 +220,7 @@ export function registerDisplayMutations(dependencies: RegisterDisplayMutationsD
     (form, context) => {
       saveUnits(form, context);
     },
-    "Units saved.",
+    "Units and time zone saved.",
     {},
     {
       // The display service checks the revision, so a stale one answers 409.

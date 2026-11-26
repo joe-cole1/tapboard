@@ -4,6 +4,7 @@ import {
   type DatabaseExecutor,
 } from "../../infrastructure/database/connection.ts";
 import { ApplicationError } from "../../shared/errors.ts";
+import { calendarDate } from "../../shared/time-zone.ts";
 import { appendActivity } from "../activity/operations.ts";
 import { appendDeletionAudit } from "../activity/deletion-audit.ts";
 import {
@@ -90,6 +91,8 @@ export interface FillServiceOptions {
   /** Transaction-local notification after a fill is ended, before commit. */
   readonly onFillEnded?: (database: DatabaseExecutor, context: FillEndedContext) => void;
   readonly now?: () => Date;
+  /** The display time zone, which dates a Fill created without a fill date. */
+  readonly timeZone?: () => string;
   readonly idFactory?: () => string;
   readonly fetchFn?: typeof fetch;
   readonly origin?: string;
@@ -101,13 +104,6 @@ function timestamp(nowFactory?: () => Date): string {
     throw new TypeError("Invalid clock in fill service");
   }
   return value.toISOString();
-}
-
-function formatDate(date: Date): string {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 /** Canonical visible label used by every permanent Filled Keg deletion confirmation. */
@@ -123,6 +119,7 @@ export class FillService {
   readonly #assignmentPort: FillAssignmentLifecyclePort;
   readonly #onFillEnded?: FillServiceOptions["onFillEnded"];
   readonly #now: () => Date;
+  readonly #timeZone: () => string;
   readonly #idFactory: () => string;
   readonly #fetchFn?: typeof fetch | undefined;
   readonly #origin?: string | undefined;
@@ -133,6 +130,7 @@ export class FillService {
     this.#assignmentPort = options.assignmentPort ?? new NullFillAssignmentLifecyclePort();
     this.#onFillEnded = options.onFillEnded;
     this.#now = options.now ?? (() => new Date());
+    this.#timeZone = options.timeZone ?? (() => "UTC");
     this.#idFactory = options.idFactory ?? randomUUID;
     this.#fetchFn = options.fetchFn;
     this.#origin = options.origin;
@@ -360,7 +358,7 @@ export class FillService {
         });
       }
 
-      const fillDate = validated.fillDate ?? formatDate(nowFactory());
+      const fillDate = validated.fillDate ?? calendarDate(nowFactory(), this.#timeZone());
       const id = validated.id ?? idFactory();
 
       const fill: Fill = {
