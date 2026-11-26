@@ -27,9 +27,14 @@ import {
   registerAdminGet,
   validationFieldsFor,
 } from "./http.ts";
-import { adminBreadcrumbs, adminNavItems, adminTabs, renderAdmin } from "./layout.ts";
+import { adminBreadcrumbs, adminNav, adminTabs, renderAdmin } from "./layout.ts";
 import { requestUrl, actor, adminContext, messageLocation, type AdminContext } from "./context.ts";
-import { adminTimestampLabel } from "./presentation.ts";
+import {
+  adminTimestampLabel,
+  numberedPageNavigation,
+  type PageHeader,
+  type PageNavigation,
+} from "./presentation.ts";
 import { invalidForm } from "./forms.ts";
 import { humanizeAdminIdentifier } from "./detector-presentation.ts";
 import { telemetryDisableBlockers } from "./blockers.ts";
@@ -53,6 +58,12 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
     const brewfather = dependencies.beverageService.getBrewfatherStatus();
     const sources = dependencies.telemetryService.listSources();
     const outboundItems = dependencies.outboundService?.listPage() ?? [];
+    const activeCount = sources.filter((source) => source.disabledAt === null).length;
+    const enabledCount = outboundItems.filter(
+      (item) => item.retiredAt === null && item.enabled,
+    ).length;
+    const outboundAvailable = dependencies.outboundService !== undefined;
+    const brewfatherConnected = brewfather.configured && brewfather.apiKeyConfigured;
     renderAdmin(
       dependencies,
       response,
@@ -64,8 +75,12 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       {
         tabs: adminTabs("integrations", "/admin/integrations"),
         telemetry: {
-          activeCount: sources.filter((source) => source.disabledAt === null).length,
+          activeCount,
           disabledCount: sources.filter((source) => source.disabledAt !== null).length,
+          badge:
+            activeCount > 0
+              ? { label: `${activeCount} active`, tone: "healthy" }
+              : { label: "Not configured", tone: "muted" },
         },
         brewfather: {
           configured: brewfather.configured,
@@ -73,12 +88,17 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           apiKeyConfigured: brewfather.apiKeyConfigured,
           linkedBeverages: brewfather.totalLinkedBeverages,
           candidates: brewfather.totalCandidates,
+          badge: brewfatherConnected
+            ? { label: "Connected", tone: "healthy" }
+            : { label: "Not configured", tone: "muted" },
         },
         outbound: {
-          available: dependencies.outboundService !== undefined,
+          available: outboundAvailable,
           count: outboundItems.filter((item) => item.retiredAt === null).length,
-          enabledCount: outboundItems.filter((item) => item.retiredAt === null && item.enabled)
-            .length,
+          enabledCount,
+          badge: outboundAvailable
+            ? { label: `${enabledCount} enabled`, tone: enabledCount > 0 ? "healthy" : "muted" }
+            : { label: "Unavailable", tone: "muted" },
           requiredCount: outboundItems.filter((item) => item.retiredAt === null && item.required)
             .length,
         },
@@ -141,6 +161,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         service.listDeliveries(destination.id, 100),
         destination.retiredAt === null,
       );
+      const presentation = outboundDestinationPresentation(destination);
       renderAdmin(
         dependencies,
         response,
@@ -151,8 +172,13 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         `/admin/integrations/outbound/${encodeURIComponent(destination.id)}`,
         {
           breadcrumbParents: [OUTBOUND_CRUMB],
+          header: {
+            title: destination.label,
+            titleField: "label",
+            intro: `${destination.transport === "home_assistant" ? "Home Assistant" : "Webhook"} destination. Endpoint and credential values are never displayed.`,
+          } satisfies PageHeader,
           available: true,
-          destination: outboundDestinationPresentation(destination),
+          destination: presentation,
           history,
           eventFields: OUTBOUND_EVENT_FIELDS,
           settingsFields: OUTBOUND_SETTINGS_FIELDS.join(","),
@@ -254,18 +280,14 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         activeSources: activePage.items.map(mapSource),
         disabledSources: historyPage.items.map(mapSource),
         query,
-        pagination: {
-          active: {
-            page: activePage.page,
-            pageCount: activePage.pageCount,
-            total: activePage.total,
-          },
-          history: {
-            page: historyPage.page,
-            pageCount: historyPage.pageCount,
-            total: historyPage.total,
-          },
-        },
+        activePages: telemetryPageNavigation("Active telemetry source pages", activePage, (page) =>
+          telemetryPageHref(query, page, historyPage.page, "active"),
+        ),
+        historyPages: telemetryPageNavigation(
+          "Disabled telemetry source pages",
+          historyPage,
+          (page) => telemetryPageHref(query, activePage.page, page, "history"),
+        ),
       },
     );
   });
@@ -319,6 +341,10 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
             createdAtLabel: adminTimestampLabel(source.createdAt),
             disabledAt: source.disabledAt,
             disabledAtLabel: adminTimestampLabel(source.disabledAt),
+            badge:
+              source.disabledAt === null
+                ? { label: "Active", tone: "healthy" }
+                : { label: "Disabled", tone: "muted" },
           },
         },
       );
@@ -641,7 +667,7 @@ export function registerIntegrationMutations(
           resource: {
             enabled: saved.enabled,
             statusLabel: badge.label,
-            statusClass: badge.badgeClass,
+            statusClass: badge.tone,
           },
           revision: saved.updatedAt,
         };
@@ -939,7 +965,7 @@ function outboundEnabledResource(destination: OutboundDestination): Record<strin
   return {
     enabled: destination.enabled,
     statusLabel: status.label,
-    statusClass: status.badgeClass,
+    statusClass: status.tone,
     disabledNote:
       destination.disabledReason === null || destination.enabled
         ? ""
@@ -955,27 +981,55 @@ const BREWFATHER_CONNECTION_LABELS: Readonly<Record<string, string>> = {
   disabled: "Disabled",
 };
 
+/** The telemetry list keeps both page numbers in its links; the changing one comes first. */
+function telemetryPageHref(
+  query: string | undefined,
+  activePage: number,
+  historyPage: number,
+  changing: "active" | "history",
+): string {
+  const q = `q=${encodeURIComponent(query || "")}`;
+  return changing === "active"
+    ? `/admin/integrations/telemetry?${q}&activePage=${activePage}&historyPage=${historyPage}`
+    : `/admin/integrations/telemetry?${q}&historyPage=${historyPage}&activePage=${activePage}`;
+}
+
+function telemetryPageNavigation(
+  label: string,
+  page: { readonly page: number; readonly pageCount: number },
+  href: (page: number) => string,
+): PageNavigation | null {
+  if (page.pageCount <= 1) return null;
+  return numberedPageNavigation(
+    label,
+    page.page,
+    page.pageCount,
+    page.page > 1 ? href(page.page - 1) : null,
+    page.page < page.pageCount ? href(page.page + 1) : null,
+  );
+}
+
 export function brewfatherConnectionBadge(status: BrewfatherStatus): {
   readonly label: string;
-  readonly badgeClass: "healthy" | "muted";
+  readonly tone: "healthy" | "muted";
 } {
   const label = !status.configured
     ? "Not configured"
     : status.account?.enabled !== true
       ? "Disabled"
       : (BREWFATHER_CONNECTION_LABELS[status.connectionState] ?? "Awaiting verification");
-  return { label, badgeClass: label === "Connected" ? "healthy" : "muted" };
+  return { label, tone: label === "Connected" ? "healthy" : "muted" };
 }
 
 export function outboundStatusBadge(destination: OutboundDestination): {
   readonly label: string;
-  readonly badgeClass: "healthy" | "degraded" | "muted";
+  readonly tone: "healthy" | "degraded" | "muted";
 } {
-  if (destination.retiredAt !== null) return { label: "Retired", badgeClass: "muted" };
-  if (!destination.enabled) return { label: "Disabled", badgeClass: "muted" };
+  if (destination.retiredAt !== null) return { label: "Retired", tone: "muted" };
+  if (!destination.enabled) return { label: "Disabled", tone: "muted" };
   return {
     label: outboundStateLabel(destination.state),
-    badgeClass: outboundStateClass(destination.state),
+    tone: outboundStateClass(destination.state),
   };
 }
 
@@ -1072,6 +1126,7 @@ export function outboundDestinationPresentation(
     label: destination.label,
     transport: destination.transport,
     transportLabel: destination.transport === "home_assistant" ? "Home Assistant" : "Webhook",
+    badge: outboundStatusBadge(destination),
     subscriptions: destination.subscriptions,
     required: destination.required,
     enabled: destination.enabled,
@@ -1123,6 +1178,10 @@ export function outboundHistoryPresentation(
       row.eventType,
     state: row.state,
     stateLabel: outboundStateLabel(row.state),
+    badge: {
+      label: outboundStateLabel(row.state),
+      tone: row.state === "succeeded" ? "healthy" : row.state === "terminal" ? "degraded" : "muted",
+    },
     attemptCount: row.attemptCount,
     lastErrorCode: row.lastErrorCode,
     lastAttemptAt: row.lastAttemptAt,
@@ -1269,22 +1328,23 @@ export function machineKeyPageData(
   machineKey: string,
 ): Readonly<Record<string, unknown>> {
   const display = dependencies.displayService.getSettings();
+  const breadcrumbs = adminBreadcrumbs(
+    "/admin/integrations/telemetry",
+    "/admin/integrations/telemetry",
+    title,
+    [TELEMETRY_CRUMB],
+  );
   return {
     page: {
       title,
       path: "/admin/integrations/telemetry",
-      breadcrumbs: adminBreadcrumbs(
-        "/admin/integrations/telemetry",
-        "/admin/integrations/telemetry",
-        title,
-        [TELEMETRY_CRUMB],
-      ),
+      breadcrumbs,
       csrfToken: context.csrfToken,
       siteName: display.tapboardName,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       returnPath: "/admin/integrations/telemetry",
     },
-    navItems: adminNavItems(),
+    nav: adminNav("/admin/integrations/telemetry", breadcrumbs),
     source: { name: sourceName },
     machineKey,
     endpointUrl: telemetryEndpointUrl(dependencies.canonicalOrigin),

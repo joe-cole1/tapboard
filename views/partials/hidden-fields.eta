@@ -1,0 +1,7 @@
+<% /*
+  Hidden form fields, such as the CSRF token and the record revision a live save checks.
+  it.fields: [{ name, value }]
+*/ %>
+<% for (const field of it.fields) { %>
+  <input type="hidden" name="<%= field.name %>" value="<%= field.value %>" />
+<% } %>

@@ -1,10 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>New telemetry source</h1>
-    <p>Name the device that will report measurements. Tapboard issues its machine key and shows it once.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "New telemetry source",
+    intro: "Name the device that will report measurements. Tapboard issues its machine key and shows it once.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="new-telemetry-source-heading">
     <h2 id="new-telemetry-source-heading">Telemetry source</h2>

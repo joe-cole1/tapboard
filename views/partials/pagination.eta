@@ -1,0 +1,17 @@
+<% /*
+  Links between the pages of a long list.
+  it.label: accessible name of the navigation
+  it.previous, it.next: optional { label, href }
+  it.status: optional text between them, such as "Page 2 of 5"
+*/ %>
+<nav class="pagination" aria-label="<%= it.label %>">
+  <% if (it.previous) { %>
+    <a class="button button--secondary button--small" href="<%= it.previous.href %>"><%= it.previous.label %></a>
+  <% } %>
+  <% if (it.status) { %>
+    <span><%= it.status %></span>
+  <% } %>
+  <% if (it.next) { %>
+    <a class="button button--secondary button--small" href="<%= it.next.href %>"><%= it.next.label %></a>
+  <% } %>
+</nav>

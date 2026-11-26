@@ -821,11 +821,11 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   const telemetryPagedHtml = await telemetryPagedResponse.text();
   assert.match(
     telemetryPagedHtml,
-    /href="\/admin\/integrations\/telemetry\?q=QC&activePage=1&historyPage=2"/,
+    /href="\/admin\/integrations\/telemetry\?q=QC&amp;activePage=1&amp;historyPage=2"/,
   );
   assert.match(
     telemetryPagedHtml,
-    /href="\/admin\/integrations\/telemetry\?q=QC&historyPage=1&activePage=2"/,
+    /href="\/admin\/integrations\/telemetry\?q=QC&amp;historyPage=1&amp;activePage=2"/,
   );
   assert.deepEqual(telemetryPageCalls.slice(-2), [
     { q: "QC", state: "active", page: 2 },
@@ -1183,7 +1183,7 @@ void test("admin web pages and mutations keep projections safe and PRG-protected
   };
   const infoHtml = await beverageTab("");
   assert.match(infoHtml, /Brewfather link/);
-  assert.match(infoHtml, /data-beverage-updated-at=/);
+  assert.match(infoHtml, /Last updated <time datetime=/);
   const presentationHtml = await beverageTab("/presentation");
   assert.match(presentationHtml, /Source:<\/strong> Source Style/);
   assert.match(presentationHtml, /Reset to inherited/);

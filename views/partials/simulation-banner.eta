@@ -1,0 +1,4 @@
+<% /* Shown on every Admin and public page while the Simulation workspace is on. */ %>
+<div class="workspace-banner" role="note" aria-label="Simulation mode">
+  <strong>SIMULATION</strong><span>Sample workspace · saved separately</span><a href="/admin/simulator">Simulation controls</a>
+</div>

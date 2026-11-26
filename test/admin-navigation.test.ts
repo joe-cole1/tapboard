@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { adminBreadcrumbs, adminNavItems, adminTabs } from "../src/features/web/admin/layout.ts";
+import { adminBreadcrumbs, adminNav, adminTabs } from "../src/features/web/admin/layout.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
 
 void test("a section's own page ends its breadcrumb at the section", () => {
@@ -71,9 +71,9 @@ void test("tabs mark exactly the current page", () => {
 });
 
 void test("the menu always lists Logs and Simulation under Configure", () => {
-  const configure = adminNavItems()
-    .filter((item) => item.group === "Configure")
-    .map((item) => [item.label, item.href]);
+  const configure = adminNav("/admin/overview", [])
+    .groups.find((group) => group.label === "Configure")!
+    .items.map((item) => [item.label, item.href]);
   assert.deepEqual(configure, [
     ["Integrations", "/admin/integrations"],
     ["Display", "/admin/display"],
@@ -85,16 +85,15 @@ void test("the menu always lists Logs and Simulation under Configure", () => {
 
 void test("the Admin shell renders one menu button and a linked breadcrumb trail", () => {
   const title = "Keg 7";
+  const breadcrumbs = adminBreadcrumbs(
+    "/admin/keg-room/kegs",
+    "/admin/keg-room/kegs/keg-7",
+    title,
+    [{ label: "Physical Kegs", href: "/admin/keg-room/kegs" }],
+  );
   const html = createRenderer().render("/admin/not-found", {
-    page: {
-      title,
-      path: "/admin/keg-room/kegs",
-      breadcrumbs: adminBreadcrumbs("/admin/keg-room/kegs", "/admin/keg-room/kegs/keg-7", title, [
-        { label: "Physical Kegs", href: "/admin/keg-room/kegs" },
-      ]),
-      csrfToken: "safe",
-    },
-    navItems: adminNavItems(),
+    page: { title, path: "/admin/keg-room/kegs", breadcrumbs, csrfToken: "safe" },
+    nav: adminNav("/admin/keg-room/kegs", breadcrumbs),
   });
   assert.equal(html.match(/data-admin-menu-toggle/gu)?.length, 1);
   assert.doesNotMatch(html, />(?:Menu|Hide menu|Close menu)</u);

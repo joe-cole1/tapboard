@@ -1,14 +1,19 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>Brewfather</h1>
-    <p>Connect Brewfather to import beverage data. Stored credentials are never shown.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Brewfather",
+    intro: "Connect Brewfather to import beverage data. Stored credentials are never shown.",
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="brewfather-status-heading">
-    <div class="header-row"><div><h2 id="brewfather-status-heading">Connection status</h2><p class="muted">Read-only summary of the current integration.</p></div><span class="badge badge--<%= it.brewfather.badge.badgeClass %>" data-autosave-text="statusLabel" data-autosave-badge="statusClass"><%= it.brewfather.badge.label %></span></div>
+    <%~ include("/partials/section-heading", {
+      id: "brewfather-status-heading",
+      title: "Connection status",
+      intro: "Read-only summary of the current integration.",
+      badge: { ...it.brewfather.badge, labelField: "statusLabel", toneField: "statusClass" },
+    }) %>
     <% if (it.brewfather.credentialStorage && !it.brewfather.credentialStorage.available) { %>
     <p role="alert">Credential storage is unavailable. Configure a valid TAPBOARD_SECRET_KEY on the server before saving API keys. This server key is separate from your Brewfather API key. If credentials were stored previously, restore the original server key or use the documented key rotation procedure.</p>
     <% } %>
@@ -18,7 +23,11 @@
     <% } %>
   </section>
   <section aria-labelledby="brewfather-settings-heading">
-    <div class="header-row"><div><h2 id="brewfather-settings-heading">Account</h2><p class="muted">The User ID and API key identify one Brewfather account, so enter them together. Leave the API key blank to keep the stored one.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "brewfather-settings-heading",
+      title: "Account",
+      intro: "The User ID and API key identify one Brewfather account, so enter them together. Leave the API key blank to keep the stored one.",
+    }) %>
       <form class="form" action="/admin/integrations/brewfather" method="post">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <label class="field">User ID <input name="userId" autocomplete="off" maxlength="120" required /></label>
@@ -27,7 +36,11 @@
       </form>
   </section>
   <section aria-labelledby="brewfather-actions-heading">
-    <div class="header-row"><div><h2 id="brewfather-actions-heading">Maintenance</h2><p class="muted">Refresh imported data or remove the stored credential.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "brewfather-actions-heading",
+      title: "Maintenance",
+      intro: "Refresh imported data or remove the stored credential.",
+    }) %>
     <p class="status-line"><strong>Last data update:</strong> <% if (it.brewfather.lastDataUpdateAt) { %><time datetime="<%= it.brewfather.lastDataUpdateAt %>"><%= it.brewfather.lastDataUpdateAtLabel %></time><% } else { %>Never<% } %></p>
     <% if (it.brewfather.configured) { %><form action="/admin/integrations/brewfather/sync" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary" type="submit">Refresh Brewfather now</button></form><% } %>
     <% if (it.brewfather.apiKeyConfigured) { %><details class="disclosure"><summary>Remove stored API key</summary><form action="/admin/integrations/brewfather/remove-key" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><p class="muted">Syncing stops until a new key is saved.</p><button class="button button--danger" type="submit">Remove stored API key</button></form></details><% } %>

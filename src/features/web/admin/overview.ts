@@ -1,6 +1,6 @@
 import { sendJson } from "../../../infrastructure/http/error-mapper.ts";
 import { registerAdminGet } from "./http.ts";
-import { isActionableHealth } from "./presentation.ts";
+import { isActionableHealth, type StatTile, type StatusBadge } from "./presentation.ts";
 import { renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier, healthCheckPresentation } from "./detector-presentation.ts";
 import { adminContext } from "./context.ts";
@@ -34,32 +34,49 @@ export function registerOverviewPages(dependencies: RegisterOverviewPagesDepende
           {
             label: "Enabled taps",
             value: taps.filter((tap) => tap.enabled && !tap.isRetired).length,
+            href: "/admin/taps",
           },
-          { label: "Active fills", value: fills.filter((fill) => fill.state !== "ended").length },
-          { label: "On deck", value: fills.filter((fill) => fill.state === "on_deck").length },
           {
-            label: "Health warnings",
-            value: actionableHealth.length,
+            label: "Active fills",
+            value: fills.filter((fill) => fill.state !== "ended").length,
+            href: "/admin/keg-room?state=active",
           },
-        ],
-        taps: taps.map((tap) => ({
-          id: tap.id,
-          tapNumber: tap.tapNumber,
-          name: tap.name,
-          enabled: tap.enabled,
-          isRetired: tap.isRetired,
-          beverageName: tap.activeAssignment?.beverageName ?? null,
-          href: `/admin/taps/${encodeURIComponent(tap.id)}`,
-        })),
+          {
+            label: "On deck",
+            value: fills.filter((fill) => fill.state === "on_deck").length,
+            href: "/admin/keg-room?state=on_deck",
+          },
+          { label: "Health warnings", value: actionableHealth.length, href: "#attention-heading" },
+        ] satisfies readonly StatTile[],
+        taps: taps.map((tap) => {
+          const isPublic = tap.enabled && !tap.isRetired;
+          return {
+            id: tap.id,
+            title: `#${tap.tapNumber}${tap.name ? ` — ${tap.name}` : ""}`,
+            assignmentLabel: tap.activeAssignment?.beverageName || "Unassigned",
+            badge: {
+              label: tap.isRetired ? "Retired" : tap.enabled ? "Enabled" : "Disabled",
+              tone: isPublic ? "healthy" : "muted",
+            } satisfies StatusBadge,
+            publicLabel: isPublic ? "Enabled" : "Hidden",
+            href: `/admin/taps/${encodeURIComponent(tap.id)}`,
+          };
+        }),
         health: actionableHealth.map((item) => ({
           tapId: item.tapId,
           tapNumber: taps.find((tap) => tap.id === item.tapId)?.tapNumber ?? null,
+          tapLabel: `Tap ${taps.find((tap) => tap.id === item.tapId)?.tapNumber ?? "unknown"}`,
           tapName: item.name,
           href: `/admin/taps/${encodeURIComponent(item.tapId)}`,
+          badge: healthBadge(item.aggregate.state, item.aggregate.severity),
           state: item.aggregate.state,
           stateLabel: humanizeAdminIdentifier(item.aggregate.state),
           severity: item.aggregate.severity,
           severityLabel: humanizeAdminIdentifier(item.aggregate.severity),
+          checksLabel: (item.checks ?? [])
+            .filter((check) => isActionableHealth(check.state, check.severity))
+            .map((check) => healthCheckPresentation(check.checkId).title)
+            .join(", "),
           checks: (item.checks ?? [])
             .filter((check) => isActionableHealth(check.state, check.severity))
             .map((check) => ({
@@ -73,21 +90,60 @@ export function registerOverviewPages(dependencies: RegisterOverviewPagesDepende
               reasonLabel: check.reason === null ? null : humanizeAdminIdentifier(check.reason),
             })),
         })),
-        kegRoom: {
-          activeKegs: kegs.filter((keg) => keg.isActive).length,
-          onTap: fills.filter((fill) => fill.state === "on_tap").length,
-          onDeck: fills.filter((fill) => fill.state === "on_deck").length,
-          available: fills.filter((fill) => fill.state === "available").length,
-          href: "/admin/keg-room",
-        },
-        connectivity: { state: header.connectivity, label: header.connectivityLabel },
-        integrations: {
-          telemetryConfigured,
-          brewfatherConfigured: brewfather.configured,
-          brewfatherEnabled: brewfather.account?.enabled ?? false,
-          brewfatherApiKeyConfigured: brewfather.apiKeyConfigured,
-          brewfatherLinkedBeverages: brewfather.totalLinkedBeverages,
-        },
+        kegRoom: [
+          {
+            label: "Active kegs",
+            value: kegs.filter((keg) => keg.isActive).length,
+            href: "/admin/keg-room/kegs?status=active",
+          },
+          {
+            label: "On tap",
+            value: fills.filter((fill) => fill.state === "on_tap").length,
+            href: "/admin/keg-room?state=on_tap",
+          },
+          {
+            label: "On deck",
+            value: fills.filter((fill) => fill.state === "on_deck").length,
+            href: "/admin/keg-room?state=on_deck",
+          },
+          {
+            label: "Available fills",
+            value: fills.filter((fill) => fill.state === "available").length,
+            href: "/admin/keg-room?state=available",
+          },
+        ] satisfies readonly StatTile[],
+        connectivity: {
+          label: header.connectivityLabel,
+          tone:
+            header.connectivity === "disconnected"
+              ? "critical"
+              : header.connectivity === "healthy"
+                ? "healthy"
+                : "degraded",
+        } satisfies StatusBadge,
+        integrations: [
+          {
+            label: "Telemetry sources",
+            value: telemetryConfigured,
+            href: "/admin/integrations/telemetry",
+          },
+          {
+            label: "Brewfather",
+            value: !brewfather.configured
+              ? "Not configured"
+              : brewfather.account?.enabled !== true
+                ? "Disabled"
+                : brewfather.apiKeyConfigured
+                  ? "Enabled"
+                  : "API key required",
+            href: "/admin/integrations/brewfather",
+          },
+          {
+            label: "Linked beverages",
+            value: brewfather.totalLinkedBeverages,
+            href: "/admin/integrations/brewfather",
+          },
+        ] satisfies readonly StatTile[],
         quickLinks: [
           { label: "Manage Taps", href: "/admin/taps" },
           { label: "Open Keg Room", href: "/admin/keg-room" },
@@ -98,6 +154,21 @@ export function registerOverviewPages(dependencies: RegisterOverviewPagesDepende
       },
     );
   });
+}
+
+/** A Tap's overall health as a badge: severity first, then state. */
+function healthBadge(state: string, severity: string): StatusBadge {
+  return {
+    label: humanizeAdminIdentifier(severity === "none" ? state : severity),
+    tone:
+      severity === "critical"
+        ? "critical"
+        : severity === "warning"
+          ? "warning"
+          : state === "active"
+            ? "active"
+            : "degraded",
+  };
 }
 
 export function registerAdminEventRoutes(dependencies: RegisterAdminEventRoutesDependencies): void {

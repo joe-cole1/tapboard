@@ -1,8 +1,12 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const workspace = it.workspace || it.page.workspace || { enabled: false, changing: false }; %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><p class="eyebrow">Configure</p><h1>Admin sessions</h1><p>Browsers signed in to Admin. Session lifetimes and the PIN are on <a href="/admin/system">System</a>.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "Admin sessions",
+    intro: "Browsers signed in to Admin. Session lifetimes and the PIN are on",
+    introLink: { label: "System", href: "/admin/system" },
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (workspace.enabled) { %><p class="muted">Admin sessions are shared with your real installation.</p><% } %>

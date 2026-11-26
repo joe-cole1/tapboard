@@ -1,0 +1,6 @@
+<% /*
+  A point in time. The presenter formats the label; the datetime stays machine-readable.
+  it.datetime: ISO 8601 string
+  it.label: the text people read
+*/ %>
+<time datetime="<%= it.datetime %>"><%= it.label %></time>

@@ -274,6 +274,16 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
     completedAt: war.completedAt,
     publishedAt: war.publishedAt,
     dismissedAt: war.dismissedAt,
+    heading: {
+      title: war.status === "active" ? "Current Tap War" : "Tap War paused",
+      eyebrow: war.status === "active" ? "Now accepting votes" : "Needs attention",
+      started: { datetime: war.startedAt, label: war.startedAt || "Unknown" },
+      badge:
+        war.status === "active"
+          ? { label: "Voting open" }
+          : { label: "Voting paused", tone: "warning" },
+    },
+    completed: { datetime: war.completedAt ?? "", label: war.completedAt || "Unknown" },
     totalVotes,
     leaderSide: war.status === "completed" ? null : leaderSide,
     isTie:

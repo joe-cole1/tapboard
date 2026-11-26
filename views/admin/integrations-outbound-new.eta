@@ -1,13 +1,16 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>New outbound destination</h1>
-    <p>Create a disabled destination first if you want to verify configuration before delivery begins.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "New outbound destination",
+    intro: "Create a disabled destination first if you want to verify configuration before delivery begins.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (!it.available) { %>
-    <section class="empty-state"><h2>Outbound delivery is unavailable</h2><p>The application composition has not enabled the outbound service.</p></section>
+    <%~ include("/partials/empty-state", {
+      title: "Outbound delivery is unavailable",
+      text: "The application composition has not enabled the outbound service.",
+    }) %>
   <% } else { %>
     <section aria-labelledby="outbound-create-heading">
       <h2 id="outbound-create-heading"><%= it.transport === "webhook" ? "Create webhook destination" : "Create Home Assistant destination" %></h2>

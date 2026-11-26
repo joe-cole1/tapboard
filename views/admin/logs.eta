@@ -1,8 +1,11 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const workspace = it.workspace || it.page.workspace || { enabled: false, changing: false }; %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><p class="eyebrow">Configure</p><h1>Logs</h1><p>What happened in Tapboard, who is signed in, and how long records are kept.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "Logs",
+    intro: "What happened in Tapboard, who is signed in, and how long records are kept.",
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (workspace.enabled) { %><p class="muted">This activity belongs to the saved simulation workspace.</p><% } %>

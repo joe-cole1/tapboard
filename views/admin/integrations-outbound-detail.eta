@@ -1,28 +1,30 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const d = it.destination; %>
 <% const base = `/admin/integrations/outbound/${encodeURIComponent(d.id)}`; %>
-<% const csrf = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" />`; %>
-<% const revision = `<input type="hidden" name="updatedAt" value="${d.updatedAt}" />`; %>
+<% const csrf = [{ name: "_csrf", value: it.page.csrfToken }]; %>
+<% const revision = [{ name: "updatedAt", value: d.updatedAt }]; %>
 <% const live = (fields) => `data-autosave-resource="outbound:${d.id}" data-autosave-revision="updatedAt" data-autosave-fields="${fields}"`; %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1 data-autosave-text="label"><%= d.label %></h1>
-    <p><%= d.transportLabel %> destination · configuration version <span data-autosave-text="versionNumber"><%= d.version ? d.version.versionNumber : "—" %></span>. Endpoint and credential values are never displayed.</p>
-  </header>
+  <%~ include("/partials/page-header", it.header) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section class="outbound-detail-summary" aria-labelledby="outbound-status-heading">
-    <div class="header-row"><div><h2 id="outbound-status-heading">Status</h2><p class="muted">Safe operational state and configuration metadata.</p></div><span class="badge badge--<%= d.statusClass %>" data-autosave-text="statusLabel" data-autosave-badge="statusClass"><%= d.statusLabel %></span></div>
+    <%~ include("/partials/section-heading", {
+      id: "outbound-status-heading",
+      title: "Status",
+      intro: "Safe operational state and configuration metadata.",
+      badge: { label: d.statusLabel, tone: d.statusClass, labelField: "statusLabel", toneField: "statusClass" },
+    }) %>
     <dl class="key-value-list"><div><dt>Subscriptions</dt><dd><%= d.subscriptions.length %> of 6</dd></div><div><dt>Version</dt><dd data-autosave-text="versionNumber"><%= d.version ? d.version.versionNumber : "—" %></dd></div><div><dt>Credential / endpoint</dt><dd><%= d.config.credentialStateLabel %></dd></div><div><dt>Last confirmed success</dt><dd><%= d.lastSuccessAtLabel %></dd></div></dl>
     <p class="status-line" data-autosave-text="disabledNote"<% if (!d.disabledNote) { %> hidden<% } %>><%= d.disabledNote %></p>
     <% if (d.failure) { %><p class="status-line"><strong>Last safe error:</strong> <code><%= d.failure.code %></code> · <%= d.failure.failureClass %> · <%= d.failure.occurredAtLabel %></p><% } %>
     <% if (!d.retired) { %>
     <div class="cluster">
-      <form class="cluster" action="<%= base %>/enabled" method="post" data-autosave="submit" <%~ live("enabled") %>><%~ csrf %><%~ revision %><input type="hidden" name="enabled" value="<%= d.enabled ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= d.enabled %>"><span class="switch__control" aria-hidden="true"></span>Enabled</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form>
-      <form class="cluster" action="<%= base %>/required" method="post" data-autosave="submit" <%~ live("required") %>><%~ csrf %><%~ revision %><input type="hidden" name="required" value="<%= d.required ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= d.required %>"><span class="switch__control" aria-hidden="true"></span>Required</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form>
+      <form class="cluster" action="<%= base %>/enabled" method="post" data-autosave="submit" <%~ live("enabled") %>><%~ include("/partials/hidden-fields", { fields: csrf }) %><%~ include("/partials/hidden-fields", { fields: revision }) %><input type="hidden" name="enabled" value="<%= d.enabled ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= d.enabled %>"><span class="switch__control" aria-hidden="true"></span>Enabled</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form>
+      <form class="cluster" action="<%= base %>/required" method="post" data-autosave="submit" <%~ live("required") %>><%~ include("/partials/hidden-fields", { fields: csrf }) %><%~ include("/partials/hidden-fields", { fields: revision }) %><input type="hidden" name="required" value="<%= d.required ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= d.required %>"><span class="switch__control" aria-hidden="true"></span>Required</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form>
     </div>
     <p class="muted">A required destination's delivery health counts toward the required integration status.</p>
-    <form method="post" action="<%= base %>/retire"><%~ csrf %><button class="button button--danger button--small" type="submit">Retire destination</button></form>
+    <form method="post" action="<%= base %>/retire"><%~ include("/partials/hidden-fields", { fields: csrf }) %><button class="button button--danger button--small" type="submit">Retire destination</button></form>
     <% } %>
   </section>
 
@@ -30,7 +32,7 @@
   <section aria-labelledby="outbound-settings-heading">
     <h2 id="outbound-settings-heading">Settings</h2>
     <form class="form form--wide" action="<%= base %>/settings" method="post" data-autosave="blur" <%~ live(it.settingsFields) %>>
-      <%~ csrf %><%~ revision %>
+      <%~ include("/partials/hidden-fields", { fields: csrf }) %><%~ include("/partials/hidden-fields", { fields: revision }) %>
       <label class="field">Friendly name <input name="label" maxlength="120" required value="<%= d.label %>" autocomplete="off" /></label>
       <%~ include("/partials/outbound-subscriptions", { eventFields: it.eventFields, subscriptions: d.subscriptions }) %>
       <% if (d.transport === "webhook") { %>
@@ -49,7 +51,7 @@
       <p class="muted">Endpoints must be public HTTP(S) addresses unless private network addresses are allowed in Settings. Redirects are not followed. Changing the scheme, host or port discards saved secret header values and queued deliveries, so enter the values again under Headers.</p>
     <% } %>
     <form class="form" action="<%= base %>/endpoint" method="post">
-      <%~ csrf %>
+      <%~ include("/partials/hidden-fields", { fields: csrf }) %>
       <div class="auto-grid auto-grid--lg">
         <label class="field"><%= d.transport === "home_assistant" ? "New base URL" : "New endpoint" %> <input name="url" type="url" maxlength="2048" required autocomplete="off" /></label>
         <% if (d.transport === "home_assistant") { %><label class="field">Token for the new address <input name="token" type="password" maxlength="4096" autocomplete="new-password" /></label><% } %>
@@ -61,7 +63,7 @@
   <section aria-labelledby="outbound-headers-heading">
     <h2 id="outbound-headers-heading">Headers</h2>
     <form class="form form--wide" action="<%= base %>/headers" method="post">
-      <%~ csrf %>
+      <%~ include("/partials/hidden-fields", { fields: csrf }) %>
       <%~ include("/partials/outbound-headers", { staticHeaders: d.config.staticHeaders, secretHeaders: d.config.secretHeaders, maxHeaderRows: it.maxHeaderRows }) %>
       <div class="form-actions"><button class="button button--primary button--small" type="submit">Save headers</button></div>
     </form>
@@ -72,8 +74,8 @@
       <h2 id="outbound-token-heading">Home Assistant token</h2>
       <p class="muted">Replace or remove the token without displaying the current value.</p>
       <div class="outbound-secret-actions">
-        <form class="form" method="post" action="<%= base %>/token"><%~ csrf %><label class="field">Replacement token <input name="token" type="password" maxlength="4096" autocomplete="new-password" required /></label><button class="button button--secondary button--small" type="submit">Replace token</button></form>
-        <% if (d.config.endpointConfigured || d.config.endpointAvailable) { %><form method="post" action="<%= base %>/token/remove"><%~ csrf %><button class="button button--danger button--small" type="submit">Remove token</button></form><% } %>
+        <form class="form" method="post" action="<%= base %>/token"><%~ include("/partials/hidden-fields", { fields: csrf }) %><label class="field">Replacement token <input name="token" type="password" maxlength="4096" autocomplete="new-password" required /></label><button class="button button--secondary button--small" type="submit">Replace token</button></form>
+        <% if (d.config.endpointConfigured || d.config.endpointAvailable) { %><form method="post" action="<%= base %>/token/remove"><%~ include("/partials/hidden-fields", { fields: csrf }) %><button class="button button--danger button--small" type="submit">Remove token</button></form><% } %>
       </div>
     </section>
   <% } %>
@@ -84,7 +86,7 @@
       <p class="muted">Only the safe header name, slot, and configured status are shown.</p>
       <div>
         <% for (const header of d.config.secretHeaders) { %>
-          <div class="outbound-secret-row"><span><strong><%= header.name %></strong><small>Slot <code><%= header.slot %></code> · <%= header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured" %></small></span><form class="form" method="post" action="<%= base %>/header-secret"><%~ csrf %><input type="hidden" name="slot" value="<%= header.slot %>" /><label class="sr-only" for="secret-replace-<%= header.slot %>">Replacement value for <%= header.name %></label><input id="secret-replace-<%= header.slot %>" name="secret" type="password" maxlength="1024" autocomplete="new-password" required /><button class="button button--secondary button--small" type="submit">Replace</button></form><form method="post" action="<%= base %>/header-secret/remove"><%~ csrf %><input type="hidden" name="slot" value="<%= header.slot %>" /><button class="button button--danger button--small" type="submit">Remove</button></form></div>
+          <div class="outbound-secret-row"><span><strong><%= header.name %></strong><small>Slot <code><%= header.slot %></code> · <%= header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured" %></small></span><form class="form" method="post" action="<%= base %>/header-secret"><%~ include("/partials/hidden-fields", { fields: csrf }) %><input type="hidden" name="slot" value="<%= header.slot %>" /><label class="sr-only" for="secret-replace-<%= header.slot %>">Replacement value for <%= header.name %></label><input id="secret-replace-<%= header.slot %>" name="secret" type="password" maxlength="1024" autocomplete="new-password" required /><button class="button button--secondary button--small" type="submit">Replace</button></form><form method="post" action="<%= base %>/header-secret/remove"><%~ include("/partials/hidden-fields", { fields: csrf }) %><input type="hidden" name="slot" value="<%= header.slot %>" /><button class="button button--danger button--small" type="submit">Remove</button></form></div>
         <% } %>
       </div>
     </section>
@@ -97,10 +99,14 @@
   <% } %>
 
   <section aria-labelledby="outbound-history-heading">
-    <div class="header-row"><div><h2 id="outbound-history-heading">Delivery history</h2><p class="muted">Showing at most 100 recent records. Event payloads and endpoint values are not retained in this view.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "outbound-history-heading",
+      title: "Delivery history",
+      intro: "Showing at most 100 recent records. Event payloads and endpoint values are not retained in this view.",
+    }) %>
     <% if (it.history.length === 0) { %><p class="muted">No delivery history is available.</p><% } else { %>
       <table class="table table--wide"><thead><tr><th scope="col">Event</th><th scope="col">Event ID</th><th scope="col">State</th><th scope="col">Attempts</th><th scope="col">Last error</th><th scope="col">Next attempt</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>
-        <% for (const row of it.history) { %><tr><th scope="row"><%= row.eventType %></th><td data-label="Event ID"><code title="<%= row.eventId %>"><%= row.eventId %></code></td><td data-label="State"><span class="badge badge--<%= row.state === "succeeded" ? "healthy" : row.state === "terminal" ? "degraded" : "muted" %>"><%= row.stateLabel %></span></td><td data-label="Attempts"><%= row.attemptCount %></td><td data-label="Last error"><code><%= row.lastErrorCode || "—" %></code></td><td data-label="Next attempt"><span class="outbound-history-times"><small>Last: <%= row.lastAttemptAtLabel %></small><small>Next: <%= row.nextAttemptAtLabel %></small></span></td><td><div class="cluster"><% if (row.canRetry) { %><form method="post" action="<%= base %>/deliveries/<%= encodeURIComponent(row.id) %>/retry"><%~ csrf %><button class="button button--secondary button--small" type="submit">Retry</button></form><% } %><% if (row.canDismiss) { %><form method="post" action="<%= base %>/deliveries/<%= encodeURIComponent(row.id) %>/dismiss"><%~ csrf %><button class="button button--danger button--small" type="submit">Dismiss</button></form><% } %></div></td></tr><% } %>
+        <% for (const row of it.history) { %><tr><th scope="row"><%= row.eventType %></th><td data-label="Event ID"><code title="<%= row.eventId %>"><%= row.eventId %></code></td><td data-label="State"><%~ include("/partials/status-badge", row.badge) %></td><td data-label="Attempts"><%= row.attemptCount %></td><td data-label="Last error"><code><%= row.lastErrorCode || "—" %></code></td><td data-label="Next attempt"><span class="outbound-history-times"><small>Last: <%= row.lastAttemptAtLabel %></small><small>Next: <%= row.nextAttemptAtLabel %></small></span></td><td><div class="cluster"><% if (row.canRetry) { %><form method="post" action="<%= base %>/deliveries/<%= encodeURIComponent(row.id) %>/retry"><%~ include("/partials/hidden-fields", { fields: csrf }) %><button class="button button--secondary button--small" type="submit">Retry</button></form><% } %><% if (row.canDismiss) { %><form method="post" action="<%= base %>/deliveries/<%= encodeURIComponent(row.id) %>/dismiss"><%~ include("/partials/hidden-fields", { fields: csrf }) %><button class="button button--danger button--small" type="submit">Dismiss</button></form><% } %></div></td></tr><% } %>
       </tbody></table>
     <% } %>
   </section>

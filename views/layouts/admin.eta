@@ -18,9 +18,7 @@
   <body class="admin-shell"<% if (workspace) { %> data-workspace-revision="<%= workspace.revision %>" data-workspace-enabled="<%= workspace.enabled %>"<% } %>>
     <a class="skip-link" href="#main-content">Skip to content</a>
     <% if (workspace?.enabled) { %>
-      <div class="workspace-banner" role="note" aria-label="Simulation mode">
-        <strong>SIMULATION</strong><span>Sample workspace · saved separately</span><a href="/admin/simulator">Simulation controls</a>
-      </div>
+      <%~ include("/partials/simulation-banner") %>
     <% } %>
     <%~ it.body %>
     <script type="module" src="/assets/js/admin-shell.js"></script>

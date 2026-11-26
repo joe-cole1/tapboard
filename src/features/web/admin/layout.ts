@@ -77,8 +77,45 @@ export const ADMIN_NAV = [
   },
 ] as const;
 
-export function adminNavItems(): readonly (typeof ADMIN_NAV)[number][] {
-  return ADMIN_NAV;
+const ADMIN_NAV_GROUPS = ["Overview", "Manage", "Configure"] as const;
+
+/** The Admin menu and the breadcrumb's back link, rendered by `views/partials/admin-nav.eta`. */
+export interface AdminNav {
+  readonly groups: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly items: readonly {
+      readonly label: string;
+      readonly href: string;
+      readonly current: boolean;
+    }[];
+  }[];
+  readonly back: Required<AdminBreadcrumb> | null;
+}
+
+/**
+ * The menu for a page at navigation path `path` (the item whose section contains it is
+ * current), and a back link to the breadcrumb's parent level.
+ */
+export function adminNav(path: string, breadcrumbs: readonly AdminBreadcrumb[]): AdminNav {
+  const parent = breadcrumbs.at(-2);
+  return {
+    groups: ADMIN_NAV_GROUPS.map((group) => ({
+      id: `admin-nav-${group.toLocaleLowerCase()}`,
+      label: group,
+      items: ADMIN_NAV.filter((item) => item.group === group).map((item) => ({
+        label: item.label,
+        href: item.href,
+        current: item.activePaths.some(
+          (active) => path === active || path.startsWith(`${active}/`),
+        ),
+      })),
+    })),
+    back:
+      parent?.href === undefined || path === "/admin/overview"
+        ? null
+        : { label: parent.label, href: parent.href },
+  };
 }
 
 /** One breadcrumb level; the current page is the last one and has no link. */
@@ -184,10 +221,16 @@ export function renderAdmin(
     breadcrumbParents,
     ...viewData
   } = data;
+  const breadcrumbs = adminBreadcrumbs(
+    path,
+    requestUrl(request).pathname,
+    title,
+    breadcrumbParents,
+  );
   const page = {
     title,
     path,
-    breadcrumbs: adminBreadcrumbs(path, requestUrl(request).pathname, title, breadcrumbParents),
+    breadcrumbs,
     csrfToken: context.csrfToken,
     siteName: display.tapboardName,
     ...(requestedDashboardStyles === true ? { includeDashboardStyles: true } : {}),
@@ -204,7 +247,7 @@ export function renderAdmin(
     200,
     dependencies.renderer.render(view, {
       page,
-      navItems: adminNavItems(),
+      nav: adminNav(path, breadcrumbs),
       ...viewData,
     }),
   );

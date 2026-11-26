@@ -18,7 +18,7 @@ import { HEALTH_SECTION_PRESENTATION } from "./health-presentation.ts";
 import { tapDeletionBlockers, tapRetireBlockers } from "./blockers.ts";
 import { renderAdmin } from "./layout.ts";
 import { presentActivityItems } from "./logs.ts";
-import { adminTimestampLabel } from "./presentation.ts";
+import { adminTimestampLabel, type PageHeader } from "./presentation.ts";
 import type { RenderTapDetailDependencies } from "../contracts.ts";
 
 const KPA_PER_PSI = TELEMETRY_METRICS.pressure!.units.psi!(1);
@@ -86,6 +86,7 @@ export function renderTapDetail(
     "/admin/taps",
     {
       tab,
+      header: tapPageHeader(tap),
       tabs: {
         label: tapTitle,
         items: TAP_TABS.map((item) => ({
@@ -119,6 +120,24 @@ export function renderTapDetail(
       includeDashboardStyles: tab === "card",
     },
   );
+}
+
+/** The Assignment heading links to the Filled Keg on the Tap. */
+function assignmentActions(assignment: { readonly fillId: string } | null | undefined) {
+  return assignment
+    ? [{ label: "Open Filled Keg", href: `/admin/keg-room/fills/${assignment.fillId}` }]
+    : [];
+}
+
+function tapPageHeader(tap: AdminTapView): PageHeader {
+  return {
+    title: `Tap ${tap.tapNumber} — ${tap.name || "(unnamed)"}`,
+    badge: tap.isRetired
+      ? { label: "Retired" }
+      : tap.enabled
+        ? { label: "Enabled", tone: "active" }
+        : { label: "Disabled" },
+  };
 }
 
 /** Public card: the preview, the metric switches and Mystery Tap. */
@@ -168,7 +187,7 @@ function cardTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, r
     // Keep the deterministic preview fallback for small service doubles.
   }
   return {
-    assignment: { active: assignment, mystery },
+    assignment: { active: assignment, mystery, actions: assignmentActions(assignment) },
     cardMetrics,
     publicPreview: mysteryLookupFailed
       ? null
@@ -245,6 +264,7 @@ function identityTab(dependencies: RenderTapDetailDependencies, tap: AdminTapVie
         assignment === null
           ? null
           : { ...assignment, assignedAtLabel: adminTimestampLabel(assignment.assignedAt) },
+      actions: assignmentActions(assignment),
     },
     assignableFills,
     moveTargets,

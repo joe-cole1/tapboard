@@ -1,0 +1,27 @@
+<% /*
+  What a list shows when it has nothing in it.
+  it.text: the sentence
+  it.title: optional heading; without one the empty state is a single muted line
+  it.id: optional heading id, which the empty state's aria-labelledby points at
+  it.level: 2 (default) or 3
+  it.link: optional { label, href } that ends the sentence
+  it.actions: optional [{ label, href, primary }] link buttons under the sentence
+*/ %>
+<% const tag = it.level === 3 ? "h3" : "h2"; %>
+<% if (it.title) { %>
+  <section class="empty-state"<% if (it.id) { %> aria-labelledby="<%= it.id %>"<% } %>>
+    <<%= tag %><% if (it.id) { %> id="<%= it.id %>"<% } %>><%= it.title %></<%= tag %>>
+    <% if (it.link) { %>
+      <p><%= it.text %> <a href="<%= it.link.href %>"><%= it.link.label %></a>.</p>
+    <% } else { %>
+      <p><%= it.text %></p>
+    <% } %>
+    <% for (const action of it.actions || []) { %>
+      <a class="button <%= action.primary ? "button--primary" : "button--secondary" %> button--small" href="<%= action.href %>"><%= action.label %></a>
+    <% } %>
+  </section>
+<% } else if (it.link) { %>
+  <p class="empty-state"><%= it.text %> <a href="<%= it.link.href %>"><%= it.link.label %></a>.</p>
+<% } else { %>
+  <p class="empty-state"><%= it.text %></p>
+<% } %>

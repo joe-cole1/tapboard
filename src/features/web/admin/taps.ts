@@ -21,6 +21,7 @@ import {
   tapRemainingLabel,
 } from "./tap-presentation.ts";
 import { renderAdmin } from "./layout.ts";
+import { numberedPageNavigation, type StatusBadge } from "./presentation.ts";
 import { renderTapDetail, TAP_TABS, tapPagePath } from "./tap-detail.ts";
 import { nullable, nullableNumber, invalidForm } from "./forms.ts";
 import { actor, type AdminContext } from "./context.ts";
@@ -63,17 +64,13 @@ export function registerTapPages(dependencies: RegisterTapPagesDependencies): vo
             ? null
             : `Keg ${item.assignment.kegNumber}${item.assignment.kegLabel ? ` — ${item.assignment.kegLabel}` : ""}`,
         remaining: tapRemainingLabel(publicCard, item.assignment !== null),
-        healthLabel:
-          health.state === "healthy"
-            ? "Healthy"
-            : health.state === "degraded"
-              ? "Degraded"
-              : health.state === "not_configured"
-                ? "Not configured"
-                : health.state === "active"
-                  ? "Active"
-                  : "Unknown",
+        healthLabel: tapHealthLabel(String(health.state)),
         statusLabel: item.isRetired ? "Retired" : item.enabled ? "Enabled" : "Disabled",
+        healthBadge: tapHealthBadge(health),
+        statusBadge: {
+          label: item.isRetired ? "Retired" : item.enabled ? "Enabled" : "Disabled",
+          ...(item.enabled && !item.isRetired ? { tone: "active" } : {}),
+        } satisfies StatusBadge,
         publicCard:
           publicCard === null
             ? null
@@ -93,6 +90,25 @@ export function registerTapPages(dependencies: RegisterTapPagesDependencies): vo
       taps: rows,
       query: index.query,
       state: index.state,
+      empty:
+        index.query || index.state !== "all"
+          ? {
+              title: "No matching Taps",
+              text: "Try a different search or state filter.",
+              actions: [{ label: "Add a Tap", href: "/admin/taps/new", primary: true }],
+            }
+          : {
+              title: "No Taps are configured",
+              text: "Create a Tap to establish a serving position.",
+              actions: [{ label: "Create the first Tap", href: "/admin/taps/new", primary: true }],
+            },
+      pageNavigation: numberedPageNavigation(
+        "Tap pages",
+        index.page,
+        index.pageCount,
+        previousPage,
+        nextPage,
+      ),
       pagination: {
         page: index.page,
         pageCount: index.pageCount,
@@ -554,4 +570,33 @@ export function isTapNameOnlyForm(form: Readonly<Record<string, string>>): boole
   return Object.keys(form).every(
     (field) => field === "_csrf" || field === "updatedAt" || field === "name",
   );
+}
+
+function tapHealthLabel(state: string): string {
+  return state === "healthy"
+    ? "Healthy"
+    : state === "degraded"
+      ? "Degraded"
+      : state === "not_configured"
+        ? "Not configured"
+        : state === "active"
+          ? "Active"
+          : "Unknown";
+}
+
+/** The Health column: the state, then the severity when there is one. */
+function tapHealthBadge(health: Readonly<Record<string, unknown>>): StatusBadge {
+  const state = String(health.state);
+  const severity = String(health.severity);
+  return {
+    label: `${tapHealthLabel(state)}${severity !== "none" ? ` · ${String(health.severityLabel)}` : ""}`,
+    tone:
+      severity === "critical"
+        ? "critical"
+        : severity === "warning" || state === "degraded"
+          ? "warning"
+          : state === "healthy"
+            ? "healthy"
+            : "muted",
+  };
 }

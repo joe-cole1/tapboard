@@ -1,10 +1,11 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const simulation = it.simulation; const sensorLabels = { stopped: 'Stopped', offline: 'Paused', unassigned: 'No fill', unavailable: 'Retired', settling: 'Settling', ready: 'Ready', pouring: 'Pouring', empty: 'Empty', error: 'Needs attention' }; %>
 <main id="main-content" class="admin-page simulator-page" data-simulator data-simulation-enabled="<%= simulation.enabled %>">
-  <header class="page-header simulator-header">
-    <div><p class="eyebrow">Configure</p><h1>Simulation</h1><p>Try Tapboard with sample taps, beverages, and kegs, and pour from a sample tap to watch the dashboard update. Your simulation and its history are saved separately from your real setup.</p></div>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Simulation",
+    intro: "Try Tapboard with sample taps, beverages, and kegs, and pour from a sample tap to watch the dashboard update. Your simulation and its history are saved separately from your real setup.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <div class="stack">
     <form action="/admin/simulation/<%= simulation.enabled ? 'disable' : 'enable' %>" method="post" class="stack" data-workspace-action>
@@ -18,7 +19,11 @@
   <% if (simulation.enabled) { %>
     <div class="simulator-note"><p><strong>Your sample workspace</strong> · Changes and history are saved separately. External integrations are unavailable here.</p><p class="muted" data-simulation-connection>Live sensor readings</p></div>
     <section aria-labelledby="simulator-sensors-heading">
-      <div class="header-row"><h2 id="simulator-sensors-heading">Simulated sensors</h2><span class="muted simulator-help">Pours in US fl oz</span></div>
+      <%~ include("/partials/section-heading", {
+        id: "simulator-sensors-heading",
+        title: "Simulated sensors",
+        intro: "Pours in US fl oz",
+      }) %>
       <div class="simulator-grid">
         <% for (const sensor of simulation.sensors) { const blocked = simulation.changing || sensor.status !== 'ready' || !sensor.online || sensor.pouring || sensor.remainingMl < 29.5735295625; const label = sensorLabels[sensor.status] || 'Unavailable'; %>
           <article class="card simulator-sensor" data-simulation-sensor="<%= sensor.tapId %>" data-sensor-online="<%= sensor.online %>" data-sensor-pouring="<%= sensor.pouring %>" data-sensor-state="<%= sensor.status %>" aria-labelledby="sensor-<%= sensor.tapId %>-heading">
