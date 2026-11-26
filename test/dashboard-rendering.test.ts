@@ -7,7 +7,7 @@ import type { PublicDashboardView, PublicTapCardView } from "../src/features/das
 import { tapWarPercentages } from "../src/features/tap-wars/service.ts";
 import type { PublicTapWarView } from "../src/features/tap-wars/types.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
-import { adminBreadcrumbs, adminNavItems } from "../src/features/web/admin/layout.ts";
+import { adminBreadcrumbs, adminNav } from "../src/features/web/admin/layout.ts";
 
 const hostile = '<script>alert(1)</script>" onmouseover="alert(2)';
 
@@ -346,27 +346,20 @@ void test("live header patches preserve the public brand while updating nested c
 });
 
 void test("Admin shell exposes all independently reachable navigation seams", () => {
+  const breadcrumbs = adminBreadcrumbs("/admin/overview", "/admin/overview", "Overview");
+  const nav = adminNav("/admin/overview", breadcrumbs);
   const html = createRenderer().render("/admin/overview", {
-    page: {
-      title: "Overview",
-      path: "/admin/overview",
-      breadcrumbs: adminBreadcrumbs("/admin/overview", "/admin/overview", "Overview"),
-      csrfToken: "safe",
-    },
-    navItems: adminNavItems(),
+    page: { title: "Overview", path: "/admin/overview", breadcrumbs, csrfToken: "safe" },
+    nav,
+    quickLinks: [],
     metrics: [],
     taps: [],
     health: [],
-    connectivity: { state: "healthy", label: "Connected" },
-    integrations: {
-      telemetryConfigured: 0,
-      brewfatherConfigured: false,
-      brewfatherEnabled: false,
-      brewfatherApiKeyConfigured: false,
-      brewfatherLinkedBeverages: 0,
-    },
+    kegRoom: [],
+    connectivity: { label: "Connected", tone: "healthy" },
+    integrations: [],
   });
-  for (const item of adminNavItems()) {
+  for (const item of nav.groups.flatMap((group) => group.items)) {
     assert.match(html, new RegExp(`href="${item.href}"`, "u"));
   }
   assert.match(html, /aria-current="page"/u);
@@ -486,12 +479,18 @@ void test("Admin Tap Wars meters carry each side's share in SVG geometry, not in
         breadcrumbs: adminBreadcrumbs("/admin/tap-wars", "/admin/tap-wars", "Tap Wars"),
         csrfToken: "safe",
       },
-      navItems: adminNavItems(),
+      nav: adminNav("/admin/tap-wars", []),
       tapWars: {
         current: {
           id: "00000000-0000-4000-8000-000000000175",
           status: "active",
           startedAt: "2026-11-14T12:00:00.000Z",
+          heading: {
+            title: "Current Tap War",
+            eyebrow: "Now accepting votes",
+            started: { datetime: "2026-11-14T12:00:00.000Z", label: "2026-11-14T12:00:00.000Z" },
+            badge: { label: "Voting open" },
+          },
           totalVotes: votes[0] + votes[1],
           isTie: split !== null && split.side1 === split.side2,
           leaderSide: null,

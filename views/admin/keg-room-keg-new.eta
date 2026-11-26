@@ -1,7 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <div class="page-header"><h1>Add a Physical Keg</h1><p class="muted">Start with the operator-facing Keg number and label. Hardware and tare maintenance stay on the detail page.</p></div>
+  <%~ include("/partials/page-header", {
+    title: "Add a Physical Keg",
+    intro: "Start with the operator-facing Keg number and label. Hardware and tare maintenance stay on the detail page.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="new-keg-form"><h2 id="new-keg-form">Physical Keg</h2><form class="form" action="/admin/kegs/create" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Keg number <input name="kegNumber" type="number" min="1" required /></label><label class="field">Label <input name="label" maxlength="120" /></label><label class="field">Capacity (mL) <input name="capacityMl" type="number" min="1" required /></label><details class="disclosure"><summary>Advanced settings<small>Tare weight.</small></summary><label class="field">Tare (g) <input name="currentTareG" type="number" min="0" step="1" /></label></details><input type="hidden" name="isActive" value="true" /><div class="cluster"><button class="button button--primary" type="submit">Add Keg</button><a class="button button--secondary" href="/admin/keg-room/kegs">Cancel</a></div></form></section>
 </main>

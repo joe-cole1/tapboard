@@ -21,6 +21,7 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
   registerAdminGet(dependencies, "/admin/system", (request, response, context) => {
     const service = requireSystemService(dependencies);
     const diagnostics = service.getDiagnostics();
+    const ready = dependencies.isReady?.() ?? true;
     renderAdmin(
       dependencies,
       response,
@@ -32,7 +33,10 @@ export function registerSystemPages(dependencies: RegisterSystemPagesDependencie
       {
         system: {
           version: APPLICATION_VERSION,
-          ready: dependencies.isReady?.() ?? true,
+          ready,
+          badge: ready
+            ? { label: "Ready", tone: "healthy" }
+            : { label: "Unavailable", tone: "degraded" },
           schemaVersion: CURRENT_SCHEMA_VERSION,
           liveClients: dependencies.liveUpdates.stats(),
           connectivity: dependencies.dashboardService.getHeader().connectivityLabel,

@@ -1,18 +1,16 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <div>
-      <h1>Tap <%= it.tap.identity.tapNumber %><% if (it.tap.identity.name) { %> — <%= it.tap.identity.name %><% } else { %> — (unnamed)<% } %></h1>
-    </div>
-    <span class="badge<%= it.tap.lifecycle.enabled && !it.tap.lifecycle.isRetired ? " badge--active" : "" %>"><%= it.tap.lifecycle.isRetired ? "Retired" : it.tap.lifecycle.enabled ? "Enabled" : "Disabled" %></span>
-  </header>
+  <%~ include("/partials/page-header", it.header) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
 <% if (it.tab === "card") { %>
   <section aria-labelledby="public-preview-heading">
-    <div class="header-row"><div><h2 id="public-preview-heading">Public preview</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "public-preview-heading",
+      title: "Public preview",
+    }) %>
     <div data-tap-preview>
     <% if (it.tap.publicPreview) { %>
       <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.tap.displayDefaults.theme || 'modern_dark' %>" data-preview-accent="<%= it.tap.displayDefaults.accent || 'theme' %>" data-preview-font="<%= it.tap.displayDefaults.font || 'system' %>" data-preview-unit-system="<%= it.tap.displayDefaults.unitSystem || 'us' %>" data-preview-show-serving-temperature="<%= it.tap.displayDefaults.showServingTemperature !== false %>"><%~ include("/partials/tap-card", { tap: it.tap.publicPreview, sharedDisplay: it.tap.displayDefaults }) %></div>
@@ -23,7 +21,10 @@
   </section>
 
   <section aria-labelledby="public-card-heading">
-    <div class="header-row"><div><h2 id="public-card-heading">On the public card</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "public-card-heading",
+      title: "On the public card",
+    }) %>
     <% if (it.tap.cardMetrics.length > 0) { %>
       <p class="muted">Each switch saves at once. A metric you change here stops following <a href="/admin/display/shared">Display › Default theme</a> until you reset it.</p>
       <ul class="tap-card-metrics" aria-labelledby="public-card-heading" data-card-metrics>
@@ -41,7 +42,10 @@
   </section>
 
   <section aria-labelledby="mystery-heading">
-    <div class="header-row"><div><h2 id="mystery-heading">Mystery Tap</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "mystery-heading",
+      title: "Mystery Tap",
+    }) %>
     <% if (!it.tap.assignment.active || !it.tap.assignment.mystery) { %>
       <p class="muted">Mystery settings are unavailable until this Tap has an active Fill assignment.</p>
     <% } else { %>
@@ -56,7 +60,10 @@
   </section>
 <% } else if (it.tab === "identity") { %>
   <section aria-labelledby="tap-identity-heading">
-    <div class="header-row"><div><h2 id="tap-identity-heading">Identity</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "tap-identity-heading",
+      title: "Identity",
+    }) %>
     <dl class="key-value-list">
       <div><dt>First used</dt><dd><%= it.tap.lifecycle.firstUsedAtLabel %></dd></div>
       <div><dt>Last updated</dt><dd><time datetime="<%= it.tap.identity.updatedAt %>"><%= it.tap.identity.updatedAtLabel %></time></dd></div>
@@ -88,7 +95,11 @@
   </section>
 
   <section id="assignment" aria-labelledby="assignment-heading">
-    <div class="header-row"><div><h2 id="assignment-heading">Assignment</h2></div><% if (it.tap.assignment.active) { %><a class="button button--secondary button--small" href="/admin/keg-room/fills/<%= it.tap.assignment.active.fillId %>">Open Filled Keg</a><% } %></div>
+    <%~ include("/partials/section-heading", {
+      id: "assignment-heading",
+      title: "Assignment",
+      actions: it.tap.assignment.actions,
+    }) %>
     <% if (it.tap.assignment.active) { %>
         <table class="table">
           <caption class="sr-only">Current Tap assignment</caption>
@@ -133,23 +144,34 @@
     <% } %>
   </section>
 
-  <% const tapHiddenFields = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" /><input type="hidden" name="updatedAt" value="${it.tap.identity.updatedAt}" />`; %>
+  <% const tapHiddenFields = [{ name: "_csrf", value: it.page.csrfToken }, { name: "updatedAt", value: it.tap.identity.updatedAt }]; %>
   <% if (!it.tap.lifecycle.isRetired) { %>
     <section id="lifecycle" aria-labelledby="lifecycle-heading">
-      <div class="header-row"><div><h2 id="lifecycle-heading">Lifecycle</h2><p class="muted">A retired Tap leaves the public display and keeps its number and history. Retiring can't be undone.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "lifecycle-heading",
+        title: "Lifecycle",
+        intro: "A retired Tap leaves the public display and keeps its number and history. Retiring can't be undone.",
+      }) %>
       <%~ include("/partials/permanent-action", { id: `tap-retire-${it.tap.identity.id}`, blockers: it.tap.blockers.retire, action: `/admin/taps/${it.tap.identity.id}/retire`, hiddenFields: tapHiddenFields, reason: true, disclosure: "Retire Tap", buttonLabel: "Retire Tap" }) %>
     </section>
   <% } %>
 
   <section class="card card--danger" aria-labelledby="tap-delete-heading">
-    <div class="header-row"><div><h2 id="tap-delete-heading">Permanent deletion</h2><p class="muted">Only a never-used, non-retired, unassigned Tap can be deleted. Deletion removes the Tap record and its deletion audit entry.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "tap-delete-heading",
+      title: "Permanent deletion",
+      intro: "Only a never-used, non-retired, unassigned Tap can be deleted. Deletion removes the Tap record and its deletion audit entry.",
+    }) %>
     <% if (it.tap.deletionImpact) { %>
       <%~ include("/partials/permanent-action", { id: `tap-delete-${it.tap.identity.id}`, blockers: it.tap.blockers.delete, action: `/admin/taps/${it.tap.identity.id}/delete`, hiddenFields: tapHiddenFields, confirmation: { field: "confirmation", value: it.tap.identity.confirmationLabel }, reason: true, buttonLabel: "Permanently delete Tap" }) %>
     <% } else { %><p class="muted">Deletion impact is unavailable right now. <a href="/admin/taps/<%= it.tap.identity.id %>/identity">Try again <span aria-hidden="true">→</span></a></p><% } %>
   </section>
 <% } else if (it.tab === "sensors") { %>
   <section aria-labelledby="sensors-heading">
-    <div class="header-row"><div><h2 id="sensors-heading">Sensors</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "sensors-heading",
+      title: "Sensors",
+    }) %>
     <p class="muted"><%= it.tap.telemetry.authoritySummary %>. Latest pressure: <%= it.tap.telemetry.pressureLabel %>.</p>
     <form class="form" action="/admin/taps/<%= it.tap.identity.id %>/authority" method="post" data-autosave="blur" data-autosave-resource="tap:<%= it.tap.identity.id %>" data-autosave-revision="updatedAt" data-autosave-fields="levelSourceId,conditionSourceId,flowSourceId"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.tap.identity.updatedAt %>" /><p class="muted">One device can supply several roles. Readings a source sends for a role it doesn’t hold are ignored. With a flow source, pours come only from the flow meter and a scale gives remaining volume. Changing the level or flow source needs a fresh baseline.</p><label class="field">Level source (scale; pours unless a flow source is set) <select name="levelSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.levelSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Condition source (temperature, pressure) <select name="conditionSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.conditionSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><label class="field">Flow source (flow meter, pours) <select name="flowSourceId"><option value="">None</option><% for (const source of it.tap.telemetry.sources) { %><option value="<%= source.id %>"<% if (it.tap.telemetry.flowSourceId === source.id) { %> selected<% } %>><%= source.name %></option><% } %></select></label><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save telemetry sources</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
   </section>
@@ -168,7 +190,10 @@
   </section>
 <% } else if (it.tab === "maintenance") { %>
   <section aria-labelledby="maintenance-heading">
-    <div class="header-row"><div><h2 id="maintenance-heading">Line maintenance</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "maintenance-heading",
+      title: "Line maintenance",
+    }) %>
     <% if (it.tap.maintenance.records.length > 0) { %>
       <table class="table"><caption class="sr-only">Line maintenance, newest first</caption><thead><tr><th scope="col">Done</th><th scope="col">Type</th></tr></thead><tbody>
         <% for (const record of it.tap.maintenance.records) { %><tr><th scope="row"><time datetime="<%= record.performedAt %>"><%= record.performedAtLabel %></time></th><td data-label="Type"><%= record.typeLabel %></td></tr><% } %>
@@ -178,7 +203,11 @@
   </section>
 <% } else { %>
   <section aria-labelledby="fill-history-heading">
-    <div class="header-row"><div><h2 id="fill-history-heading">Fill history</h2><p class="muted">Every Filled Keg this Tap has poured, newest first (up to 50).</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "fill-history-heading",
+      title: "Fill history",
+      intro: "Every Filled Keg this Tap has poured, newest first (up to 50).",
+    }) %>
     <% if (it.tap.history.fills.length === 0) { %><p class="muted">Nothing has been on this Tap yet.</p><% } else { %>
       <table class="table"><caption class="sr-only">Filled Kegs on this Tap, newest first</caption><thead><tr><th scope="col">Beverage</th><th scope="col">Physical keg</th><th scope="col">On tap</th><th scope="col">Off tap</th><th scope="col">How it ended</th></tr></thead><tbody>
         <% for (const fill of it.tap.history.fills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.fillId %>"><%= fill.beverageName || "Unknown beverage" %></a></th><td data-label="Physical keg"><% if (fill.kegId) { %><a href="/admin/keg-room/kegs/<%= fill.kegId %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><% } else { %>—<% } %></td><td data-label="On tap"><time datetime="<%= fill.assignedAt %>"><%= fill.assignedAtLabel %></time></td><td data-label="Off tap"><% if (fill.endedAt) { %><time datetime="<%= fill.endedAt %>"><%= fill.endedAtLabel %></time><% } else { %>—<% } %></td><td data-label="How it ended"><%= fill.endLabel %></td></tr><% } %>
@@ -187,7 +216,12 @@
   </section>
 
   <section aria-labelledby="tap-activity-heading">
-    <div class="header-row"><div><h2 id="tap-activity-heading">Activity</h2><p class="muted">Changes recorded against this Tap, newest first. The <a href="/admin/logs">Activity log</a> has everything.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "tap-activity-heading",
+      title: "Activity",
+      intro: "Changes recorded against this Tap, newest first. Everything else is in the",
+      introLink: { label: "Activity log", href: "/admin/logs" },
+    }) %>
     <% if (!it.tap.history.activity) { %><p class="muted">Activity is unavailable.</p><% } else if (it.tap.history.activity.items.length === 0) { %><p class="muted">No activity recorded for this Tap.</p><% } else { %>
       <table class="table"><caption class="sr-only">Activity for this Tap</caption><thead><tr><th scope="col">Time (UTC)</th><th scope="col">Action</th><th scope="col">Category</th><th scope="col">Actor</th></tr></thead><tbody>
         <% for (const item of it.tap.history.activity.items) { %><tr><td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td><td data-label="Action"><%= item.actionLabel %></td><td data-label="Category"><%= item.categoryLabel %></td><td data-label="Actor"><%= item.actorLabel %></td></tr><% } %>

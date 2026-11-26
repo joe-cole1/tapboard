@@ -3,7 +3,7 @@
   it.id: unique prefix for element ids
   it.blockers: BlockerLine[] from src/features/web/admin/blockers.ts; any blocker replaces the form
   it.impact: optional sentence naming what else the action removes
-  it.action, it.hiddenFields (trusted HTML: CSRF and revision fields), it.buttonLabel
+  it.action, it.hiddenFields ([{ name, value }]: CSRF and revision fields), it.buttonLabel
   it.confirmation: optional { field, value } for copy-then-type confirmation
   it.reason: true to ask for an optional reason
   it.disclosure: optional summary text; the form then sits behind one destructive disclosure
@@ -14,7 +14,7 @@
   <% if (it.impact) { %><p class="muted"><%= it.impact %></p><% } %>
   <% if (it.disclosure) { %><details class="disclosure"><summary><%= it.disclosure %></summary><% } %>
   <form class="form" action="<%= it.action %>" method="post">
-    <%~ it.hiddenFields %>
+    <%~ include("/partials/hidden-fields", { fields: it.hiddenFields }) %>
     <% if (it.confirmation) { %>
       <div class="field">
         <div class="confirm-prompt" data-copy-group>

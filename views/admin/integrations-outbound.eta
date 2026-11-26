@@ -1,35 +1,42 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>Outbound delivery</h1>
-    <p>Deliver selected Tapboard events to Home Assistant or an HTTP webhook. Credentials and endpoint values are never displayed.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Outbound delivery",
+    intro: "Deliver selected Tapboard events to Home Assistant or an HTTP webhook. Credentials and endpoint values are never displayed.",
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (!it.available) { %>
-    <section class="empty-state" aria-labelledby="outbound-unavailable-heading">
-      <h2 id="outbound-unavailable-heading">Outbound delivery is unavailable</h2>
-      <p>The application composition has not enabled the outbound service.</p>
-    </section>
+    <%~ include("/partials/empty-state", {
+      id: "outbound-unavailable-heading",
+      title: "Outbound delivery is unavailable",
+      text: "The application composition has not enabled the outbound service.",
+    }) %>
   <% } else { %>
-    <div class="header-row outbound-list-heading">
-      <div><h2>Destinations</h2><p class="muted">Each destination keeps its own subscription and delivery history.</p></div>
-      <div class="cluster">
-        <a class="button button--secondary button--small" href="/admin/integrations/outbound/new?transport=home_assistant">Add Home Assistant</a>
-        <a class="button button--primary button--small" href="/admin/integrations/outbound/new?transport=webhook">Add webhook</a>
-      </div>
-    </div>
+    <%~ include("/partials/section-heading", {
+      title: "Destinations",
+      intro: "Each destination keeps its own subscription and delivery history.",
+      actions: [
+        { label: "Add Home Assistant", href: "/admin/integrations/outbound/new?transport=home_assistant" },
+        { label: "Add webhook", href: "/admin/integrations/outbound/new?transport=webhook", primary: true },
+      ],
+    }) %>
     <% if (it.destinations.length === 0) { %>
-      <section class="empty-state"><h2>No outbound destinations</h2><p>Create a destination to begin delivering events.</p></section>
+      <%~ include("/partials/empty-state", {
+        title: "No outbound destinations",
+        text: "Create a destination to begin delivering events.",
+      }) %>
     <% } else { %>
       <section class="auto-grid auto-grid--lg" aria-label="Outbound destinations">
         <% for (const destination of it.destinations) { %>
           <article class="card outbound-destination-card">
-            <div class="header-row">
-              <div><p class="eyebrow"><%= destination.transportLabel %></p><h2><a href="/admin/integrations/outbound/<%= encodeURIComponent(destination.id) %>"><%= destination.label %></a></h2></div>
-              <span class="badge badge--<%= destination.enabled && !destination.retired ? destination.stateClass : "muted" %>"><%= destination.retired ? "Retired" : destination.enabled ? destination.stateLabel : "Disabled" %></span>
-            </div>
+            <%~ include("/partials/section-heading", {
+              title: destination.label,
+              titleHref: `/admin/integrations/outbound/${encodeURIComponent(destination.id)}`,
+              eyebrow: destination.transportLabel,
+              badge: destination.badge,
+            }) %>
             <dl class="key-value-list">
               <div><dt>Required</dt><dd><%= destination.required ? "Yes" : "No" %></dd></div>
               <div><dt>Subscriptions</dt><dd><%= destination.subscriptions.length %> of 6</dd></div>

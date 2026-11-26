@@ -21,7 +21,15 @@ import {
 } from "./http.ts";
 import { safePublicTapCards } from "./tap-presentation.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
-import { adminTimestampLabel, capacityLabel, pourHistoryEntry, tareLabel } from "./presentation.ts";
+import {
+  adminTimestampLabel,
+  capacityLabel,
+  pourHistoryEntry,
+  numberedPageNavigation,
+  tareLabel,
+  type PageHeader,
+  type PageNavigation,
+} from "./presentation.ts";
 import { reportFailure } from "../../../shared/diagnostics.ts";
 import {
   decodeForecastHistoryCursor,
@@ -86,12 +94,25 @@ function fillPourHistory(
         );
         return { ...entry, volumeLabel: entry.volumeLabels[unitSystem] };
       }),
-      isFirstPage: cursor === undefined,
-      newestHref: `${path}#pour-history`,
-      olderHref:
-        page.nextCursor === null
+      navigation:
+        cursor === undefined && page.nextCursor === null
           ? null
-          : `${path}?pours=${encodeURIComponent(page.nextCursor)}#pour-history`,
+          : ({
+              label: "Pour history pages",
+              previous:
+                cursor === undefined
+                  ? null
+                  : { label: "Newest pours", href: `${path}#pour-history` },
+              status: null,
+              next:
+                page.nextCursor === null
+                  ? null
+                  : {
+                      label: "Older pours",
+                      href: `${path}?pours=${encodeURIComponent(page.nextCursor)}#pour-history`,
+                    },
+            } satisfies PageNavigation),
+      isFirstPage: cursor === undefined,
     };
   } catch (error) {
     reportFailure(error, {
@@ -103,9 +124,8 @@ function fillPourHistory(
       available: false,
       cursorRejected: false,
       entries: [],
+      navigation: null,
       isFirstPage: true,
-      newestHref: path,
-      olderHref: null,
     };
   }
 }
@@ -141,13 +161,14 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
             : []),
         ],
         query: requested,
-        pagination: {
-          page: page.page,
-          pageCount: page.pageCount,
-          total: page.total,
-          previousHref: page.page > 1 ? adminFillPageHref(requested, page.page - 1) : null,
-          nextHref: page.page < page.pageCount ? adminFillPageHref(requested, page.page + 1) : null,
-        },
+        pagination: { total: page.total },
+        pageNavigation: numberedPageNavigation(
+          "Keg Room pages",
+          page.page,
+          page.pageCount,
+          page.page > 1 ? adminFillPageHref(requested, page.page - 1) : null,
+          page.page < page.pageCount ? adminFillPageHref(requested, page.page + 1) : null,
+        ),
         newFillHref: "/admin/keg-room/fills/new",
         tabs: adminTabs(
           "keg-room",
@@ -207,6 +228,9 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         capacityLabel: capacityLabel(keg.capacityMl, unitSystem),
         tareLabel: tareLabel(keg.currentTareG, unitSystem),
         isActive: keg.isActive,
+        badge: keg.isActive
+          ? { label: "Ready", tone: "healthy" }
+          : { label: "Inactive", tone: "muted" },
         updatedAt: keg.updatedAt,
         currentFill: currentFill?.beverageName ?? null,
         currentFillId: currentFill?.id ?? null,
@@ -248,13 +272,14 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       {
         kegs,
         query: requested,
-        pagination: {
-          page: page.page,
-          pageCount: page.pageCount,
-          total: page.total,
-          previousHref: page.page > 1 ? adminKegPageHref(requested, page.page - 1) : null,
-          nextHref: page.page < page.pageCount ? adminKegPageHref(requested, page.page + 1) : null,
-        },
+        pagination: { total: page.total },
+        pageNavigation: numberedPageNavigation(
+          "Physical Keg pages",
+          page.page,
+          page.pageCount,
+          page.page > 1 ? adminKegPageHref(requested, page.page - 1) : null,
+          page.page < page.pageCount ? adminKegPageHref(requested, page.page + 1) : null,
+        ),
         newKegHref: "/admin/keg-room/kegs/new",
         tabs: adminTabs("keg-room", "/admin/keg-room/kegs"),
       },
@@ -309,6 +334,10 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         `Keg ${physical.kegNumber}`,
         "/admin/keg-room/kegs",
         {
+          header: {
+            title: `Keg ${physical.kegNumber}${physical.label ? ` — ${physical.label}` : ""}`,
+            badge: physical.isActive ? { label: "Active", tone: "active" } : { label: "Inactive" },
+          } satisfies PageHeader,
           keg: {
             ...physical,
             updatedAtLabel: adminTimestampLabel(physical.updatedAt),
@@ -380,6 +409,10 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         "Filled Keg",
         "/admin/keg-room",
         {
+          header: {
+            title: "Filled Keg",
+            intro: `${String(card.beverageName)} · Keg ${String(card.kegNumber)}${typeof card.kegLabel === "string" && card.kegLabel ? ` — ${card.kegLabel}` : ""}`,
+          } satisfies PageHeader,
           fill: card,
           fillRecord: fill,
           deletion: {

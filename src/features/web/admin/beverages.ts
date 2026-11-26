@@ -16,6 +16,7 @@ import {
   type AdminAutosaveSpec,
 } from "./http.ts";
 import { renderAdmin } from "./layout.ts";
+import { numberedPageNavigation } from "./presentation.ts";
 import {
   adminBeverageListItem,
   adminBrewfatherCandidate,
@@ -67,6 +68,26 @@ export function registerBeveragePages(dependencies: RegisterBeveragePagesDepende
           .listCandidates()
           .map(adminBrewfatherCandidate),
         query: index.query,
+        empty: index.query
+          ? {
+              title: "No matching beverages",
+              text: "Try a different search or clear the filter.",
+              actions: [{ label: "Add a beverage", href: "/admin/beverages/new", primary: true }],
+            }
+          : {
+              title: "Your beverage library is empty",
+              text: "Create a custom beverage to start building the library.",
+              actions: [
+                { label: "Create the first beverage", href: "/admin/beverages/new", primary: true },
+              ],
+            },
+        pageNavigation: numberedPageNavigation(
+          "Beverage pages",
+          index.page,
+          index.pageCount,
+          previousPage,
+          nextPage,
+        ),
         pagination: {
           page: index.page,
           pageCount: index.pageCount,

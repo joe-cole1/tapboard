@@ -1,10 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>New Tap</h1>
-    <p class="muted">Create a serving position first; assignment and operational controls are available after it exists.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "New Tap",
+    intro: "Create a serving position first; assignment and operational controls are available after it exists.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="new-tap-heading">
     <h2 id="new-tap-heading">Tap identity and serving setup</h2>

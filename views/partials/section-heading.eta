@@ -1,0 +1,46 @@
+<% /*
+  The heading row of an Admin section: the title on the left, a badge and links on the right.
+  it.title: the heading text
+  it.id: optional heading id, which the section's aria-labelledby points at
+  it.titleHref: optional link for the heading text (a card that opens a record)
+  it.level: 2 (default) or 3
+  it.eyebrow: optional label above the heading
+  it.intro: optional muted sentence under the heading
+  it.introLink: optional { label, href } that ends the intro sentence
+  it.introTime: optional { datetime, label } that ends the intro sentence
+  it.badge: optional { label, tone, labelField, toneField } for /partials/status-badge
+  it.actions: optional [{ label, href, primary }] link buttons
+*/ %>
+<% const tag = it.level === 3 ? "h3" : "h2"; %>
+<% const actions = it.actions || []; %>
+<div class="header-row">
+  <div>
+    <% if (it.eyebrow) { %>
+      <p class="eyebrow"><%= it.eyebrow %></p>
+    <% } %>
+    <% if (it.titleHref) { %>
+      <<%= tag %><% if (it.id) { %> id="<%= it.id %>"<% } %>><a href="<%= it.titleHref %>"><%= it.title %></a></<%= tag %>>
+    <% } else { %>
+      <<%= tag %><% if (it.id) { %> id="<%= it.id %>"<% } %>><%= it.title %></<%= tag %>>
+    <% } %>
+    <% if (it.introLink) { %>
+      <p class="muted"><%= it.intro %> <a href="<%= it.introLink.href %>"><%= it.introLink.label %></a>.</p>
+    <% } else if (it.introTime) { %>
+      <p class="muted"><%= it.intro %> <%~ include("/partials/timestamp", it.introTime) %></p>
+    <% } else if (it.intro) { %>
+      <p class="muted"><%= it.intro %></p>
+    <% } %>
+  </div>
+  <% if (it.badge && actions.length > 0 || actions.length > 1) { %>
+    <div class="cluster">
+  <% } %>
+  <% if (it.badge) { %>
+    <%~ include("/partials/status-badge", it.badge) %>
+  <% } %>
+  <% for (const action of actions) { %>
+    <a class="button <%= action.primary ? "button--primary" : "button--secondary" %> button--small" href="<%= action.href %>"><%= action.label %></a>
+  <% } %>
+  <% if (it.badge && actions.length > 0 || actions.length > 1) { %>
+    </div>
+  <% } %>
+</div>

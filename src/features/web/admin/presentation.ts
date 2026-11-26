@@ -95,3 +95,64 @@ export function pourHistoryEntry(
     },
   };
 }
+
+/** A status label, rendered by `views/partials/status-badge.eta`. */
+export interface StatusBadge {
+  readonly label: string;
+  /** A `badge--*` variant; none for a neutral badge. */
+  readonly tone?: string;
+  /** Live save replaces the label with this field of the saved resource. */
+  readonly labelField?: string;
+  /** Live save replaces the tone with this field of the saved resource. */
+  readonly toneField?: string;
+}
+
+/** The top of an Admin page, rendered by `views/partials/page-header.eta`. */
+export interface PageHeader {
+  readonly title: string;
+  /** Live save replaces the title with this field of the saved resource. */
+  readonly titleField?: string;
+  readonly colourCue?: string;
+  readonly badge?: StatusBadge;
+  readonly intro?: string;
+  /** A link that ends the intro sentence. */
+  readonly introLink?: { readonly label: string; readonly href: string };
+  readonly updated?: { readonly datetime: string; readonly label: string };
+}
+
+/** A linked count, rendered by `views/partials/stat-tiles.eta`. */
+export interface StatTile {
+  readonly label: string;
+  readonly value: string | number;
+  readonly href: string;
+}
+
+export interface PageLink {
+  readonly label: string;
+  readonly href: string;
+}
+
+/** Links between the pages of a list, rendered by `views/partials/pagination.eta`. */
+export interface PageNavigation {
+  readonly label: string;
+  readonly previous: PageLink | null;
+  readonly status: string | null;
+  readonly next: PageLink | null;
+}
+
+/** Previous, "Page n of m" and Next for a numbered list; null when there is nowhere to go. */
+export function numberedPageNavigation(
+  label: string,
+  page: number,
+  pageCount: number,
+  previousHref: string | null,
+  nextHref: string | null,
+): PageNavigation | null {
+  if (previousHref === null && nextHref === null) return null;
+  return {
+    label,
+    previous: previousHref === null ? null : { label: "Previous", href: previousHref },
+    status: `Page ${page} of ${pageCount}`,
+    next: nextHref === null ? null : { label: "Next", href: nextHref },
+  };
+}

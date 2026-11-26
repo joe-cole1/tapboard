@@ -1,18 +1,22 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const data = it.tapWars || {}; const current = data.current || null; const published = data.published || null; const publicVisible = data.publicVisible || null; const eligible = data.eligible || []; const history = data.history || []; const total = (war) => Number.isFinite(war?.totalVotes) ? war.totalVotes : (war?.competitors || []).reduce((sum, side) => sum + (side.voteCount || 0), 0); const publicSide = (side) => publicVisible?.id === current?.id ? publicVisible[`side${side}`] : null; const resultLabel = (war) => { if (war?.result === "tie") return "Tie"; const side = war?.result === "side1" ? 1 : war?.result === "side2" ? 2 : null; return side ? (war.competitors || []).find((competitor) => competitor.side === side)?.adminBeverageTitle + " wins" : "Result pending"; }; %>
 <main id="main-content" class="admin-page" data-admin-tap-wars<% if (current) { %> data-current-id="<%= current.id %>" data-current-status="<%= current.status %>"<% } %><% if (published) { %> data-published-id="<%= published.id %>"<% } %>>
-  <header class="page-header">
-    <p class="eyebrow">Live voting</p>
-    <h1>Tap Wars</h1>
-    <p>Run a simple public head-to-head between two currently assigned Taps. Votes are counted exactly as received.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Tap Wars",
+    intro: "Run a simple public head-to-head between two currently assigned Taps. Votes are counted exactly as received.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <output class="sr-only" aria-live="polite" data-tap-wars-live-status></output>
 
   <% const matchup = data.matchup || { side1: "", side2: "", duplicate: false, banner: null }; const guestBanner = current ? publicVisible : (matchup.banner || publicVisible); %>
   <section aria-labelledby="tap-wars-guest-preview-title">
-    <div class="header-row"><div><h2 id="tap-wars-guest-preview-title">What guests see</h2><p class="muted" data-tap-wars-caption="live"<% if (!current && matchup.banner) { %> hidden<% } %>>The banner on the public Tapboard, in its current theme. View results opens the same dialog guests get.</p><p class="muted" data-tap-wars-caption="matchup"<% if (current || !matchup.banner) { %> hidden<% } %>>How the banner opens for the two Taps chosen below, at 0 votes. Guests see it once you start the Tap War.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "tap-wars-guest-preview-title",
+      title: "What guests see",
+    }) %>
+    <p class="muted" data-tap-wars-caption="live"<% if (!current && matchup.banner) { %> hidden<% } %>>The banner on the public Tapboard, in its current theme. View results opens the same dialog guests get.</p>
+    <p class="muted" data-tap-wars-caption="matchup"<% if (current || !matchup.banner) { %> hidden<% } %>>How the banner opens for the two Taps chosen below, at 0 votes. Guests see it once you start the Tap War.</p>
     <div class="display-preview tap-wars-guest-preview__frame" data-tap-wars-guest-preview<% if (!guestBanner) { %> hidden<% } %>>
       <%~ include("/partials/tap-wars-banner", { tapWars: guestBanner }) %>
     </div>
@@ -21,7 +25,14 @@
 
   <% if (current) { %>
     <section class="tap-wars-current" aria-labelledby="tap-wars-current-title">
-      <div class="header-row tap-wars-current__heading"><div><p class="eyebrow"><%= current.status === "active" ? "Now accepting votes" : "Needs attention" %></p><h2 id="tap-wars-current-title"><%= current.status === "active" ? "Current Tap War" : "Tap War paused" %></h2><p class="muted">Started <time datetime="<%= current.startedAt %>"><%= current.startedAt || "Unknown" %></time></p></div><span class="badge<%= current.status === "active" ? "" : " badge--warning" %>" data-war-status><%= current.status === "active" ? "Voting open" : "Voting paused" %></span></div>
+      <%~ include("/partials/section-heading", {
+        id: "tap-wars-current-title",
+        title: current.heading.title,
+        eyebrow: current.heading.eyebrow,
+        intro: "Started",
+        introTime: current.heading.started,
+        badge: current.heading.badge,
+      }) %>
       <% if (current.status === "paused") { const unavailable = current.competitors.filter((side) => !side.eligible); %><aside class="tap-wars-attention" aria-label="Why voting is paused"><strong>Voting is paused until both original competitors are eligible again.</strong><% if (unavailable.length > 0) { %><ul><% for (const side of unavailable) { %><li>Tap <%= side.tapNumber %> — <%= side.adminBeverageTitle %>: <%= side.unavailableReason || "Eligibility changed." %></li><% } %></ul><% } %></aside><% } %>
       <div class="tap-wars-matchup" data-war-matchup><% for (const side of current.competitors) { const safe = publicSide(side.side); %><article class="card tap-wars-competitor" data-war-side="<%= side.side %>"><p class="eyebrow">Side <%= side.side %> · Tap <%= side.tapNumber %></p><h3><%= side.adminBeverageTitle %></h3><p class="tap-wars-public-title">Public: <span data-war-public-title="<%= side.side %>"><%= safe?.title || "Mystery Tap" %></span></p><dl class="tap-wars-score"><div><dt>Votes</dt><dd data-war-count="<%= side.side %>"><%= side.voteCount %></dd></div><div><dt>Share</dt><dd data-war-percentage="<%= side.side %>"><%= side.percentage === null || side.percentage === undefined ? "—" : `${side.percentage}%` %></dd></div></dl><div class="tap-wars-competitor__meter" aria-label="Tap <%= side.tapNumber %> has <%= side.voteCount %> votes"><svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true" focusable="false"><rect data-war-meter="<%= side.side %>" x="0" y="0" width="<%= side.percentage || 0 %>" height="10" /></svg></div></article><% } %></div>
       <div class="tap-wars-totals" aria-live="polite"><strong data-war-total><%= total(current) %></strong> total vote<%= total(current) === 1 ? "" : "s" %> · <span data-war-leader><%= current.isTie ? "Tied" : current.leaderSide ? `Side ${current.leaderSide} leads` : "No leader yet" %></span></div>
@@ -30,7 +41,12 @@
     </section>
   <% } else { %>
     <section class="tap-wars-start" aria-labelledby="tap-wars-start-title">
-      <div class="header-row"><div><p class="eyebrow">Next matchup</p><h2 id="tap-wars-start-title">Start a Tap War</h2><p class="muted">Choose two different Taps that each have a Filled Keg.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "tap-wars-start-title",
+        title: "Start a Tap War",
+        eyebrow: "Next matchup",
+        intro: "Choose two different Taps that each have a Filled Keg.",
+      }) %>
       <% if (eligible.length < 2) { %>
         <div class="tap-wars-setup" role="note"><strong>Two eligible Tap assignments are needed before voting can start.</strong><p>Enable two non-retired Taps and give each one an active Filled Keg.</p><div class="tap-wars-setup__links"><a class="button button--primary button--small" href="/admin/keg-room">Set up Keg Room</a><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div></div>
       <% } else { %>
@@ -50,9 +66,25 @@
   <% } %>
 
   <% if (published) { %>
-    <section class="tap-wars-published" aria-labelledby="tap-wars-published-title"><div class="header-row"><div><p class="eyebrow">Visible on the public Tapboard</p><h2 id="tap-wars-published-title">Published result</h2><p class="muted">Completed <time datetime="<%= published.completedAt %>"><%= published.completedAt || "Unknown" %></time></p></div><span class="badge">Published</span></div><p><strong><%= resultLabel(published) %></strong> · <%= total(published) %> final vote<%= total(published) === 1 ? "" : "s" %></p><div class="tap-wars-result-grid"><% for (const side of published.competitors) { const currentPublic = publicVisible?.id === published.id ? publicVisible[`side${side.side}`] : null; %><article class="card"><h3>Tap <%= side.tapNumber %> · <%= side.adminBeverageTitle %></h3><p>Currently public: <%= currentPublic?.title || "Mystery Tap" %></p><p>Public title at completion: <%= side.side === 1 ? published.completionPublicTitleSide1 || "Mystery Tap" : published.completionPublicTitleSide2 || "Mystery Tap" %></p><strong><%= side.voteCount %> · <%= side.percentage === null || side.percentage === undefined ? "—" : `${side.percentage}%` %></strong></article><% } %></div><form action="/admin/tap-wars/<%= published.id %>/dismiss" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" type="submit">Dismiss public result</button></form></section>
+    <section class="tap-wars-published" aria-labelledby="tap-wars-published-title">
+    <%~ include("/partials/section-heading", {
+      id: "tap-wars-published-title",
+      title: "Published result",
+      eyebrow: "Visible on the public Tapboard",
+      intro: "Completed",
+      introTime: published.completed,
+      badge: { label: "Published" },
+    }) %>
+    <p><strong><%= resultLabel(published) %></strong> · <%= total(published) %> final vote<%= total(published) === 1 ? "" : "s" %></p><div class="tap-wars-result-grid"><% for (const side of published.competitors) { const currentPublic = publicVisible?.id === published.id ? publicVisible[`side${side.side}`] : null; %><article class="card"><h3>Tap <%= side.tapNumber %> · <%= side.adminBeverageTitle %></h3><p>Currently public: <%= currentPublic?.title || "Mystery Tap" %></p><p>Public title at completion: <%= side.side === 1 ? published.completionPublicTitleSide1 || "Mystery Tap" : published.completionPublicTitleSide2 || "Mystery Tap" %></p><strong><%= side.voteCount %> · <%= side.percentage === null || side.percentage === undefined ? "—" : `${side.percentage}%` %></strong></article><% } %></div><form action="/admin/tap-wars/<%= published.id %>/dismiss" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" type="submit">Dismiss public result</button></form></section>
   <% } %>
 
-  <section class="tap-wars-history" aria-labelledby="tap-wars-history-title"><div class="header-row"><div><p class="eyebrow">Read-only record</p><h2 id="tap-wars-history-title">Tap War history</h2></div><span class="badge"><%= history.length %></span></div><% if (history.length === 0) { %><p class="muted">Completed Tap Wars will appear here, newest first.</p><% } else { %><table class="table tap-wars-history-table"><caption class="sr-only">Completed Tap Wars, newest first</caption><thead><tr><th scope="col">Completed</th><th scope="col">Matchup</th><th scope="col">Final score</th><th scope="col">Result</th></tr></thead><tbody><% for (const war of history) { %><tr><td><time datetime="<%= war.completedAt %>"><%= war.completedAt || "Unknown" %></time><br /><small>Started <%= war.startedAt || "Unknown" %></small></td><td data-label="Matchup"><% for (const side of war.competitors) { %><div><strong>Tap <%= side.tapNumber %></strong> · <%= side.adminBeverageTitle %><br /><small>Public snapshot: <%= side.side === 1 ? war.completionPublicTitleSide1 || "Mystery Tap" : war.completionPublicTitleSide2 || "Mystery Tap" %></small></div><% } %></td><td data-label="Final score"><% for (const side of war.competitors) { %><div>Side <%= side.side %>: <%= side.voteCount %> (<%= side.percentage === null || side.percentage === undefined ? "—" : `${side.percentage}%` %>)</div><% } %></td><td data-label="Result"><strong><%= resultLabel(war) %></strong></td></tr><% } %></tbody></table><% } %></section>
+  <section class="tap-wars-history" aria-labelledby="tap-wars-history-title">
+  <%~ include("/partials/section-heading", {
+    id: "tap-wars-history-title",
+    title: "Tap War history",
+    eyebrow: "Read-only record",
+    badge: { label: history.length },
+  }) %>
+  <% if (history.length === 0) { %><p class="muted">Completed Tap Wars will appear here, newest first.</p><% } else { %><table class="table tap-wars-history-table"><caption class="sr-only">Completed Tap Wars, newest first</caption><thead><tr><th scope="col">Completed</th><th scope="col">Matchup</th><th scope="col">Final score</th><th scope="col">Result</th></tr></thead><tbody><% for (const war of history) { %><tr><td><time datetime="<%= war.completedAt %>"><%= war.completedAt || "Unknown" %></time><br /><small>Started <%= war.startedAt || "Unknown" %></small></td><td data-label="Matchup"><% for (const side of war.competitors) { %><div><strong>Tap <%= side.tapNumber %></strong> · <%= side.adminBeverageTitle %><br /><small>Public snapshot: <%= side.side === 1 ? war.completionPublicTitleSide1 || "Mystery Tap" : war.completionPublicTitleSide2 || "Mystery Tap" %></small></div><% } %></td><td data-label="Final score"><% for (const side of war.competitors) { %><div>Side <%= side.side %>: <%= side.voteCount %> (<%= side.percentage === null || side.percentage === undefined ? "—" : `${side.percentage}%` %>)</div><% } %></td><td data-label="Result"><strong><%= resultLabel(war) %></strong></td></tr><% } %></tbody></table><% } %></section>
 </main>
 <script type="module" src="/assets/js/admin-tap-wars.js"></script>

@@ -5,11 +5,11 @@
   <a class="admin-exit" href="/">Return to site</a>
 </header>
 <main id="main-content" class="admin-page card login">
-  <header class="page-header">
-    <p class="eyebrow">Admin</p>
-    <h1>Admin sign in</h1>
-    <p>Enter the four-digit Admin PIN.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    eyebrow: "Admin",
+    title: "Admin sign in",
+    intro: "Enter the four-digit Admin PIN.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <form class="form" action="/admin/login" method="post" data-pin-form>
     <label for="pin">Admin PIN</label>

@@ -1,11 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <p class="eyebrow">Telemetry</p>
-    <h1><%= it.page.title %></h1>
-    <p>This is the only time Tapboard will display this machine key. Copy it to the source before leaving this page.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: it.page.title,
+    intro: "This is the only time Tapboard will display this machine key. Copy it to the source before leaving this page.",
+  }) %>
   <section class="card one-time-secret" aria-labelledby="key-heading">
     <h2 id="key-heading"><%= it.source.name %></h2>
     <p class="warning"><strong>Store this key securely.</strong> It cannot be recovered after this page is closed.</p>

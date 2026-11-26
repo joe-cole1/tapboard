@@ -1,0 +1,11 @@
+<% /*
+  A short status label.
+  it.label: the text
+  it.tone: optional variant (healthy, active, warning, degraded, critical, muted, or a Fill state)
+  it.labelField: optional data-autosave-text field whose saved value replaces the label
+  it.toneField: optional data-autosave-badge field whose saved value replaces the tone
+*/ %>
+<span
+  <% if (it.labelField) { %>data-autosave-text="<%= it.labelField %>"<% } %>
+  <% if (it.toneField) { %>data-autosave-badge="<%= it.toneField %>"<% } %>
+  class="badge<% if (it.tone) { %> badge--<%= it.tone %><% } %>"><%= it.label %></span>

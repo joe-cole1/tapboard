@@ -14,7 +14,7 @@ import { ApplicationError } from "../../shared/errors.ts";
 import { adminFailureMessage, reportFailure } from "../../shared/diagnostics.ts";
 import type { Logger } from "../../shared/logging.ts";
 import type { AuthService, AuthenticatedSession, SessionMaterial } from "../auth/service.ts";
-import { adminBreadcrumbs, adminNavItems } from "../web/admin/layout.ts";
+import { adminBreadcrumbs, adminNav } from "../web/admin/layout.ts";
 import type { SimulationController, SimulationStatus } from "./ui-types.ts";
 
 export interface SimulationRouteDependencies {
@@ -225,6 +225,7 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
         revision: state.revision,
         changing: state.changing,
       };
+      const breadcrumbs = adminBreadcrumbs("/admin/simulator", "/admin/simulator", "Simulation");
       sendHtml(
         response,
         200,
@@ -232,13 +233,13 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
           page: {
             title: "Simulation",
             path: "/admin/simulator",
-            breadcrumbs: adminBreadcrumbs("/admin/simulator", "/admin/simulator", "Simulation"),
+            breadcrumbs,
             csrfToken: context.csrfToken,
             workspace,
             notice: query.get("notice")?.slice(0, 240),
             error: query.get("error")?.slice(0, 240),
           },
-          navItems: adminNavItems(),
+          nav: adminNav("/admin/simulator", breadcrumbs),
           workspace,
           simulation: state,
         }),
@@ -249,6 +250,11 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
         operation: "admin.simulation.page",
         ...(dependencies.logger ? { logger: dependencies.logger } : {}),
       });
+      const failureCrumbs = adminBreadcrumbs(
+        "/admin/simulator",
+        "/admin/simulator",
+        "Simulation unavailable",
+      );
       sendHtml(
         response,
         failure.status,
@@ -256,15 +262,11 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
           page: {
             title: "Simulation unavailable",
             path: "/admin/simulator",
-            breadcrumbs: adminBreadcrumbs(
-              "/admin/simulator",
-              "/admin/simulator",
-              "Simulation unavailable",
-            ),
+            breadcrumbs: failureCrumbs,
             csrfToken: context.csrfToken,
             error: adminFailureMessage(failure, "The Simulation page could not be loaded."),
           },
-          navItems: adminNavItems(),
+          nav: adminNav("/admin/simulator", failureCrumbs),
         }),
       );
     }

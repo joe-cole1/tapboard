@@ -1,13 +1,18 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1><%= it.source.name %></h1>
-    <p>Safe source metadata only. Machine key secrets and digests are never displayed.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: it.source.name,
+    intro: "Safe source metadata only. Machine key secrets and digests are never displayed.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="source-status-heading">
-    <div class="header-row"><div><h2 id="source-status-heading">Source status</h2><p class="muted">Authentication and key information for this source.</p></div><span class="badge badge--<%= it.source.disabledAt === null ? "healthy" : "muted" %>"><%= it.source.disabledAt === null ? "Active" : "Disabled" %></span></div>
+    <%~ include("/partials/section-heading", {
+      id: "source-status-heading",
+      title: "Source status",
+      intro: "Authentication and key information for this source.",
+      badge: it.source.badge,
+    }) %>
     <table class="table"><tbody>
       <tr><th scope="row">Key ID (audit reference)</th><td><code><%= it.source.keyPublicId %></code><br /><span class="muted">Reference only; it is not sent in the URL or request.</span></td></tr>
       <tr><th scope="row">Source created</th><td><time datetime="<%= it.source.createdAt %>"><%= it.source.createdAtLabel %></time></td></tr>
@@ -22,12 +27,20 @@
   </section>
   <% if (it.source.disabledAt === null) { %>
     <section aria-labelledby="source-rotate-heading">
-      <div class="header-row"><div><h2 id="source-rotate-heading">Rotate key</h2><p class="muted">Issues a replacement key, labelled with the source name, and shows it once. The current key stops working immediately.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "source-rotate-heading",
+        title: "Rotate key",
+        intro: "Issues a replacement key, labelled with the source name, and shows it once. The current key stops working immediately.",
+      }) %>
       <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><div class="form-actions"><button class="button button--primary button--small" type="submit">Rotate key and show replacement once</button></div></form>
     </section>
     <section class="card card--danger" aria-labelledby="source-disable-heading">
-      <div class="header-row"><div><h2 id="source-disable-heading">Disable source</h2><p class="muted">Disabling revokes the current key for good. The source stays in history and can't be re-enabled.</p></div></div>
-      <%~ include("/partials/permanent-action", { id: `source-disable-${it.source.id}`, blockers: it.disableBlockers, action: `/admin/integrations/telemetry-sources/${it.source.id}/disable`, hiddenFields: `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" />`, disclosure: "Disable source", buttonLabel: "Disable source" }) %>
+      <%~ include("/partials/section-heading", {
+        id: "source-disable-heading",
+        title: "Disable source",
+        intro: "Disabling revokes the current key for good. The source stays in history and can't be re-enabled.",
+      }) %>
+      <%~ include("/partials/permanent-action", { id: `source-disable-${it.source.id}`, blockers: it.disableBlockers, action: `/admin/integrations/telemetry-sources/${it.source.id}/disable`, hiddenFields: [{ name: "_csrf", value: it.page.csrfToken }], disclosure: "Disable source", buttonLabel: "Disable source" }) %>
     </section>
   <% } else { %>
     <section><h2>Immutable history</h2><p>This source is disabled and its current key is revoked. It cannot be rotated, renamed, or re-enabled.</p></section>

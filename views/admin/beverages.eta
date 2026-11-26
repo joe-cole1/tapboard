@@ -1,19 +1,17 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <p class="eyebrow">Manage</p>
-    <h1>Beverages</h1>
-    <p class="muted">A searchable library of every beverage available to the tapboard.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Beverages",
+    intro: "A searchable library of every beverage available to the tapboard.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <section class="header-row" aria-labelledby="beverage-library-heading">
-    <div>
-      <h2 id="beverage-library-heading">Beverage library</h2>
-      <p class="muted"><%= it.pagination.total %> beverage<%= it.pagination.total === 1 ? "" : "s" %></p>
-    </div>
-    <a class="button button--primary button--small" href="/admin/beverages/new">Add beverage</a>
-  </section>
+  <%~ include("/partials/section-heading", {
+    id: "beverage-library-heading",
+    title: "Beverage library",
+    intro: `${it.pagination.total} beverage${it.pagination.total === 1 ? "" : "s"}`,
+    actions: [{ label: "Add beverage", href: "/admin/beverages/new", primary: true }],
+  }) %>
   <form class="form admin-search" method="get" action="/admin/beverages" role="search">
     <label for="beverage-search">Search by name, style, type, or source</label>
     <div class="admin-search__controls">
@@ -23,11 +21,7 @@
     </div>
   </form>
   <% if (it.beverages.length === 0) { %>
-    <section class="empty-state" aria-labelledby="beverage-empty-heading">
-      <h2 id="beverage-empty-heading"><%= it.query ? "No matching beverages" : "Your beverage library is empty" %></h2>
-      <p><%= it.query ? "Try a different search or clear the filter." : "Create a custom beverage to start building the library." %></p>
-      <a class="button button--primary button--small" href="/admin/beverages/new"><%= it.query ? "Add a beverage" : "Create the first beverage" %></a>
-    </section>
+    <%~ include("/partials/empty-state", { ...it.empty, id: "beverage-empty-heading" }) %>
   <% } else { %>
       <table class="table table--library">
         <caption class="sr-only">Beverage library</caption>
@@ -44,23 +38,23 @@
               </div></th>
               <td data-label="Style"><%= beverage.style || "—" %></td>
               <td data-label="ABV"><%= beverage.abv === null ? "—" : `${beverage.abv}%` %></td>
-              <td data-label="Source"><span class="badge"><%= beverage.source %></span></td>
+              <td data-label="Source"><%~ include("/partials/status-badge", { label: beverage.source }) %></td>
               <td data-label="Current use"><%= beverage.currentUsage === 0 ? "Not in use" : `${beverage.currentUsage} active fill${beverage.currentUsage === 1 ? "" : "s"}` %></td>
             </tr>
           <% } %>
         </tbody>
       </table>
-    <% if (it.pagination.pageCount > 1) { %>
-      <nav class="pagination" aria-label="Beverage pages">
-        <% if (it.pagination.previousHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %>
-        <span>Page <%= it.pagination.page %> of <%= it.pagination.pageCount %></span>
-        <% if (it.pagination.nextHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %>
-      </nav>
+    <% if (it.pageNavigation) { %>
+      <%~ include("/partials/pagination", it.pageNavigation) %>
     <% } %>
   <% } %>
   <% if (it.brewfatherCandidates && it.brewfatherCandidates.length > 0) { %>
     <section aria-labelledby="brewfather-candidates-heading">
-      <div class="header-row"><div><h2 id="brewfather-candidates-heading">Unlinked Brewfather batches</h2><p class="muted">Link a cached batch only when you are ready to manage it here.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "brewfather-candidates-heading",
+        title: "Unlinked Brewfather batches",
+        intro: "Link a cached batch only when you are ready to manage it here.",
+      }) %>
         <div class="auto-grid auto-grid--lg">
           <% for (const candidate of it.brewfatherCandidates) { %>
             <article class="card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>

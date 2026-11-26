@@ -1,12 +1,20 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <% const workspace = it.workspace || it.page.workspace || { enabled: false, changing: false }; %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><p class="eyebrow">Configure</p><h1>System</h1><p>Installation status, calculation defaults, units and Admin access.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "System",
+    intro: "Installation status, calculation defaults, units and Admin access.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <% if (workspace.enabled) { %><p class="muted">Settings and diagnostics below belong to the saved simulation workspace. Admin access is shared with your real installation.</p><% } %>
   <section aria-labelledby="system-status-heading">
-    <div class="header-row"><div><h2 id="system-status-heading">System status</h2><span class="badge badge--<%= it.system.ready ? 'healthy' : 'degraded' %>"><%= it.system.ready ? 'Ready' : 'Unavailable' %></span></div><a class="button button--secondary button--small" href="/admin/integrations">Integrations</a></div>
+    <%~ include("/partials/section-heading", {
+      id: "system-status-heading",
+      title: "System status",
+      badge: it.system.badge,
+      actions: [{ label: "Integrations", href: "/admin/integrations" }],
+    }) %>
     <dl class="key-value-list">
       <div><dt>Application version</dt><dd><%= it.system.version %></dd></div>
       <div><dt>Schema version</dt><dd><%= it.system.schemaVersion %></dd></div>

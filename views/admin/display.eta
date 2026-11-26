@@ -1,7 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><p class="eyebrow">Configure</p><h1>Display</h1><p>Choose what every Tapboard display inherits, then tune a single browser when needed.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "Display",
+    intro: "Choose what every Tapboard display inherits, then tune a single browser when needed.",
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <div class="auto-grid auto-grid--lg">

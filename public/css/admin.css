@@ -366,6 +366,9 @@
   .page-header p {
     margin-block: 0;
   }
+  .page-header > p {
+    max-width: 43rem;
+  }
   .admin-shell .header-row h2 {
     font-size: var(--text-title);
   }
@@ -659,9 +662,6 @@
   .admin-shell[data-workspace-enabled="true"] > .admin-sidebar ~ main {
     grid-row: 4;
   }
-  .simulator-header > div:first-child {
-    max-width: 43rem;
-  }
   .simulator-note {
     padding: var(--space-3) var(--space-4);
     border: 1px solid var(--border);
@@ -875,7 +875,7 @@
     background: transparent;
     box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--background) 35%, transparent);
   }
-  .beverage-detail-header__title {
+  .page-header__title {
     display: flex;
     align-items: center;
     gap: var(--space-3);
@@ -1287,9 +1287,6 @@
     display: grid;
     gap: var(--space-4);
   }
-  .tap-wars-current__heading {
-    align-items: start;
-  }
   .tap-wars-attention {
     padding: var(--space-3) var(--space-4);
     border-inline-start: 0.3rem solid var(--warning);
@@ -1445,9 +1442,6 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
-  .outbound-list-heading {
-    align-items: flex-start;
-  }
   .outbound-subscription-groups {
     display: grid;
     gap: var(--space-4);
@@ -1521,10 +1515,6 @@
     color: var(--muted);
   }
   @media (max-width: 48rem) {
-    .outbound-list-heading {
-      display: grid;
-      gap: var(--space-3);
-    }
     .outbound-header-grid,
     .outbound-header-grid--secret {
       grid-template-columns: 1fr;

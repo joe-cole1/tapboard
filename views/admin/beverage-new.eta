@@ -1,11 +1,10 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <p class="eyebrow">Beverage library</p>
-    <h1>New beverage</h1>
-    <p class="muted">Start with the details operators need at a glance. Advanced recipe and sensory guidance can be added now or later.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "New beverage",
+    intro: "Start with the details operators need at a glance. Advanced recipe and sensory guidance can be added now or later.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <form class="form" action="/admin/beverages/create" method="post">
     <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />

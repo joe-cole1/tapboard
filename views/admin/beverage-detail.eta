@@ -1,27 +1,24 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <%
   const bev = it.beverage;
   const linked = bev.ownershipType === "brewfather";
   const axisLabel = (axis) => ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1);
   const axes = ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"];
-  const revisionFields = `<input type="hidden" name="_csrf" value="${it.page.csrfToken}" /><input type="hidden" name="updatedAt" value="${bev.updatedAt}" />`;
+  const revisionFields = [{ name: "_csrf", value: it.page.csrfToken }, { name: "updatedAt", value: bev.updatedAt }];
   const liveForm = (action, fields) => `action="/admin/beverages/${bev.id}/${action}" method="post" data-autosave="blur" data-autosave-resource="beverage:${bev.id}" data-autosave-revision="updatedAt" data-autosave-fields="${fields}"`;
 %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <div class="beverage-detail-header__title">
-      <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false" data-beverage-colour-cue><circle cx="5" cy="5" r="5" fill="<%= bev.resolvedColor %>" /></svg>
-      <div><p class="eyebrow"><%= linked ? "Brewfather linked" : "Custom beverage" %></p><h1><%= bev.name %></h1></div>
-    </div>
-    <p class="muted" data-beverage-updated-at="<%= bev.updatedAt %>">Last updated <time datetime="<%= bev.updatedAt %>"><%= bev.updatedAtLabel %></time></p>
-  </header>
+  <%~ include("/partials/page-header", it.header) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
 <% if (it.tab === "info") { %>
   <section aria-labelledby="beverage-info-heading">
-    <div class="header-row"><div><h2 id="beverage-info-heading">Info</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "beverage-info-heading",
+      title: "Info",
+    }) %>
     <dl class="key-value-list">
       <div><dt>Source</dt><dd><%= linked ? "Brewfather" : "Custom" %></dd></div>
       <% if (bev.syncState) { %><div><dt>Sync state</dt><dd><%= bev.syncState %></dd></div><% } %>
@@ -30,7 +27,7 @@
     </dl>
     <% if (!linked) { %>
       <form class="form" <%~ liveForm("update", "name,beverageType,style,abv,ibu,og,fg,manualDensityOverride") %>>
-        <%~ revisionFields %>
+        <%~ include("/partials/hidden-fields", { fields: revisionFields }) %>
         <div class="auto-grid auto-grid--sm">
           <label class="field">Name <input name="name" value="<%= bev.name %>" maxlength="160" required /></label>
           <label class="field">Type <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"<% if (bev.beverageType === type) { %> selected<% } %>><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label>
@@ -57,24 +54,32 @@
   </section>
   <% if (linked) { %>
     <section aria-labelledby="brewfather-link-heading">
-      <div class="header-row"><div><h2 id="brewfather-link-heading">Brewfather link</h2><p class="muted">Unlinking keeps this beverage, its Fills and its current values as a Custom beverage. Brewfather stops updating it.</p></div></div>
-      <form class="form" action="/admin/beverages/<%= bev.id %>/unlink" method="post"><%~ revisionFields %><button class="button button--secondary button--small" type="submit">Unlink and keep as custom</button></form>
+      <%~ include("/partials/section-heading", {
+        id: "brewfather-link-heading",
+        title: "Brewfather link",
+        intro: "Unlinking keeps this beverage, its Fills and its current values as a Custom beverage. Brewfather stops updating it.",
+      }) %>
+      <form class="form" action="/admin/beverages/<%= bev.id %>/unlink" method="post"><%~ include("/partials/hidden-fields", { fields: revisionFields }) %><button class="button button--secondary button--small" type="submit">Unlink and keep as custom</button></form>
     </section>
   <% } %>
 
 <% } else if (it.tab === "presentation") { %>
   <section aria-labelledby="presentation-heading">
-    <div class="header-row"><div><h2 id="presentation-heading">Presentation</h2><p class="muted"><%= linked ? "Brewfather supplies each value. Override one for this beverage, or reset it to follow Brewfather again." : "How this beverage appears on the display." %></p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "presentation-heading",
+      title: "Presentation",
+      intro: linked ? "Brewfather supplies each value. Override one for this beverage, or reset it to follow Brewfather again." : "How this beverage appears on the display.",
+    }) %>
     <% if (!linked) { %>
       <form class="form" <%~ liveForm("update", "fillGlass,description") %>>
-        <%~ revisionFields %>
+        <%~ include("/partials/hidden-fields", { fields: revisionFields }) %>
         <%~ include("/partials/fill-glass-picker", { label: "Fill Glass", name: "fillGlass", id: `custom-fill-glass-${bev.id}`, selected: bev.fillGlass || "", options: it.fillGlassOptions || [] }) %>
         <label class="field">Description <textarea name="description" maxlength="4000" rows="4"><%= bev.description || "" %></textarea></label>
         <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save presentation</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
       </form>
     <% } else if (bev.source && bev.overrides) { %>
       <form class="form" <%~ liveForm("presentation", "nameMode,name,beverageTypeMode,beverageType,styleMode,style,abvMode,abv,ibuMode,ibu,ogMode,og,fgMode,fg,descriptionMode,description,fillGlassMode,fillGlass,manualDensityOverrideMode,manualDensityOverride") %>>
-        <%~ revisionFields %>
+        <%~ include("/partials/hidden-fields", { fields: revisionFields }) %>
         <%
           const modeSelect = (field, present, isNull, canClear = true) => `<label class="field">Mode <select name="${field}Mode"><option value="inherit"${present ? "" : " selected"}>Reset to inherited</option>${canClear ? `<option value="clear"${present && isNull ? " selected" : ""}>Clear</option>` : ""}<option value="value"${present && !isNull ? " selected" : ""}>Override</option></select></label>`;
           const o = bev.overrides;
@@ -97,30 +102,52 @@
   </section>
 
   <section aria-labelledby="display-colour-heading">
-    <div class="header-row"><div><h2 id="display-colour-heading">Display colour</h2><p class="muted"><%= it.colourPicker.showSrm ? "Pick the beer's SRM, and a colour only if the display should show something else." : "SRM describes beer only, so this beverage uses the default colour until you pick one." %></p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "display-colour-heading",
+      title: "Display colour",
+      intro: it.colourPicker.showSrm ? "Pick the beer's SRM, and a colour only if the display should show something else." : "SRM describes beer only, so this beverage uses the default colour until you pick one.",
+    }) %>
     <%~ include("/partials/display-colour-picker", { picker: it.colourPicker, mode: "live", id: `colour-${bev.id}`, action: `/admin/beverages/${bev.id}/${linked ? "presentation" : "update"}`, resource: `beverage:${bev.id}`, revision: bev.updatedAt, csrfToken: it.page.csrfToken }) %>
   </section>
 
 <% } else if (it.tab === "usage") { %>
   <section aria-labelledby="fill-heading">
-    <div class="header-row"><div><h2 id="fill-heading">Current usage</h2><p class="muted"><%= bev.usage.total %> fill record<%= bev.usage.total === 1 ? "" : "s" %> linked to this beverage.</p></div><a class="button button--secondary button--small" href="/admin/keg-room">Keg Room</a></div>
+    <%~ include("/partials/section-heading", {
+      id: "fill-heading",
+      title: "Current usage",
+      intro: `${bev.usage.total} fill record${bev.usage.total === 1 ? "" : "s"} linked to this beverage.`,
+      actions: [{ label: "Keg Room", href: "/admin/keg-room" }],
+    }) %>
     <% if ((it.currentFills || []).length > 0) { %>
-      <table class="table"><caption class="sr-only">Current Filled Kegs</caption><thead><tr><th scope="col">Filled Keg</th><th scope="col">State</th><th scope="col">Tap</th><th scope="col">Fill date</th></tr></thead><tbody><% for (const fill of it.currentFills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><br /><a class="muted" href="/admin/keg-room/kegs/<%= fill.kegId %>">Physical Keg detail</a></th><td data-label="State"><span class="badge badge--<%= fill.state %>"><%= fill.state.replaceAll("_", " ") %></span></td><td data-label="Tap"><% if (fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else { %>—<% } %></td><td data-label="Fill date"><%= fill.fillDate %></td></tr><% } %></tbody></table>
+      <table class="table"><caption class="sr-only">Current Filled Kegs</caption><thead><tr><th scope="col">Filled Keg</th><th scope="col">State</th><th scope="col">Tap</th><th scope="col">Fill date</th></tr></thead><tbody><% for (const fill of it.currentFills) { %><tr><th scope="row"><a href="/admin/keg-room/fills/<%= fill.id %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a><br /><a class="muted" href="/admin/keg-room/kegs/<%= fill.kegId %>">Physical Keg detail</a></th><td data-label="State"><%~ include("/partials/status-badge", fill.badge) %></td><td data-label="Tap"><% if (fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else { %>—<% } %></td><td data-label="Fill date"><%= fill.fillDate %></td></tr><% } %></tbody></table>
     <% } else { %><p class="muted">No current Filled Kegs use this beverage.</p><% } %>
   </section>
   <section aria-labelledby="new-fill-heading">
-    <div class="header-row"><div><h2 id="new-fill-heading">Fill a Keg</h2></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "new-fill-heading",
+      title: "Fill a Keg",
+    }) %>
     <% if ((it.availableKegs || []).length === 0) { %><p class="muted">No empty active kegs are available for a new fill.</p><% } else { %>
-      <form class="form" action="/admin/beverages/<%= bev.id %>/create-fill" method="post"><%~ revisionFields %><div class="auto-grid auto-grid--sm"><label class="field">Physical keg <select name="kegId" required><option value="">Choose keg</option><% for (const keg of it.availableKegs) { %><option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option><% } %></select></label><label class="field">Fill date <input name="fillDate" type="date" /></label></div><button class="button button--primary button--small" type="submit">Create fill</button></form>
+      <form class="form" action="/admin/beverages/<%= bev.id %>/create-fill" method="post"><%~ include("/partials/hidden-fields", { fields: revisionFields }) %><div class="auto-grid auto-grid--sm"><label class="field">Physical keg <select name="kegId" required><option value="">Choose keg</option><% for (const keg of it.availableKegs) { %><option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option><% } %></select></label><label class="field">Fill date <input name="fillDate" type="date" /></label></div><button class="button button--primary button--small" type="submit">Create fill</button></form>
     <% } %>
   </section>
 
 <% } else if (it.tab === "recipe") { %>
   <% if (bev.recipeImport === "imported" || bev.recipeImport === "source") { %>
-    <section aria-labelledby="recipe-import-heading"><div class="header-row"><div><% if (bev.recipeImport === "imported") { %><h2 id="recipe-import-heading">Imported recipe</h2><p class="muted">Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there.</p><% } else { %><h2 id="recipe-import-heading">Source recipe</h2><p class="muted">Read-only recipe kept from the beverage's earlier Brewfather link.</p><% } %></div></div><% for (const recipe of (bev.guidance?.sourceRecipes || [])) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Imported recipe" %></h3><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
+    <section aria-labelledby="recipe-import-heading">
+      <%~ include("/partials/section-heading", {
+        id: "recipe-import-heading",
+        title: bev.recipeImport === "imported" ? "Imported recipe" : "Source recipe",
+        intro: bev.recipeImport === "imported" ? "Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there." : "Read-only recipe kept from the beverage's earlier Brewfather link.",
+      }) %>
+      <% for (const recipe of (bev.guidance?.sourceRecipes || [])) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Imported recipe" %></h3><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
   <% } else if (bev.recipeImport === "available") { %>
     <section aria-labelledby="recipe-import-heading">
-      <div class="header-row"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">A Brewfather batch or recipe JSON export, a BeerJSON file or a BeerXML file (in BeerSmith: File → Export → BeerXML), up to about 1 MiB of text and one recipe per file. Tapboard keeps a cleaned copy for the recipe sheet and flavor guidance. The import is permanent.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "recipe-import-heading",
+        title: "Import recipe file",
+        intro: "A Brewfather batch or recipe JSON export, a BeerJSON file or a BeerXML file (in BeerSmith: File → Export → BeerXML), up to about 1 MiB of text and one recipe per file. Tapboard keeps a cleaned copy for the recipe sheet and flavor guidance. The import is permanent.",
+      }) %>
       <form class="form" action="/admin/beverages/<%= bev.id %>/recipe-import" method="post" data-recipe-import>
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <label class="field" hidden data-recipe-file-picker>Recipe file <input type="file" accept=".json,.xml,application/json,application/xml,text/xml" data-recipe-file /></label>
@@ -130,36 +157,70 @@
       </form>
     </section>
   <% } else if (bev.recipeImport === "unavailable") { %>
-    <section aria-labelledby="recipe-import-heading"><div class="header-row"><div><h2 id="recipe-import-heading">Import recipe file</h2><p class="muted">This beverage has an editable custom recipe, so a recipe file can't be imported. Remove the custom recipe below to import a file instead.</p></div></div></section>
+    <section aria-labelledby="recipe-import-heading">
+    <%~ include("/partials/section-heading", {
+      id: "recipe-import-heading",
+      title: "Import recipe file",
+      intro: "This beverage has an editable custom recipe, so a recipe file can't be imported. Remove the custom recipe below to import a file instead.",
+    }) %>
+    </section>
   <% } %>
   <% if (!linked) { %>
     <section aria-labelledby="recipe-heading">
-      <div class="header-row"><div><h2 id="recipe-heading">Custom recipe</h2><p class="muted">Ingredients and process notes as a recipe object with <code>notes</code>, <code>ingredients</code> and <code>steps</code>. Leave it blank (or enter <code>null</code>) to remove the custom recipe.</p></div></div>
-      <form class="form" <%~ liveForm("recipe", "recipeJson") %>><%~ revisionFields %><label class="field">Recipe JSON <textarea name="recipeJson" rows="16" spellcheck="false"><%= bev.customRecipeJson %></textarea></label><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save custom recipe</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
+      <%~ include("/partials/section-heading", {
+        id: "recipe-heading",
+        title: "Custom recipe",
+        intro: "Ingredients and process notes as one recipe object.",
+      }) %>
+      <p class="muted">Use the keys <code>notes</code>, <code>ingredients</code> and <code>steps</code>. Leave it blank (or enter <code>null</code>) to remove the custom recipe.</p>
+      <form class="form" <%~ liveForm("recipe", "recipeJson") %>><%~ include("/partials/hidden-fields", { fields: revisionFields }) %><label class="field">Recipe JSON <textarea name="recipeJson" rows="16" spellcheck="false"><%= bev.customRecipeJson %></textarea></label><div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save custom recipe</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div></form>
     </section>
   <% } else if (bev.guidance && bev.guidance.sourceRecipes.length > 0) { %>
-    <section aria-labelledby="source-recipe-heading"><div class="header-row"><div><h2 id="source-recipe-heading">Source recipe</h2><p class="muted">Read-only, from the linked Brewfather batch.</p></div></div><% for (const recipe of bev.guidance.sourceRecipes) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Source recipe" %></h3><p class="muted"><%= recipe.status || "available" %></p><% if (recipe.notes) { %><p><%= recipe.notes %></p><% } %><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
+    <section aria-labelledby="source-recipe-heading">
+    <%~ include("/partials/section-heading", {
+      id: "source-recipe-heading",
+      title: "Source recipe",
+      intro: "Read-only, from the linked Brewfather batch.",
+    }) %>
+    <% for (const recipe of bev.guidance.sourceRecipes) { %><article class="source-recipe"><h3><%= recipe.provenance?.label || "Source recipe" %></h3><p class="muted"><%= recipe.status || "available" %></p><% if (recipe.notes) { %><p><%= recipe.notes %></p><% } %><ul><% for (const ingredient of recipe.ingredients) { %><li><%= ingredient.name %><% if (ingredient.amount !== null) { %> — <%= ingredient.amount %><% } %><% if (ingredient.unit) { %> <%= ingredient.unit %><% } %></li><% } %></ul></article><% } %></section>
   <% } else { %>
-    <section aria-labelledby="source-recipe-heading"><div class="header-row"><div><h2 id="source-recipe-heading">Source recipe</h2></div></div><p class="muted">The linked Brewfather batch has no recipe to show yet.</p></section>
+    <section aria-labelledby="source-recipe-heading">
+    <%~ include("/partials/section-heading", {
+      id: "source-recipe-heading",
+      title: "Source recipe",
+    }) %>
+    <p class="muted">The linked Brewfather batch has no recipe to show yet.</p></section>
   <% } %>
 
 <% } else if (it.tab === "sensory") { %>
   <section aria-labelledby="sensory-heading">
-    <div class="header-row"><div><h2 id="sensory-heading">Sensory guidance</h2><p class="muted">Derived from the recipe, unless an override below sets an axis.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "sensory-heading",
+      title: "Sensory guidance",
+      intro: "Derived from the recipe, unless an override below sets an axis.",
+    }) %>
     <% if (bev.guidance) { %><dl class="key-value-list"><% for (const axis of axes) { const result = bev.guidance.sensory[axis]; %><div><dt><%= axisLabel(axis) %></dt><dd><%= result.value === null ? "Unavailable" : `${Number(result.value.toFixed(1))} / 5` %> · <%= result.source.replace(/_/gu, " ") %><% if (result.evidence) { %> · <%= result.evidence %><% } %></dd></div><% } %></dl><% } else { %><p class="muted">Guidance is unavailable until a compatible source or manual override is present.</p><% } %>
     <% if (bev.guidance?.brewingEnrichmentPending) { %><p class="muted">Recipe enrichment is pending. The last saved guidance remains available while the linked batch is refreshed.</p><% } %>
   </section>
   <section aria-labelledby="sensory-overrides-heading">
-    <div class="header-row"><div><h2 id="sensory-overrides-heading">Overrides</h2><p class="muted">Manual values from 0 to 10. Leave an axis blank to use the derived value.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "sensory-overrides-heading",
+      title: "Overrides",
+      intro: "Manual values from 0 to 10. Leave an axis blank to use the derived value.",
+    }) %>
     <form class="form" <%~ liveForm("sensory", axes.join(",")) %>>
-      <%~ revisionFields %>
+      <%~ include("/partials/hidden-fields", { fields: revisionFields }) %>
       <div class="auto-grid auto-grid--sm"><% for (const axis of axes) { %><label class="field"><%= axisLabel(axis) %><input name="<%= axis %>" type="number" min="0" max="10" step="0.1" value="<%= bev.sensoryOverrides?.[axis] ?? "" %>" /></label><% } %></div>
       <div class="form-actions"><button class="button button--primary button--small" type="submit" data-autosave-fallback>Save sensory overrides</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
     </form>
   </section>
   <% if (bev.guidance?.flavorDetails) { const details = bev.guidance.flavorDetails; %>
     <section aria-labelledby="sensory-why-heading">
-      <div class="header-row"><div><h2 id="sensory-why-heading">Why these estimates?</h2><p class="muted">Model <%= details.modelVersion || "Unavailable" %> · Catalog <%= details.catalogVersion || "Unavailable" %>. Versioned heuristics; ingredient support does not establish scientific validation.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "sensory-why-heading",
+        title: "Why these estimates?",
+        intro: `Model ${details.modelVersion || "Unavailable"} · Catalog ${details.catalogVersion || "Unavailable"}. Versioned heuristics; ingredient support does not establish scientific validation.`,
+      }) %>
       <h3>Selected brewing inputs</h3>
       <table class="table"><thead><tr><th scope="col">Input</th><th scope="col">Selected value</th><th scope="col">Source</th></tr></thead><tbody><% for (const scalar of details.scalars) { %><tr><th scope="row"><%= scalar.key %></th><td data-label="Selected value"><%= scalar.value === null ? "Unavailable" : Number(scalar.value.toPrecision(5)) %> <%= scalar.value === null ? "" : scalar.unit || "" %></td><td data-label="Source"><%= scalar.provenance?.replaceAll("_", " ") || "Unavailable" %><% if (scalar.sourcePath) { %><br /><small><%= scalar.sourcePath %></small><% } %><% if (scalar.limitations.length) { %><br /><small><%= scalar.limitations.join("; ") %></small><% } %></td></tr><% } %></tbody></table>
       <h3>Ingredient coverage</h3><ul><% for (const group of details.coverage) { %><li><%= group.key %>: <%= group.present ? `${group.resolvedCount ?? 0} recognized of ${group.acceptedCount ?? 0} accepted` : "Collection not supplied" %> · <%= group.complete ? "Complete collection" : "Incomplete collection" %><% if (group.classifiedFraction !== null) { %> · <%= Math.round(group.classifiedFraction * 100) %>% classified by eligible mass<% } %></li><% } %></ul>
@@ -171,7 +232,11 @@
 
 <% } else { %>
   <section class="card card--danger" aria-labelledby="delete-heading">
-    <div class="header-row"><div><h2 id="delete-heading">Permanent deletion</h2><p class="muted">This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.</p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "delete-heading",
+      title: "Permanent deletion",
+      intro: "This removes the beverage and its dependent records. The confirmation must exactly match the current effective name.",
+    }) %>
     <%~ include("/partials/permanent-action", { id: `beverage-delete-${bev.id}`, blockers: [], impact: bev.deletionImpact, action: `/admin/beverages/${bev.id}/delete`, hiddenFields: revisionFields, confirmation: { field: "confirmationName", value: bev.name }, reason: true, buttonLabel: "Permanently delete beverage" }) %>
   </section>
 <% } %>

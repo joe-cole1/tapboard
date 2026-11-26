@@ -1,0 +1,9 @@
+<% /*
+  A grid of linked counts.
+  it.tiles: [{ label, value, href }]
+*/ %>
+<div class="auto-grid auto-grid--xs">
+  <% for (const tile of it.tiles) { %>
+    <a class="card card--link" href="<%= tile.href %>"><span class="card__label"><%= tile.label %></span><strong class="card__value"><%= tile.value %></strong></a>
+  <% } %>
+</div>

@@ -10,12 +10,12 @@
   const prefix = String(it.id || "colour").replace(/[^a-zA-Z0-9_-]/gu, "-");
   const statusId = `${prefix}-status`;
   const formAttributes = (fields) => `action="${it.action}" method="post" data-autosave="submit" data-autosave-fields="${fields}" data-autosave-resource="${it.resource}" data-autosave-revision="updatedAt" data-autosave-status-id="${statusId}"`;
-  const hiddenFields = live ? `<input type="hidden" name="_csrf" value="${it.csrfToken}" /><input type="hidden" name="updatedAt" value="${it.revision}" />` : "";
+  const hiddenFields = live ? [{ name: "_csrf", value: it.csrfToken }, { name: "updatedAt", value: it.revision }] : [];
   const resetIcon = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4v5h5" /><path d="M5.6 15a7.5 7.5 0 1 0 .8-7.4L4 9" /></svg>`;
 %>
 <div class="stack" data-colour-picker<% if (live) { %> data-colour-picker-live<% } %>>
   <% if (picker.showSrm || !live) { %>
-    <% if (live) { %><form class="form" <%~ formAttributes("srm,srmExact") %> data-srm-form><%~ hiddenFields %><% } %>
+    <% if (live) { %><form class="form" <%~ formAttributes("srm,srmExact") %> data-srm-form><%~ include("/partials/hidden-fields", { fields: hiddenFields }) %><% } %>
       <fieldset class="fieldset">
         <legend>SRM<% if (!live) { %> <small>(beer only)</small><% } %><% if (picker.linked) { %> <small data-srm-source data-label-inherited="<%= picker.srmLabels.inherited %>" data-label-overridden="<%= picker.srmLabels.overridden %>"><%= picker.srmOverridden ? picker.srmLabels.overridden : picker.srmLabels.inherited %></small><% } %></legend>
         <div class="srm-swatches">
@@ -31,18 +31,18 @@
     </form>
     <% } %>
     <% if (live && picker.linked) { %>
-      <form <%~ formAttributes("srmMode") %> data-srm-reset<% if (!picker.srmOverridden) { %> hidden<% } %>><%~ hiddenFields %><input type="hidden" name="srmMode" value="inherit" /><button type="submit" class="button button--secondary button--icon" aria-label="Reset SRM to the Brewfather value" title="Reset SRM to the Brewfather value"><%~ resetIcon %></button></form>
+      <form <%~ formAttributes("srmMode") %> data-srm-reset<% if (!picker.srmOverridden) { %> hidden<% } %>><%~ include("/partials/hidden-fields", { fields: hiddenFields }) %><input type="hidden" name="srmMode" value="inherit" /><button type="submit" class="button button--secondary button--icon" aria-label="Reset SRM to the Brewfather value" title="Reset SRM to the Brewfather value"><%~ resetIcon %></button></form>
     <% } %>
   <% } %>
 
   <div class="cluster">
     <% if (live) { %>
-      <form class="cluster" <%~ formAttributes("displayColor") %> data-colour-form><%~ hiddenFields %>
+      <form class="cluster" <%~ formAttributes("displayColor") %> data-colour-form><%~ include("/partials/hidden-fields", { fields: hiddenFields }) %>
         <label class="field">Display colour <input type="color" name="displayColor" value="<%= picker.colour %>" /></label>
         <small class="muted" data-colour-source data-label-inherited="<%= picker.colourLabels.inherited %>" data-label-overridden="<%= picker.colourLabels.overridden %>"><%= picker.colourOverridden ? picker.colourLabels.overridden : picker.colourLabels.inherited %></small>
         <button class="button button--primary button--small" type="submit" data-autosave-fallback>Save colour</button>
       </form>
-      <form <%~ formAttributes(picker.linked ? "displayColorMode" : "displayColor") %> data-colour-reset<% if (!picker.colourOverridden) { %> hidden<% } %>><%~ hiddenFields %><% if (picker.linked) { %><input type="hidden" name="displayColorMode" value="inherit" /><% } else { %><input type="hidden" name="displayColor" value="" /><% } %><button type="submit" class="button button--secondary button--icon" aria-label="<%= picker.colourResetLabel %>" title="<%= picker.colourResetLabel %>"><%~ resetIcon %></button></form>
+      <form <%~ formAttributes(picker.linked ? "displayColorMode" : "displayColor") %> data-colour-reset<% if (!picker.colourOverridden) { %> hidden<% } %>><%~ include("/partials/hidden-fields", { fields: hiddenFields }) %><% if (picker.linked) { %><input type="hidden" name="displayColorMode" value="inherit" /><% } else { %><input type="hidden" name="displayColor" value="" /><% } %><button type="submit" class="button button--secondary button--icon" aria-label="<%= picker.colourResetLabel %>" title="<%= picker.colourResetLabel %>"><%~ resetIcon %></button></form>
     <% } else { %>
       <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="displayColorCustom" value="true" data-colour-custom /> Pick a display colour</label>
       <label class="field">Display colour <input type="color" name="displayColor" value="<%= picker.colour %>" /></label>

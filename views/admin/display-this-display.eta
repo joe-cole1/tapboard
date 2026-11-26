@@ -1,7 +1,11 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><h1>This display</h1><p>These choices are stored only in this browser. "Use default" follows future changes to the <a href="/admin/display/shared">default theme</a>.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "This display",
+    intro: "These choices are stored only in this browser. \"Use default\" follows future changes to the",
+    introLink: { label: "default theme", href: "/admin/display/shared" },
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="local-settings-heading">

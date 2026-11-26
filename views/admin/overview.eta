@@ -1,61 +1,112 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header">
-    <h1>Overview</h1>
-    <p>Current service health and the next useful actions.</p>
-  </header>
+  <%~ include("/partials/page-header", {
+    title: "Overview",
+    intro: "Current service health and the next useful actions.",
+  }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
 
-  <% const quickLinks = it.quickLinks || []; %>
   <section aria-labelledby="quick-actions-heading">
-    <div class="header-row"><div><p class="eyebrow">Shortcuts</p><h2 id="quick-actions-heading">Quick actions</h2></div></div>
-    <ul class="auto-grid auto-grid--sm quick-actions__list"><% for (const item of quickLinks) { %><li><a class="card card--link quick-action" href="<%= item.href %>"><%= item.label %><span aria-hidden="true">→</span></a></li><% } %></ul>
+    <%~ include("/partials/section-heading", {
+      id: "quick-actions-heading",
+      title: "Quick actions",
+      eyebrow: "Shortcuts",
+    }) %>
+    <ul class="auto-grid auto-grid--sm quick-actions__list">
+      <% for (const item of it.quickLinks) { %>
+        <li><a class="card card--link quick-action" href="<%= item.href %>"><%= item.label %><span aria-hidden="true">→</span></a></li>
+      <% } %>
+    </ul>
   </section>
 
   <section class="card card--warning" aria-labelledby="attention-heading">
-    <div class="header-row"><div><p class="eyebrow">Needs attention</p><h2 id="attention-heading">Health summary</h2></div></div>
-    <% const attention = it.health; %>
-    <% if (attention.length === 0) { %>
-      <p class="empty-state">No Tap health warnings are currently reported.</p>
+    <%~ include("/partials/section-heading", {
+      id: "attention-heading",
+      title: "Health summary",
+      eyebrow: "Needs attention",
+    }) %>
+    <% if (it.health.length === 0) { %>
+      <%~ include("/partials/empty-state", { text: "No Tap health warnings are currently reported." }) %>
     <% } else { %>
       <ul class="attention-list">
-        <% for (const item of attention) { %>
-          <li><span class="badge badge--<%= item.severity === "critical" ? "critical" : item.severity === "warning" ? "warning" : item.state === "active" ? "active" : "degraded" %>"><%= item.severity === "none" ? item.stateLabel : item.severityLabel %></span><a href="<%= item.href %>"><strong>Tap <%= item.tapNumber ?? "unknown" %></strong><% if (item.tapName) { %> — <%= item.tapName %><% } %></a><% if (item.checks.length > 0) { %><span class="muted"> · <%= item.checks.map((check) => check.label).join(", ") %></span><% } %></li>
+        <% for (const item of it.health) { %>
+          <li>
+            <%~ include("/partials/status-badge", item.badge) %>
+            <a href="<%= item.href %>"><strong><%= item.tapLabel %></strong><% if (item.tapName) { %> — <%= item.tapName %><% } %></a>
+            <% if (item.checksLabel) { %>
+              <span class="muted"> · <%= item.checksLabel %></span>
+            <% } %>
+          </li>
         <% } %>
       </ul>
     <% } %>
   </section>
 
   <section aria-labelledby="tap-summary-heading">
-    <div class="header-row"><div><p class="eyebrow">Live assignments</p><h2 id="tap-summary-heading">Taps and current assignments</h2></div><a class="button button--secondary button--small" href="/admin/taps">Manage Taps</a></div>
+    <%~ include("/partials/section-heading", {
+      id: "tap-summary-heading",
+      title: "Taps and current assignments",
+      eyebrow: "Live assignments",
+      actions: [{ label: "Manage Taps", href: "/admin/taps" }],
+    }) %>
     <% if (it.taps.length === 0) { %>
-      <p class="empty-state">No Taps are configured yet. <a href="/admin/taps">Add a Tap</a>.</p>
+      <%~ include("/partials/empty-state", {
+        text: "No Taps are configured yet.",
+        link: { label: "Add a Tap", href: "/admin/taps" },
+      }) %>
     <% } else { %>
-      <table class="table"><thead><tr><th scope="col">Tap</th><th scope="col">Assignment</th><th scope="col">Status</th><th scope="col">Public</th></tr></thead><tbody>
-      <% for (const tap of it.taps) { const lifecycleLabel = tap.isRetired ? "Retired" : tap.enabled ? "Enabled" : "Disabled"; const isPublic = tap.enabled && !tap.isRetired; %><tr><th scope="row"><a href="<%= tap.href %>">#<%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } %></a></th><td data-label="Assignment"><%= tap.beverageName || "Unassigned" %></td><td data-label="Status"><span class="badge badge--<%= isPublic ? "healthy" : "muted" %>"><%= lifecycleLabel %></span></td><td data-label="Public"><%= isPublic ? "Enabled" : "Hidden" %></td></tr><% } %>
-      </tbody></table>
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Tap</th>
+            <th scope="col">Assignment</th>
+            <th scope="col">Status</th>
+            <th scope="col">Public</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% for (const tap of it.taps) { %>
+            <tr>
+              <th scope="row"><a href="<%= tap.href %>"><%= tap.title %></a></th>
+              <td data-label="Assignment"><%= tap.assignmentLabel %></td>
+              <td data-label="Status"><%~ include("/partials/status-badge", tap.badge) %></td>
+              <td data-label="Public"><%= tap.publicLabel %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
     <% } %>
   </section>
 
-  <% const kegRoom = it.kegRoom || { activeKegs: 0, onTap: 0, onDeck: 0, available: 0, href: "/admin/keg-room" }; %>
   <section aria-labelledby="keg-room-heading">
-    <div class="header-row"><div><p class="eyebrow">Inventory snapshot</p><h2 id="keg-room-heading">Keg Room</h2></div><a class="button button--secondary button--small" href="/admin/keg-room">Open Keg Room</a></div>
-    <div class="auto-grid auto-grid--xs">
-      <a class="card card--link" href="/admin/keg-room/kegs?status=active"><span class="card__label">Active kegs</span><strong class="card__value"><%= kegRoom.activeKegs %></strong></a><a class="card card--link" href="/admin/keg-room?state=on_tap"><span class="card__label">On tap</span><strong class="card__value"><%= kegRoom.onTap %></strong></a><a class="card card--link" href="/admin/keg-room?state=on_deck"><span class="card__label">On deck</span><strong class="card__value"><%= kegRoom.onDeck %></strong></a><a class="card card--link" href="/admin/keg-room?state=available"><span class="card__label">Available fills</span><strong class="card__value"><%= kegRoom.available %></strong></a>
-    </div>
+    <%~ include("/partials/section-heading", {
+      id: "keg-room-heading",
+      title: "Keg Room",
+      eyebrow: "Inventory snapshot",
+      actions: [{ label: "Open Keg Room", href: "/admin/keg-room" }],
+    }) %>
+    <%~ include("/partials/stat-tiles", { tiles: it.kegRoom }) %>
   </section>
 
   <section aria-labelledby="connectivity-heading">
-    <div class="header-row"><div><p class="eyebrow">System status</p><h2 id="connectivity-heading">Connectivity and integrations</h2></div><a class="button button--secondary button--small" href="/admin/integrations">Configure Integrations</a></div>
-    <p class="status-line"><span class="badge badge--<%= it.connectivity.state === "disconnected" ? "critical" : it.connectivity.state === "healthy" ? "healthy" : "degraded" %>"><%= it.connectivity.label %></span></p>
-    <div class="auto-grid auto-grid--xs"><a class="card card--link" href="/admin/integrations/telemetry"><span class="card__label">Telemetry sources</span><strong class="card__value"><%= it.integrations.telemetryConfigured %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Brewfather</span><strong class="card__value"><%= it.integrations.brewfatherConfigured ? (it.integrations.brewfatherEnabled ? (it.integrations.brewfatherApiKeyConfigured ? "Enabled" : "API key required") : "Disabled") : "Not configured" %></strong></a><a class="card card--link" href="/admin/integrations/brewfather"><span class="card__label">Linked beverages</span><strong class="card__value"><%= it.integrations.brewfatherLinkedBeverages %></strong></a></div>
+    <%~ include("/partials/section-heading", {
+      id: "connectivity-heading",
+      title: "Connectivity and integrations",
+      eyebrow: "System status",
+      actions: [{ label: "Configure Integrations", href: "/admin/integrations" }],
+    }) %>
+    <p class="status-line"><%~ include("/partials/status-badge", it.connectivity) %></p>
+    <%~ include("/partials/stat-tiles", { tiles: it.integrations }) %>
   </section>
 
   <section aria-labelledby="counts-heading">
-    <div class="header-row"><div><p class="eyebrow">Operational summary</p><h2 id="counts-heading">Operational counts</h2></div></div>
-    <% const metricHrefs = { "Enabled taps": "/admin/taps", "Active fills": "/admin/keg-room?state=active", "On deck": "/admin/keg-room?state=on_deck", "Health warnings": "#attention-heading" }; %>
-    <div class="auto-grid auto-grid--xs"><% for (const item of it.metrics) { %><a class="card card--link" href="<%= metricHrefs[item.label] || "/admin/overview" %>"><span class="card__label"><%= item.label %></span><strong class="card__value"><%= item.value %></strong></a><% } %></div>
+    <%~ include("/partials/section-heading", {
+      id: "counts-heading",
+      title: "Operational counts",
+      eyebrow: "Operational summary",
+    }) %>
+    <%~ include("/partials/stat-tiles", { tiles: it.metrics }) %>
   </section>
 
 </main>

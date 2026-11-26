@@ -7,7 +7,7 @@ import { ApplicationError, isApplicationError } from "../../../shared/errors.ts"
 import { adminFailureMessage, reportFailure } from "../../../shared/diagnostics.ts";
 import { type AdminContext, adminContext, requestUrl, messageLocation } from "./context.ts";
 import { renderAdminNotFound } from "./not-found.ts";
-import { adminBreadcrumbs, adminNavItems } from "./layout.ts";
+import { adminBreadcrumbs, adminNav } from "./layout.ts";
 import type {
   RegisterAdminGetDependencies,
   RunAdminAutosaveDependencies,
@@ -42,6 +42,7 @@ export function registerAdminGet(
         operation: `admin.get:${path}`,
         ...(dependencies.logger ? { logger: dependencies.logger } : {}),
       });
+      const breadcrumbs = adminBreadcrumbs(path, path, "Admin page unavailable");
       sendHtml(
         response,
         failure.status,
@@ -49,11 +50,11 @@ export function registerAdminGet(
           page: {
             title: "Admin page unavailable",
             path,
-            breadcrumbs: adminBreadcrumbs(path, path, "Admin page unavailable"),
+            breadcrumbs,
             csrfToken: context.csrfToken,
             error: adminFailureMessage(failure, "The Admin page could not be loaded."),
           },
-          navItems: adminNavItems(),
+          nav: adminNav(path, breadcrumbs),
         }),
       );
     }

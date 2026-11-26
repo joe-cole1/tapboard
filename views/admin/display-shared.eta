@@ -1,12 +1,20 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <header class="page-header"><h1>Default theme</h1><p>Every display uses these settings unless a browser chooses its own on <a href="/admin/display/this-display">This display</a>.</p></header>
+  <%~ include("/partials/page-header", {
+    title: "Default theme",
+    intro: "Every display uses these settings unless a browser chooses its own on",
+    introLink: { label: "This display", href: "/admin/display/this-display" },
+  }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <div class="display-editor">
     <section class="card display-preview-card display-editor__preview" aria-labelledby="display-preview-heading">
-      <div class="header-row"><div><h2 id="display-preview-heading">Preview</h2><p class="muted">The same Tap card guests see on the public display.</p></div></div>
+      <%~ include("/partials/section-heading", {
+        id: "display-preview-heading",
+        title: "Preview",
+        intro: "The same Tap card guests see on the public display.",
+      }) %>
       <div data-tap-preview>
         <div class="display-preview tap-public-preview__frame" data-display-preview data-preview-theme="<%= it.sharedDisplay.theme %>" data-preview-accent="<%= it.sharedDisplay.accent %>" data-preview-font="<%= it.sharedDisplay.font %>" data-preview-unit-system="<%= it.sharedDisplay.unitSystem %>" data-preview-show-serving-temperature="<%= it.sharedDisplay.showServingTemperature %>">
           <%~ include("/partials/tap-card", { tap: it.previewTap, sharedDisplay: { ...it.sharedDisplay, remainingMode: it.tapCardSettings?.remainingMode || "percent" } }) %>

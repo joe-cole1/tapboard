@@ -1,3 +1,8 @@
+<% /*
+  The Admin header, menu and breadcrumb.
+  it.page: the page values from renderAdmin (siteName, csrfToken, breadcrumbs)
+  it.nav: { groups, back } from adminNav() in src/features/web/admin/layout.ts
+*/ %>
 <header class="admin-header">
   <button class="button button--icon" type="button" data-admin-menu-toggle hidden aria-controls="admin-sidebar" aria-expanded="true" aria-label="Admin menu">
     <svg class="admin-menu-icon" data-menu-icon="open" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -10,16 +15,16 @@
 </header>
 <aside id="admin-sidebar" class="admin-sidebar" data-admin-sidebar>
   <nav aria-label="Admin">
-    <% for (const group of ["Overview", "Manage", "Configure"]) { const groupItems = it.items.filter((item) => item.group === group); if (groupItems.length > 0) { %>
-      <section class="admin-nav-group" aria-labelledby="admin-nav-<%= group.toLocaleLowerCase() %>">
-        <h2 id="admin-nav-<%= group.toLocaleLowerCase() %>"><%= group %></h2>
+    <% for (const group of it.nav.groups) { %>
+      <section class="admin-nav-group" aria-labelledby="<%= group.id %>">
+        <h2 id="<%= group.id %>"><%= group.label %></h2>
         <ul>
-          <% for (const item of groupItems) { const active = item.activePaths.some((path) => it.page.path === path || it.page.path.startsWith(`${path}/`)); %>
-            <li><a href="<%= item.href %>"<% if (active) { %> aria-current="page"<% } %>><span class="admin-nav-label"><%= item.label %></span></a></li>
+          <% for (const item of group.items) { %>
+            <li><a href="<%= item.href %>"<% if (item.current) { %> aria-current="page"<% } %>><span class="admin-nav-label"><%= item.label %></span></a></li>
           <% } %>
         </ul>
       </section>
-    <% } } %>
+    <% } %>
   </nav>
   <div class="cluster admin-sidebar__account">
     <a class="button button--secondary button--small admin-exit" href="/">Exit Admin</a>
@@ -30,10 +35,17 @@
   </div>
 </aside>
 <button class="admin-drawer-backdrop" type="button" data-admin-drawer-backdrop hidden aria-label="Close Admin menu"></button>
-<% const crumbs = it.page.breadcrumbs; const parent = crumbs.at(-2); %>
 <nav class="admin-breadcrumbs" aria-label="Breadcrumb">
-  <% if (parent && it.page.path !== "/admin/overview") { %><a class="admin-breadcrumbs__back" href="<%= parent.href %>"><span aria-hidden="true">←</span><span class="sr-only">Back to </span><%= parent.label %></a><% } %>
+  <% if (it.nav.back) { %>
+    <a class="admin-breadcrumbs__back" href="<%= it.nav.back.href %>"><span aria-hidden="true">←</span><span class="sr-only">Back to </span><%= it.nav.back.label %></a>
+  <% } %>
   <ol class="admin-breadcrumbs__trail">
-    <% for (const crumb of crumbs) { %><li><% if (crumb.href) { %><a href="<%= crumb.href %>"><%= crumb.label %></a><% } else { %><span aria-current="page"><%= crumb.label %></span><% } %></li><% } %>
+    <% for (const crumb of it.page.breadcrumbs) { %>
+      <% if (crumb.href) { %>
+        <li><a href="<%= crumb.href %>"><%= crumb.label %></a></li>
+      <% } else { %>
+        <li><span aria-current="page"><%= crumb.label %></span></li>
+      <% } %>
+    <% } %>
   </ol>
 </nav>

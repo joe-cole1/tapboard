@@ -1,0 +1,41 @@
+<% /*
+  The top of an Admin page. The breadcrumb above it already says where the page sits.
+  it.title: the <h1> text
+  it.titleField: optional data-autosave-text field that live-updates the <h1>
+  it.colourCue: optional colour shown as a dot before the <h1>
+  it.badge: optional { label, tone, labelField, toneField } for /partials/status-badge
+  it.intro: optional sentence under the <h1>
+  it.introLink: optional { label, href } that ends the intro sentence
+  it.updated: optional { datetime, label } shown as "Last updated"
+  it.eyebrow: optional label above the <h1>, only for pages without a breadcrumb
+*/ %>
+<header class="page-header">
+  <% if (it.eyebrow) { %>
+    <p class="eyebrow"><%= it.eyebrow %></p>
+  <% } %>
+  <% if (it.colourCue) { %>
+    <div class="page-header__title">
+      <svg class="beverage-color-cue" viewBox="0 0 10 10" aria-hidden="true" focusable="false" data-beverage-colour-cue>
+        <circle cx="5" cy="5" r="5" fill="<%= it.colourCue %>" />
+      </svg>
+      <h1><%= it.title %></h1>
+    </div>
+  <% } else if (it.titleField) { %>
+    <h1 data-autosave-text="<%= it.titleField %>"><%= it.title %></h1>
+  <% } else { %>
+    <h1><%= it.title %></h1>
+  <% } %>
+  <% if (it.badge) { %>
+    <%~ include("/partials/status-badge", it.badge) %>
+  <% } %>
+  <% if (it.intro) { %>
+    <% if (it.introLink) { %>
+      <p><%= it.intro %> <a href="<%= it.introLink.href %>"><%= it.introLink.label %></a>.</p>
+    <% } else { %>
+      <p><%= it.intro %></p>
+    <% } %>
+  <% } %>
+  <% if (it.updated) { %>
+    <p class="muted">Last updated <%~ include("/partials/timestamp", it.updated) %></p>
+  <% } %>
+</header>

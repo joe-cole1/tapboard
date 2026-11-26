@@ -1,16 +1,19 @@
 <% layout("/layouts/admin", { page: it.page }) %>
-<%~ include("/partials/admin-nav", { page: it.page, items: it.navItems }) %>
+<%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
 <main id="main-content" class="admin-page">
-  <div class="page-header">
-    <p class="eyebrow">Service flow</p>
-    <h1>Keg Room</h1>
-    <p class="muted">Keep Filled Kegs moving from available to On Deck to On Tap.</p>
-  </div>
+  <%~ include("/partials/page-header", {
+    title: "Keg Room",
+    intro: "Keep Filled Kegs moving from available to On Deck to On Tap.",
+  }) %>
   <div class="cluster page-actions"><a class="button button--primary button--small" href="<%= it.newFillHref %>">Fill a Keg</a></div>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
   <section aria-labelledby="keg-room-filters">
-    <div class="header-row"><div><h2 id="keg-room-filters">Find a Filled Keg</h2><p class="muted"><%= it.pagination.total %> result<%= it.pagination.total === 1 ? "" : "s" %></p></div></div>
+    <%~ include("/partials/section-heading", {
+      id: "keg-room-filters",
+      title: "Find a Filled Keg",
+      intro: `${it.pagination.total} result${it.pagination.total === 1 ? "" : "s"}`,
+    }) %>
     <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">
       <label class="field">Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
       <label class="field">Show <select name="state"><option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option><option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option><option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option><option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option><option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option><option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option></select></label>
@@ -21,7 +24,12 @@
   <% for (const section of it.sections) { %>
     <section class="keg-room-section" aria-labelledby="keg-room-section-<%= section.id %>"<% if (section.id === "on-deck") { %> data-admin-reorder<% } %>>
       <% const sectionEyebrow = section.id === "available" ? "Ready to serve" : section.id === "on-deck" ? "Queued next" : section.id === "on-tap" ? "Serving now" : "Audit trail"; %>
-      <div class="header-row"><div><p class="eyebrow"><%= sectionEyebrow %></p><h2 id="keg-room-section-<%= section.id %>"><%= section.title %></h2></div><span class="badge"><%= section.items.length %></span></div>
+      <%~ include("/partials/section-heading", {
+        id: `keg-room-section-${section.id}`,
+        title: section.title,
+        eyebrow: sectionEyebrow,
+        badge: { label: section.items.length },
+      }) %>
       <% if (section.id === "on-deck") { %><div class="reorder-enhancement"><p class="muted" data-reorder-help hidden>Drag the handle to reorder, or use the Move up/down buttons.</p><form data-reorder-form action="/admin/fills/reorder-on-deck" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="fillIds" value="<%= section.items.map((item) => item.id).join(",") %>" /></form><output data-reorder-status aria-live="polite"></output></div><% } %>
       <% if (section.items.length === 0) { %><p class="muted">No Filled Kegs in this state.</p><% } else { %>
           <table class="table table--wide table--library">
@@ -30,7 +38,7 @@
             <tbody<% if (section.id === "on-deck") { %> data-reorder-list<% } %>>
               <% for (const fill of section.items) { %>
                 <tr data-fill-id="<%= fill.id %>" data-fill-state="<%= fill.state %>"<% if (fill.state === "on_deck") { %> data-keg-room-reorder data-reorder-item data-order="<%= fill.onDeckOrder || 0 %>"<% } %>>
-                  <th scope="row"><div class="library-cell"><div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: fill.id, graphic: fill.graphic, title: fill.beverageName, accessibleLabel: `${fill.beverageName} Filled Keg`, fillPercent: fill.fillPercent, displayColor: fill.displayColor, tapNumber: fill.tapNumber || 0 } }) %></div><a class="library-cell__name" href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a><span class="library-cell__type"><span class="badge badge--<%= fill.state %>"><%= fill.stateLabel %></span></span></div></th>
+                  <th scope="row"><div class="library-cell"><div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: fill.id, graphic: fill.graphic, title: fill.beverageName, accessibleLabel: `${fill.beverageName} Filled Keg`, fillPercent: fill.fillPercent, displayColor: fill.displayColor, tapNumber: fill.tapNumber || 0 } }) %></div><a class="library-cell__name" href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a><span class="library-cell__type"><%~ include("/partials/status-badge", { label: fill.stateLabel, tone: fill.state }) %></span></div></th>
                   <td data-label="Physical Keg"><a href="/admin/keg-room/kegs/<%= fill.kegId || "" %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a></td>
                   <td data-label="Tap or queue"><% if (fill.tapNumber && fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else if (fill.tapNumber) { %>Tap <%= fill.tapNumber %><% } else if (fill.queuePosition) { %>Queue position <%= fill.queuePosition %><% } else { %>Not queued<% } %></td>
                   <td data-label="Remaining estimate"><%= fill.remainingEstimate %></td>
@@ -54,5 +62,7 @@
       <% } %>
     </section>
   <% } %>
-  <% if (it.pagination.previousHref || it.pagination.nextHref) { %><nav class="pagination" aria-label="Keg Room pages"><% if (it.pagination.previousHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.previousHref %>">Previous</a><% } %><span>Page <%= it.pagination.page %> of <%= it.pagination.pageCount %></span><% if (it.pagination.nextHref) { %><a class="button button--secondary button--small" href="<%= it.pagination.nextHref %>">Next</a><% } %></nav><% } %>
+  <% if (it.pageNavigation) { %>
+    <%~ include("/partials/pagination", it.pageNavigation) %>
+  <% } %>
 </main>

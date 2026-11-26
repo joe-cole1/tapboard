@@ -10,7 +10,7 @@ import {
   fillGlassOptions,
   safeColorForDisplay,
 } from "./beverage-presentation.ts";
-import { adminTimestampLabel } from "./presentation.ts";
+import { adminTimestampLabel, type PageHeader } from "./presentation.ts";
 import type { RegisterBeveragePagesDependencies } from "../contracts.ts";
 
 /** The Beverage page's tabs, in order; the first is the Beverage's own URL. */
@@ -89,6 +89,20 @@ export function renderBeverageDetail(
     "/admin/beverages",
     {
       tab,
+      header: {
+        title: name,
+        colourCue: beverageDisplayColor(detail.effectivePresentation),
+        badge: {
+          label:
+            detail.beverage.ownershipType === "brewfather"
+              ? "Brewfather linked"
+              : "Custom beverage",
+        },
+        updated: {
+          datetime: detail.beverage.updatedAt,
+          label: adminTimestampLabel(detail.beverage.updatedAt),
+        },
+      } satisfies PageHeader,
       tabs: {
         label: name,
         items: BEVERAGE_TABS.map((item) => ({
@@ -152,5 +166,11 @@ function usageTab(
           .some((fill) => fill.state !== "ended"),
     )
     .map((keg) => ({ id: keg.id, kegNumber: keg.kegNumber, label: keg.label }));
-  return { currentFills, availableKegs };
+  return {
+    currentFills: currentFills.map((fill) => ({
+      ...fill,
+      badge: { label: fill.state.replaceAll("_", " "), tone: fill.state },
+    })),
+    availableKegs,
+  };
 }
