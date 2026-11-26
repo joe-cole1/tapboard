@@ -15,11 +15,25 @@
       badge: { ...it.brewfather.badge, labelField: "statusLabel", toneField: "statusClass" },
     }) %>
     <% if (it.brewfather.credentialStorage && !it.brewfather.credentialStorage.available) { %>
-    <p role="alert">Credential storage is unavailable. Configure a valid TAPBOARD_SECRET_KEY on the server before saving API keys. This server key is separate from your Brewfather API key. If credentials were stored previously, restore the original server key or use the documented key rotation procedure.</p>
+    <p role="alert">Credential storage is unavailable. Configure a valid TAPBOARD_SECRET_KEY on the server before saving
+      API keys. This server key is separate from your Brewfather API key. If credentials were stored previously, restore
+      the original server key or use the documented key rotation procedure.</p>
     <% } %>
-    <dl class="key-value-list"><div><dt>Account</dt><dd><%= it.brewfather.configured ? "Configured" : "Not configured" %></dd></div><div><dt>API key</dt><dd><%= it.brewfather.apiKeyConfigured ? "Stored" : "Not stored" %></dd></div><div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div><div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div></dl>
+    <dl class="key-value-list">
+      <div><dt>Account</dt><dd><%= it.brewfather.configured ? "Configured" : "Not configured" %></dd></div>
+      <div><dt>API key</dt><dd><%= it.brewfather.apiKeyConfigured ? "Stored" : "Not stored" %></dd></div>
+      <div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div>
+      <div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div>
+    </dl>
     <% if (it.brewfather.configured) { %>
-    <form class="cluster" action="/admin/integrations/brewfather/enabled" method="post" data-autosave="submit" data-autosave-fields="enabled" data-autosave-resource="brewfather-account" data-autosave-revision="updatedAt"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.brewfather.updatedAt %>" /><input type="hidden" name="enabled" value="<%= it.brewfather.enabled ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= it.brewfather.enabled %>"><span class="switch__control" aria-hidden="true"></span>Sync from Brewfather</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form>
+    <form class="cluster" action="/admin/integrations/brewfather/enabled" method="post" data-autosave="submit"
+      data-autosave-fields="enabled" data-autosave-resource="brewfather-account"
+      data-autosave-revision="updatedAt"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>"
+      /><input type="hidden" name="updatedAt" value="<%= it.brewfather.updatedAt %>" /><input type="hidden"
+      name="enabled" value="<%= it.brewfather.enabled ? "false" : "true" %>" /><button type="submit" class="switch"
+      role="switch" aria-checked="<%= it.brewfather.enabled %>"><span class="switch__control"
+      aria-hidden="true"></span>Sync from Brewfather</button><output class="autosave-status" data-autosave-status
+      aria-live="polite"></output></form>
     <% } %>
   </section>
   <section aria-labelledby="brewfather-settings-heading">
@@ -41,8 +55,20 @@
       title: "Maintenance",
       intro: "Refresh imported data or remove the stored credential.",
     }) %>
-    <p class="status-line"><strong>Last data update:</strong> <% if (it.brewfather.lastDataUpdateAt) { %><time datetime="<%= it.brewfather.lastDataUpdateAt %>"><%= it.brewfather.lastDataUpdateAtLabel %></time><% } else { %>Never<% } %></p>
-    <% if (it.brewfather.configured) { %><form action="/admin/integrations/brewfather/sync" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary" type="submit">Refresh Brewfather now</button></form><% } %>
-    <% if (it.brewfather.apiKeyConfigured) { %><details class="disclosure"><summary>Remove stored API key</summary><form action="/admin/integrations/brewfather/remove-key" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><p class="muted">Syncing stops until a new key is saved.</p><button class="button button--danger" type="submit">Remove stored API key</button></form></details><% } %>
+    <p class="status-line"><strong>Last data update:</strong> <% if (it.brewfather.lastDataUpdateAt) { %><time
+      datetime="<%= it.brewfather.lastDataUpdateAt %>"><%= it.brewfather.lastDataUpdateAtLabel %></time><% } else { %>Never<% } %></p>
+    <% if (it.brewfather.configured) { %>
+      <form action="/admin/integrations/brewfather/sync" method="post"><input type="hidden" name="_csrf"
+        value="<%= it.page.csrfToken %>" /><button class="button button--primary"
+        type="submit">Refresh Brewfather now</button></form>
+    <% } %>
+    <% if (it.brewfather.apiKeyConfigured) { %>
+      <details class="disclosure">
+        <summary>Remove stored API key</summary>
+        <form action="/admin/integrations/brewfather/remove-key" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+          <p class="muted">Syncing stops until a new key is saved.</p>
+          <button class="button button--danger" type="submit">Remove stored API key</button></form>
+      </details>
+    <% } %>
   </section>
 </main>

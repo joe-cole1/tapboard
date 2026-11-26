@@ -1,13 +1,12 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
-<% const workspace = it.workspace || it.page.workspace || { enabled: false, changing: false }; %>
 <main id="main-content" class="admin-page">
   <%~ include("/partials/page-header", {
     title: "System",
     intro: "Installation status, calculation defaults, units and Admin access.",
   }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <% if (workspace.enabled) { %><p class="muted">Settings and diagnostics below belong to the saved simulation workspace. Admin access is shared with your real installation.</p><% } %>
+  <% if (it.workspace?.enabled) { %><p class="muted">Settings and diagnostics below belong to the saved simulation workspace. Admin access is shared with your real installation.</p><% } %>
   <section aria-labelledby="system-status-heading">
     <%~ include("/partials/section-heading", {
       id: "system-status-heading",
@@ -36,57 +35,84 @@
       <div><dt>Leased deliveries</dt><dd><%= it.system.diagnostics.counts.outboxLeased %></dd></div>
       <div><dt>Retrying deliveries</dt><dd><%= it.system.diagnostics.counts.outboxRetry %></dd></div>
       <div><dt>Terminal deliveries</dt><dd><%= it.system.diagnostics.counts.outboxTerminal %></dd></div>
-      <div><dt>Last retention pass</dt><dd><%= it.system.diagnostics.retention.lastOutcome === 'completed' ? 'Completed' : it.system.diagnostics.retention.lastOutcome === 'failed' ? 'Failed; will retry' : 'Not yet run' %></dd></div>
+      <div>
+        <dt>Last retention pass</dt>
+        <dd><%= it.system.diagnostics.retention.lastOutcome === 'completed' ? 'Completed' : it.system.diagnostics.retention.lastOutcome === 'failed' ? 'Failed; will retry' : 'Not yet run' %></dd>
+      </div>
       <div><dt>Retention checked at</dt><dd><%= it.system.diagnostics.retention.lastRunAt || '—' %></dd></div>
     </dl>
-    <p class="muted">Counts and storage totals contain no credentials, integration endpoints, raw payloads, or private notes. Database backups and restores are managed by your installation operator.</p>
+    <p class="muted">Counts and storage totals contain no credentials, integration endpoints, raw payloads, or private
+      notes. Database backups and restores are managed by your installation operator.</p>
   </section>
   <section aria-labelledby="system-calculation-heading">
     <h2 id="system-calculation-heading">Calculation defaults</h2>
-    <p>Fallback gravity is used when a beverage has no measured final gravity or density override. Serving size is used when that beverage has no pour-size override. Completed pour history stays unchanged.</p>
+    <p>Fallback gravity is used when a beverage has no measured final gravity or density override. Serving size is used
+      when that beverage has no pour-size override. Completed pour history stays unchanged.</p>
     <form action="/admin/system/calculation" method="post" class="form form--wide" data-autosave="blur" data-autosave-fields="fallbackFg,servingSizeMl">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <div class="auto-grid auto-grid--md">
         <label class="field">Fallback final gravity<input type="number" name="fallbackFg" min="0.5" max="2" step="any" required value="<%= it.system.calculation.fallbackFg %>" /></label>
         <label class="field">Default serving size (mL)<input type="number" name="servingSizeMl" min="0.001" step="any" required value="<%= it.system.calculation.servingSizeMl %>" /></label>
       </div>
-      <div class="form-actions"><button class="button button--primary" type="submit" data-autosave-fallback>Save calculation defaults</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      <div class="form-actions"><button class="button button--primary" type="submit"
+        data-autosave-fallback>Save calculation defaults</button><output class="autosave-status" data-autosave-status
+        aria-live="polite"></output></div>
     </form>
-    <p class="muted">Configure health and pour detection on each Tap's page in <a href="/admin/taps">Taps</a>, the <a href="/admin/display/shared">default theme</a>, and <a href="/admin/integrations">integrations</a> in their settings pages.</p>
+    <p class="muted">Configure health and pour detection on each Tap's page in
+      <a href="/admin/taps">Taps</a>, the <a href="/admin/display/shared">default theme</a>, and <a
+      href="/admin/integrations">integrations</a> in their settings pages.</p>
   </section>
   <section aria-labelledby="units-heading">
     <h2 id="units-heading">Units and readouts</h2>
     <p>How public displays show volumes and temperatures. A browser can still choose its own units on <a href="/admin/display/this-display">This display</a>.</p>
-    <form action="/admin/system/units" method="post" class="form form--wide" data-autosave="blur" data-autosave-resource="display" data-autosave-revision="expectedDisplayRevision" data-autosave-fields="unitSystem,showServingTemperature">
+    <form action="/admin/system/units" method="post" class="form form--wide" data-autosave="blur"
+      data-autosave-resource="display" data-autosave-revision="expectedDisplayRevision"
+      data-autosave-fields="unitSystem,showServingTemperature">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedDisplayRevision" value="<%= it.system.display.revision %>" />
-      <label class="field">Units <select name="unitSystem"><option value="us"<% if (it.system.display.unitSystem === "us") { %> selected<% } %>>US customary</option><option value="metric"<% if (it.system.display.unitSystem === "metric") { %> selected<% } %>>Metric</option></select></label>
-      <label class="switch"><input class="switch__control" type="checkbox" role="switch" name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %> />Serving temperature</label>
-      <div class="form-actions"><button class="button button--primary" type="submit" data-autosave-fallback>Save units</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      <label class="field">Units <select name="unitSystem">
+      <option value="us"<% if (it.system.display.unitSystem === "us") { %> selected<% } %>>US customary</option>
+      <option value="metric"<% if (it.system.display.unitSystem === "metric") { %> selected<% } %>>Metric</option>
+      </select></label>
+      <label class="switch"><input class="switch__control" type="checkbox" role="switch"
+        name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %>
+        />Serving temperature</label>
+      <div class="form-actions"><button class="button button--primary" type="submit"
+        data-autosave-fallback>Save units</button><output class="autosave-status" data-autosave-status
+        aria-live="polite"></output></div>
     </form>
   </section>
   <section aria-labelledby="system-access-heading">
     <h2 id="system-access-heading">Admin access</h2>
     <p>Signed-in browsers are listed in <a href="/admin/logs/sessions">Logs › Admin sessions</a>.</p>
     <h3 id="system-session-lifetimes-heading">Session lifetimes</h3>
-    <p>Both limits can be one minute to one year (525,600 minutes). Inactivity cannot exceed the absolute lifetime. Shortening applies immediately; lengthening preserves each existing session's original absolute deadline.</p>
-    <form action="/admin/system/session-policy" method="post" class="form form--wide" data-autosave="blur" data-autosave-resource="session-policy" data-autosave-revision="expectedRevision" data-autosave-fields="inactivityMinutes,absoluteMinutes">
+    <p>Both limits can be one minute to one year (525,600 minutes). Inactivity cannot exceed the absolute lifetime.
+      Shortening applies immediately; lengthening preserves each existing session's original absolute deadline.</p>
+    <form action="/admin/system/session-policy" method="post" class="form form--wide" data-autosave="blur"
+      data-autosave-resource="session-policy" data-autosave-revision="expectedRevision"
+      data-autosave-fields="inactivityMinutes,absoluteMinutes">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedRevision" value="<%= it.system.sessionPolicy.revision %>" />
       <div class="auto-grid auto-grid--md">
-        <label class="field">Inactivity timeout (minutes)<input type="number" name="inactivityMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.inactivityMs / 60000 %>" /></label>
-        <label class="field">Absolute lifetime (minutes)<input type="number" name="absoluteMinutes" min="1" max="525600" step="any" required value="<%= it.system.sessionPolicy.absoluteMs / 60000 %>" /></label>
+        <label class="field">Inactivity timeout (minutes)<input type="number" name="inactivityMinutes" min="1"
+          max="525600" step="any" required value="<%= it.system.sessionPolicy.inactivityMs / 60000 %>" /></label>
+        <label class="field">Absolute lifetime (minutes)<input type="number" name="absoluteMinutes" min="1" max="525600"
+          step="any" required value="<%= it.system.sessionPolicy.absoluteMs / 60000 %>" /></label>
       </div>
-      <div class="form-actions"><button class="button button--primary" type="submit" data-autosave-fallback>Save session lifetimes</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      <div class="form-actions"><button class="button button--primary" type="submit"
+        data-autosave-fallback>Save session lifetimes</button><output class="autosave-status" data-autosave-status
+        aria-live="polite"></output></div>
     </form>
     <h3>Change Admin PIN</h3>
       <p>Use exactly four ASCII digits. Changing the PIN signs out every Admin session.</p>
       <form action="/admin/system/pin" method="post" class="form form--wide" autocomplete="off">
         <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
         <div class="auto-grid auto-grid--md">
-          <label class="field">Current PIN<input type="password" name="currentPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password" /></label>
+          <label class="field">Current PIN<input type="password" name="currentPin" inputmode="numeric"
+            pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password" /></label>
           <label class="field">New PIN<input type="password" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
-          <label class="field">Confirm new PIN<input type="password" name="confirmPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
+          <label class="field">Confirm new PIN<input type="password" name="confirmPin" inputmode="numeric"
+            pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" /></label>
         </div>
         <button class="button button--primary" type="submit">Change PIN and sign out all sessions</button>
       </form>

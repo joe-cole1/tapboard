@@ -10,7 +10,7 @@ import {
   fillGlassOptions,
   safeColorForDisplay,
 } from "./beverage-presentation.ts";
-import { adminTimestampLabel, type PageHeader } from "./presentation.ts";
+import { adminTimestampLabel, type AutosaveForm, type PageHeader } from "./presentation.ts";
 import type { RegisterBeveragePagesDependencies } from "../contracts.ts";
 
 /** The Beverage page's tabs, in order; the first is the Beverage's own URL. */
@@ -24,6 +24,68 @@ export const BEVERAGE_TABS = [
 ] as const;
 
 export type BeverageTab = (typeof BEVERAGE_TABS)[number]["id"];
+
+/** The sensory axes in display order, with the names the Sensory tab shows. */
+const SENSORY_AXES = [
+  { key: "malt", label: "Malt character" },
+  { key: "hops", label: "Hop character" },
+  { key: "bitterness", label: "Bitterness" },
+  { key: "sweetness", label: "Sweetness" },
+  { key: "body", label: "Body" },
+  { key: "roast", label: "Roast" },
+  { key: "tartness", label: "Tartness" },
+  { key: "alcohol", label: "Alcohol warmth" },
+] as const;
+
+/** The fields a linked beverage can override, and whether each can be cleared. */
+const OVERRIDE_FIELDS = [
+  ["name", false],
+  ["beverageType", false],
+  ["style", true],
+  ["abv", true],
+  ["ibu", true],
+  ["og", true],
+  ["fg", true],
+  ["description", true],
+  ["fillGlass", true],
+  ["manualDensityOverride", true],
+] as const;
+
+/** The live-saving forms on a Beverage's tabs. */
+function beverageForms(id: string): Readonly<Record<string, AutosaveForm>> {
+  const form = (action: string, fields: string): AutosaveForm => ({
+    action: `/admin/beverages/${id}/${action}`,
+    mode: "blur",
+    resource: `beverage:${id}`,
+    fields,
+  });
+  return {
+    identity: form("update", "name,beverageType,style,abv,ibu,og,fg,manualDensityOverride"),
+    presentation: form("update", "fillGlass,description"),
+    overrides: form(
+      "presentation",
+      OVERRIDE_FIELDS.flatMap(([field]) => [`${field}Mode`, field]).join(","),
+    ),
+    recipe: form("recipe", "recipeJson"),
+    sensory: form("sensory", SENSORY_AXES.map((axis) => axis.key).join(",")),
+  };
+}
+
+/** Each override's mode select: inherited, cleared, or set to a value. */
+function overrideModes(
+  overrides: BeverageDetailResult["presentationOverrides"],
+): readonly { readonly field: string; readonly mode: string; readonly canClear: boolean }[] {
+  return OVERRIDE_FIELDS.map(([field, canClear]) => {
+    const present =
+      overrides?.[
+        `override${field[0]!.toUpperCase()}${field.slice(1)}Present` as keyof NonNullable<
+          typeof overrides
+        >
+      ] === true;
+    const cleared = canClear && overrides?.[field as keyof NonNullable<typeof overrides>] === null;
+    return { field, mode: !present ? "inherit" : cleared ? "clear" : "value", canClear };
+  });
+}
 
 /** The URL of one tab of a Beverage's page. */
 export function beveragePagePath(beverageId: string, tab: BeverageTab): string {
@@ -123,6 +185,21 @@ export function renderBeverageDetail(
             : adminTimestampLabel(detail.brewfatherLink.lastSyncedAt),
       },
       beverageTypes: BEVERAGE_TYPES,
+      linked: detail.beverage.ownershipType === "brewfather",
+      forms: beverageForms(id),
+      sensoryAxes: SENSORY_AXES,
+      axisLabels: Object.fromEntries(SENSORY_AXES.map((axis) => [axis.key, axis.label])),
+      recipeImportHeading:
+        beverage.recipeImport === "imported"
+          ? {
+              title: "Imported recipe",
+              intro:
+                "Read-only and permanent. To use a different recipe, create a new Custom beverage and import it there.",
+            }
+          : {
+              title: "Source recipe",
+              intro: "Read-only recipe kept from the beverage's earlier Brewfather link.",
+            },
       ...(tab === "presentation" ? presentationTab(detail) : {}),
       ...(tab === "usage" ? usageTab(dependencies, service, id) : {}),
     },
@@ -134,18 +211,23 @@ function presentationTab(detail: BeverageDetailResult) {
   const effective = detail.effectivePresentation;
   const overrides = detail.presentationOverrides;
   const linked = detail.beverage.ownershipType === "brewfather";
+  const colourPicker = displayColourPicker({
+    beverageType: effective.beverageType,
+    srm: effective.srm,
+    resolvedColor: beverageDisplayColor(effective),
+    colourOverridden: linked
+      ? overrides?.overrideDisplayColorPresent === true
+      : safeColorForDisplay(effective.displayColor) !== null,
+    linked,
+    srmOverridden: overrides?.overrideSrmPresent === true,
+  });
   return {
     fillGlassOptions: fillGlassOptions(),
-    colourPicker: displayColourPicker({
-      beverageType: effective.beverageType,
-      srm: effective.srm,
-      resolvedColor: beverageDisplayColor(effective),
-      colourOverridden: linked
-        ? overrides?.overrideDisplayColorPresent === true
-        : safeColorForDisplay(effective.displayColor) !== null,
-      linked,
-      srmOverridden: overrides?.overrideSrmPresent === true,
-    }),
+    colourPicker,
+    colourIntro: colourPicker.showSrm
+      ? "Pick the beer's SRM, and a colour only if the display should show something else."
+      : "SRM describes beer only, so this beverage uses the default colour until you pick one.",
+    overrideModes: Object.fromEntries(overrideModes(overrides).map((item) => [item.field, item])),
   };
 }
 

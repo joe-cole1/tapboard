@@ -32,6 +32,7 @@ import { requestUrl, actor, adminContext, messageLocation, type AdminContext } f
 import {
   adminTimestampLabel,
   numberedPageNavigation,
+  type AutosaveForm,
   type PageHeader,
   type PageNavigation,
 } from "./presentation.ts";
@@ -179,9 +180,9 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           } satisfies PageHeader,
           available: true,
           destination: presentation,
+          forms: outboundForms(destination.id, OUTBOUND_SETTINGS_FIELDS.join(",")),
           history,
           eventFields: OUTBOUND_EVENT_FIELDS,
-          settingsFields: OUTBOUND_SETTINGS_FIELDS.join(","),
           maxHeaderRows: OUTBOUND_MAX_HEADER_ROWS,
         },
       );
@@ -980,6 +981,17 @@ const BREWFATHER_CONNECTION_LABELS: Readonly<Record<string, string>> = {
   disconnected: "Disconnected",
   disabled: "Disabled",
 };
+
+/** The live-saving parts of an outbound destination's page. */
+function outboundForms(id: string, settingsFields: string): Readonly<Record<string, AutosaveForm>> {
+  const base = `/admin/integrations/outbound/${encodeURIComponent(id)}`;
+  const resource = `outbound:${id}`;
+  return {
+    enabled: { action: `${base}/enabled`, mode: "submit", resource, fields: "enabled" },
+    required: { action: `${base}/required`, mode: "submit", resource, fields: "required" },
+    settings: { action: `${base}/settings`, mode: "blur", resource, fields: settingsFields },
+  };
+}
 
 /** The telemetry list keeps both page numbers in its links; the changing one comes first. */
 function telemetryPageHref(

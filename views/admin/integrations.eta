@@ -16,7 +16,10 @@
         badge: it.brewfather.badge,
       }) %>
       <p><%= it.brewfather.apiKeyConfigured ? "Beverage data is available for linking." : "Add an API key to import and refresh beverage data." %></p>
-      <dl class="integration-resource-card__summary"><div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div><div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div></dl>
+      <dl class="integration-resource-card__summary">
+        <div><dt>Linked beverages</dt><dd><%= it.brewfather.linkedBeverages %></dd></div>
+        <div><dt>Import candidates</dt><dd><%= it.brewfather.candidates %></dd></div>
+      </dl>
       <a class="button button--secondary button--small" href="/admin/integrations/brewfather">Open Brewfather</a>
     </article>
     <article class="card integration-resource-card">
@@ -26,7 +29,10 @@
         badge: it.telemetry.badge,
       }) %>
       <p>Manage source keys and the devices that report Tap measurements.</p>
-      <dl class="integration-resource-card__summary"><div><dt>Active sources</dt><dd><%= it.telemetry.activeCount %></dd></div><div><dt>Disabled history</dt><dd><%= it.telemetry.disabledCount %></dd></div></dl>
+      <dl class="integration-resource-card__summary">
+        <div><dt>Active sources</dt><dd><%= it.telemetry.activeCount %></dd></div>
+        <div><dt>Disabled history</dt><dd><%= it.telemetry.disabledCount %></dd></div>
+      </dl>
       <a class="button button--secondary button--small" href="/admin/integrations/telemetry">Open Telemetry</a>
     </article>
     <article class="card integration-resource-card">

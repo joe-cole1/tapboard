@@ -12,7 +12,11 @@
       <h2 id="new-beverage-basics">Basics</h2>
       <div class="auto-grid auto-grid--sm">
         <label class="field">Name <input name="name" maxlength="160" required autofocus /></label>
-        <label class="field">Type <select name="beverageType"><% for (const type of it.beverageTypes) { %><option value="<%= type %>"><%= type[0].toUpperCase() + type.slice(1) %></option><% } %></select></label>
+        <label class="field">Type <select name="beverageType">
+        <% for (const type of it.beverageTypes) { %>
+          <option value="<%= type %>"><%= type[0].toUpperCase() + type.slice(1) %></option>
+        <% } %>
+        </select></label>
         <label class="field">Style <input name="style" maxlength="120" /></label>
         <label class="field">ABV (%) <input name="abv" type="number" min="0" max="100" step="0.1" /></label>
       </div>
@@ -34,11 +38,16 @@
       <h3>Sensory guidance</h3>
       <p class="muted">Optional manual overrides from 0 to 10. These bounded values drive derived guidance for Story and authenticated operators.</p>
       <div class="auto-grid auto-grid--sm">
-        <% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness", "alcohol"]) { %><label class="field"><%= ({ malt: "Malt character", hops: "Hop character", alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %><input name="<%= axis %>" type="number" min="0" max="10" step="0.1" /></label><% } %>
+        <% for (const axis of ["malt", "hops", "bitterness", "sweetness", "body", "roast", "tartness",
+          "alcohol"]) { %><label class="field"><%= ({ malt: "Malt character", hops: "Hop character",
+          alcohol: "Alcohol warmth" })[axis] || axis[0].toUpperCase() + axis.slice(1) %><input name="<%= axis %>"
+          type="number" min="0" max="10" step="0.1" /></label><% } %>
       </div>
       <h3>Custom recipe</h3>
-      <p class="muted">Optional bounded JSON for ingredients and process steps. Use the supported recipe object with <code>notes</code>, <code>ingredients</code>, and <code>steps</code>. Leave blank to add it later.</p>
-      <label class="field">Recipe JSON <textarea name="recipeJson" rows="14" spellcheck="false" placeholder="{\n  &quot;notes&quot;: &quot;&quot;,\n  &quot;ingredients&quot;: [],\n  &quot;steps&quot;: []\n}"></textarea></label>
+      <p class="muted">Optional bounded JSON for ingredients and process steps. Use the supported recipe object with
+        <code>notes</code>, <code>ingredients</code>, and <code>steps</code>. Leave blank to add it later.</p>
+      <label class="field">Recipe JSON <textarea name="recipeJson" rows="14" spellcheck="false"
+        placeholder="{\n  &quot;notes&quot;: &quot;&quot;,\n  &quot;ingredients&quot;: [],\n  &quot;steps&quot;: []\n}"></textarea></label>
     </details>
     <div class="form-actions"><a class="button button--secondary" href="/admin/beverages">Cancel</a><button class="button button--primary" type="submit">Create beverage</button></div>
   </form>

@@ -156,3 +156,12 @@ export function numberedPageNavigation(
     next: nextHref === null ? null : { label: "Next", href: nextHref },
   };
 }
+
+/** A form that saves as its fields change, rendered by `views/partials/autosave-attributes.eta`. */
+export interface AutosaveForm {
+  readonly action: string;
+  readonly mode: "blur" | "submit";
+  readonly resource: string;
+  readonly fields: string;
+  readonly statusId?: string;
+}

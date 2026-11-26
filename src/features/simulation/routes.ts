@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
+import { ML_PER_US_FL_OZ } from "../forecasting/forecast.ts";
 import { sendJson } from "../../infrastructure/http/error-mapper.ts";
 import { readFormBody } from "../../infrastructure/http/form.ts";
 import { redirect, sendHtml } from "../../infrastructure/http/html.ts";
@@ -209,6 +210,19 @@ function registerAction(dependencies: SimulationRouteDependencies, action: Actio
   });
 }
 
+/** The Simulation page's words for a sensor's status (public/js/simulator.js uses the same). */
+const SENSOR_STATUS_LABELS: Readonly<Record<string, string>> = {
+  stopped: "Stopped",
+  offline: "Paused",
+  unassigned: "No fill",
+  unavailable: "Retired",
+  settling: "Settling",
+  ready: "Ready",
+  pouring: "Pouring",
+  empty: "Empty",
+  error: "Needs attention",
+};
+
 export function registerSimulationRoutes(dependencies: SimulationRouteDependencies): void {
   const { controller, router } = dependencies;
   router.get("/admin/simulator", (request, response) => {
@@ -241,7 +255,20 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
           },
           nav: adminNav("/admin/simulator", breadcrumbs),
           workspace,
-          simulation: state,
+          simulation: {
+            ...state,
+            sensors: state.sensors.map((sensor) => ({
+              ...sensor,
+              statusLabel: SENSOR_STATUS_LABELS[sensor.status] ?? "Unavailable",
+              // A one-ounce pour needs a ready, online, idle sensor with an ounce left.
+              pourBlocked:
+                state.changing ||
+                sensor.status !== "ready" ||
+                !sensor.online ||
+                sensor.pouring ||
+                sensor.remainingMl < ML_PER_US_FL_OZ,
+            })),
+          },
         }),
       );
     } catch (error) {

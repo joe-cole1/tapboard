@@ -4,11 +4,17 @@
   <input type="hidden" name="transport" value="<%= transport %>" />
   <div class="auto-grid auto-grid--md">
     <label class="field">Friendly name <input name="label" maxlength="120" required autocomplete="off" /></label>
-    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="required" value="on" /><span>Required destination <small>When enabled, delivery health contributes to the required integration status.</small></span></label>
-    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="on" checked /><span>Enabled <small>Disable while configuring a destination to prevent delivery attempts.</small></span></label>
+    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="required" value="on"
+      /><span>Required destination <small>When enabled, delivery health contributes to the required integration
+      status.</small></span></label>
+    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="on" checked
+      /><span>Enabled <small>Disable while configuring a destination to prevent delivery
+      attempts.</small></span></label>
   </div>
 
-  <%~ include("/partials/outbound-subscriptions", { eventFields: it.eventFields, subscriptions: it.eventFields.map((field) => field.eventType), hint: "All six event types are selected by default for a new destination." }) %>
+  <%~ include("/partials/outbound-subscriptions", { eventFields: it.eventFields,
+    subscriptions: it.eventFields.map((field) => field.eventType),
+    hint: "All six event types are selected by default for a new destination." }) %>
 
   <% if (transport === "home_assistant") { %>
     <fieldset class="fieldset">

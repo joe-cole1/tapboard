@@ -32,7 +32,9 @@
         title: "Rotate key",
         intro: "Issues a replacement key, labelled with the source name, and shows it once. The current key stops working immediately.",
       }) %>
-      <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><div class="form-actions"><button class="button button--primary button--small" type="submit">Rotate key and show replacement once</button></div></form>
+      <form class="form" action="/admin/integrations/telemetry-sources/<%= it.source.id %>/rotate" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
+        <div class="form-actions"><button class="button button--primary button--small" type="submit">Rotate key and show replacement once</button></div>
+      </form>
     </section>
     <section class="card card--danger" aria-labelledby="source-disable-heading">
       <%~ include("/partials/section-heading", {
@@ -40,7 +42,10 @@
         title: "Disable source",
         intro: "Disabling revokes the current key for good. The source stays in history and can't be re-enabled.",
       }) %>
-      <%~ include("/partials/permanent-action", { id: `source-disable-${it.source.id}`, blockers: it.disableBlockers, action: `/admin/integrations/telemetry-sources/${it.source.id}/disable`, hiddenFields: [{ name: "_csrf", value: it.page.csrfToken }], disclosure: "Disable source", buttonLabel: "Disable source" }) %>
+      <%~ include("/partials/permanent-action", { id: `source-disable-${it.source.id}`, blockers: it.disableBlockers,
+        action: `/admin/integrations/telemetry-sources/${it.source.id}/disable`,
+        hiddenFields: [{ name: "_csrf", value: it.page.csrfToken }], disclosure: "Disable source",
+        buttonLabel: "Disable source" }) %>
     </section>
   <% } else { %>
     <section><h2>Immutable history</h2><p>This source is disabled and its current key is revoked. It cannot be rotated, renamed, or re-enabled.</p></section>

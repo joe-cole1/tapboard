@@ -22,7 +22,9 @@
       <button class="button" type="button" data-pin-key="1">1</button><button class="button" type="button" data-pin-key="2">2</button><button class="button" type="button" data-pin-key="3">3</button>
       <button class="button" type="button" data-pin-key="4">4</button><button class="button" type="button" data-pin-key="5">5</button><button class="button" type="button" data-pin-key="6">6</button>
       <button class="button" type="button" data-pin-key="7">7</button><button class="button" type="button" data-pin-key="8">8</button><button class="button" type="button" data-pin-key="9">9</button>
-      <button class="button" type="button" data-pin-action="clear">Clear</button><button class="button" type="button" data-pin-key="0">0</button><button class="button" type="button" data-pin-action="backspace" aria-label="Backspace">⌫</button>
+      <button class="button" type="button" data-pin-action="clear">Clear</button><button class="button" type="button"
+        data-pin-key="0">0</button><button class="button" type="button" data-pin-action="backspace"
+        aria-label="Backspace">⌫</button>
     </fieldset>
     <button class="button button--primary" type="submit">Sign in</button>
   </form>

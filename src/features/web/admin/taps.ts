@@ -71,17 +71,21 @@ export function registerTapPages(dependencies: RegisterTapPagesDependencies): vo
           label: item.isRetired ? "Retired" : item.enabled ? "Enabled" : "Disabled",
           ...(item.enabled && !item.isRetired ? { tone: "active" } : {}),
         } satisfies StatusBadge,
-        publicCard:
+        previewLabel: publicCard === null ? "No public preview" : "Public card preview",
+        vessel:
           publicCard === null
             ? null
             : {
-                ...publicCard,
+                id: `tap-${item.id}`,
                 graphic: publicCard.graphic ?? getVesselDescriptor(publicCard.graphicId),
                 title: publicCard.title ?? publicCard.beverageName ?? `Tap ${item.tapNumber}`,
                 accessibleLabel:
                   publicCard.accessibleLabel ??
                   publicCard.beverageName ??
                   `Tap ${item.tapNumber} preview`,
+                fillPercent: publicCard.fillPercent,
+                displayColor: publicCard.displayColor,
+                tapNumber: item.tapNumber,
               },
         health,
       };

@@ -1,6 +1,5 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
-<% const workspace = it.workspace || it.page.workspace || { enabled: false, changing: false }; %>
 <main id="main-content" class="admin-page">
   <%~ include("/partials/page-header", {
     title: "Retention",
@@ -8,23 +7,34 @@
   }) %>
   <%~ include("/partials/tabs", { tabs: it.tabs }) %>
   <%~ include("/partials/admin-messages", { page: it.page }) %>
-  <% if (workspace.enabled) { %><p class="muted">These settings belong to the saved simulation workspace.</p><% } %>
+  <% if (it.workspace?.enabled) { %><p class="muted">These settings belong to the saved simulation workspace.</p><% } %>
   <section aria-labelledby="system-retention-heading">
     <h2 id="system-retention-heading" class="sr-only">Retention settings</h2>
-    <p>Automatic pruning uses small batches. Kegs, fills, completed pours, telemetry epochs, calibration, maintenance, deletion audits, and a Tap's first-use history remain protected. Queued and leased deliveries remain protected.</p>
-    <form action="/admin/logs/retention" method="post" class="form form--wide" data-autosave="blur" data-autosave-fields="activityDays,rawSeconds,receiptSeconds,reconnectSeconds,hourlyRollupDays,dailyRollupDays,outboxDays">
+    <p>Automatic pruning uses small batches. Kegs, fills, completed pours, telemetry epochs, calibration, maintenance,
+      deletion audits, and a Tap's first-use history remain protected. Queued and leased deliveries remain
+      protected.</p>
+    <form action="/admin/logs/retention" method="post" class="form form--wide" data-autosave="blur"
+      data-autosave-fields="activityDays,rawSeconds,receiptSeconds,reconnectSeconds,hourlyRollupDays,dailyRollupDays,outboxDays">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <div class="auto-grid auto-grid--md">
         <label class="field">Activity Log (days)<input type="number" name="activityDays" min="1" max="3650" step="1" required value="<%= it.retention.activity.retentionDays %>" /></label>
         <label class="field">Raw telemetry (seconds)<input type="number" name="rawSeconds" min="300" max="86400" step="1" required value="<%= it.retention.telemetry.rawRetentionSeconds %>" /></label>
-        <label class="field">Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600" max="604800" step="1" required value="<%= it.retention.telemetry.receiptRetentionSeconds %>" /></label>
-        <label class="field">Reconnect horizon (seconds)<input type="number" name="reconnectSeconds" min="60" max="86400" step="1" required value="<%= it.retention.telemetry.reconnectHorizonSeconds %>" /></label>
-        <label class="field">Hourly reading history (days)<input type="number" name="hourlyRollupDays" min="1" max="365" step="1" required value="<%= it.retention.telemetry.hourlyRollupRetentionDays %>" /></label>
-        <label class="field">Daily reading history (days)<input type="number" name="dailyRollupDays" min="1" max="3650" step="1" required value="<%= it.retention.telemetry.dailyRollupRetentionDays %>" /></label>
+        <label class="field">Deduplication receipts (seconds)<input type="number" name="receiptSeconds" min="3600"
+          max="604800" step="1" required value="<%= it.retention.telemetry.receiptRetentionSeconds %>" /></label>
+        <label class="field">Reconnect horizon (seconds)<input type="number" name="reconnectSeconds" min="60"
+          max="86400" step="1" required value="<%= it.retention.telemetry.reconnectHorizonSeconds %>" /></label>
+        <label class="field">Hourly reading history (days)<input type="number" name="hourlyRollupDays" min="1" max="365"
+          step="1" required value="<%= it.retention.telemetry.hourlyRollupRetentionDays %>" /></label>
+        <label class="field">Daily reading history (days)<input type="number" name="dailyRollupDays" min="1" max="3650"
+          step="1" required value="<%= it.retention.telemetry.dailyRollupRetentionDays %>" /></label>
         <label class="field">Terminal outbound history (days)<input type="number" name="outboxDays" min="1" max="3650" step="1" required value="<%= it.retention.outbox.retentionDays %>" /></label>
       </div>
-      <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon. Old raw measurements are pruned before their receipts. Reading history keeps hourly and daily minimum, maximum, mean and last values per Tap and metric after raw measurements are pruned.</p>
-      <div class="form-actions"><button class="button button--primary" type="submit" data-autosave-fallback>Save retention settings</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></div>
+      <p class="muted">Receipt retention must cover both the raw-telemetry retention and the accepted reconnect horizon.
+        Old raw measurements are pruned before their receipts. Reading history keeps hourly and daily minimum, maximum,
+        mean and last values per Tap and metric after raw measurements are pruned.</p>
+      <div class="form-actions"><button class="button button--primary" type="submit"
+        data-autosave-fallback>Save retention settings</button><output class="autosave-status" data-autosave-status
+        aria-live="polite"></output></div>
     </form>
   </section>
 </main>

@@ -30,7 +30,7 @@
           <% for (const beverage of it.beverages) { %>
             <tr data-row-href="/admin/beverages/<%= beverage.id %>">
               <th scope="row"><div class="library-cell">
-                <div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: `beverage-${beverage.id}`, graphic: beverage.graphic, title: beverage.name, accessibleLabel: `${beverage.name} vessel preview`, fillPercent: beverage.fillPercent, displayColor: beverage.displayColor, tapNumber: 0 } }) %></div>
+                <div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: beverage.vessel }) %></div>
                 <a class="library-cell__name" href="/admin/beverages/<%= beverage.id %>">
                   <span><%= beverage.name %></span>
                 </a>
@@ -57,7 +57,14 @@
       }) %>
         <div class="auto-grid auto-grid--lg">
           <% for (const candidate of it.brewfatherCandidates) { %>
-            <article class="card"><h3><%= candidate.name %></h3><p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p><form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId" value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary" type="submit">Link as beverage</button></form></article>
+            <article class="card">
+              <h3><%= candidate.name %></h3>
+              <p class="muted"><% if (candidate.number) { %>Batch <%= candidate.number %> · <% } %><%= candidate.status %><% if (candidate.style) { %> · <%= candidate.style %><% } %></p>
+              <form action="/admin/beverages/brewfather/link" method="post"><input type="hidden" name="_csrf"
+                value="<%= it.page.csrfToken %>" /><input type="hidden" name="sourceBatchId"
+                value="<%= candidate.sourceBatchId %>" /><button class="button button--secondary"
+                type="submit">Link as beverage</button></form>
+            </article>
           <% } %>
         </div>
     </section>

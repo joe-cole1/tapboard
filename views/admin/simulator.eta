@@ -1,6 +1,6 @@
 <% layout("/layouts/admin", { page: it.page }) %>
 <%~ include("/partials/admin-nav", { page: it.page, nav: it.nav }) %>
-<% const simulation = it.simulation; const sensorLabels = { stopped: 'Stopped', offline: 'Paused', unassigned: 'No fill', unavailable: 'Retired', settling: 'Settling', ready: 'Ready', pouring: 'Pouring', empty: 'Empty', error: 'Needs attention' }; %>
+<% const simulation = it.simulation; %>
 <main id="main-content" class="admin-page simulator-page" data-simulator data-simulation-enabled="<%= simulation.enabled %>">
   <%~ include("/partials/page-header", {
     title: "Simulation",
@@ -10,14 +10,25 @@
   <div class="stack">
     <form action="/admin/simulation/<%= simulation.enabled ? 'disable' : 'enable' %>" method="post" class="stack" data-workspace-action>
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-      <button type="submit" class="switch" role="switch" aria-checked="<%= simulation.enabled %>"<% if (simulation.changing) { %> disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Enable simulation</button>
-      <p class="muted"><% if (simulation.changing) { %>Switching workspace…<% } else if (simulation.enabled) { %>Simulation is on. Open displays are showing your sample workspace, and sensor readings continue while this page is closed.<% } else { %>Simulation is off. Your sample workspace is kept, so you can continue where you left off. External integrations are unavailable in simulation.<% } %></p>
+      <button type="submit" class="switch" role="switch" aria-checked="<%= simulation.enabled %>"
+        <% if (simulation.changing) { %>
+        disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Enable simulation</button>
+      <p class="muted"><% if (simulation.changing) { %>Switching
+        workspace…<% } else if (simulation.enabled) { %>Simulation is on. Open displays are showing your sample
+        workspace, and sensor readings continue while this page is closed.<% } else { %>Simulation is off. Your sample
+        workspace is kept, so you can continue where you left off. External integrations are unavailable in
+        simulation.<% } %></p>
     </form>
-    <% if (simulation.enabled) { %><a class="button button--primary" href="/" target="_blank" rel="noopener">Open dashboard <span class="sr-only">in a new tab</span><span aria-hidden="true">↗</span></a><% } %>
+    <% if (simulation.enabled) { %><a class="button button--primary" href="/"
+      target="_blank" rel="noopener">Open dashboard <span class="sr-only">in a new tab</span><span
+      aria-hidden="true">↗</span></a><% } %>
   </div>
   <p data-simulation-feedback role="status" aria-live="polite" hidden></p>
   <% if (simulation.enabled) { %>
-    <div class="simulator-note"><p><strong>Your sample workspace</strong> · Changes and history are saved separately. External integrations are unavailable here.</p><p class="muted" data-simulation-connection>Live sensor readings</p></div>
+    <div class="simulator-note">
+      <p><strong>Your sample workspace</strong> · Changes and history are saved separately. External integrations are unavailable here.</p>
+      <p class="muted" data-simulation-connection>Live sensor readings</p>
+    </div>
     <section aria-labelledby="simulator-sensors-heading">
       <%~ include("/partials/section-heading", {
         id: "simulator-sensors-heading",
@@ -25,22 +36,65 @@
         intro: "Pours in US fl oz",
       }) %>
       <div class="simulator-grid">
-        <% for (const sensor of simulation.sensors) { const blocked = simulation.changing || sensor.status !== 'ready' || !sensor.online || sensor.pouring || sensor.remainingMl < 29.5735295625; const label = sensorLabels[sensor.status] || 'Unavailable'; %>
-          <article class="card simulator-sensor" data-simulation-sensor="<%= sensor.tapId %>" data-sensor-online="<%= sensor.online %>" data-sensor-pouring="<%= sensor.pouring %>" data-sensor-state="<%= sensor.status %>" aria-labelledby="sensor-<%= sensor.tapId %>-heading">
-            <header class="header-row simulator-sensor__header"><div><p class="eyebrow">Tap <%= sensor.tapNumber %></p><h3 id="sensor-<%= sensor.tapId %>-heading" data-sensor-label><%= sensor.label %></h3></div><span class="simulator-sensor__status" data-sensor-status><span class="simulator-sensor__dot" aria-hidden="true"></span><span data-sensor-status-label><%= label %></span></span></header>
-            <dl class="simulator-sensor__readings"><div><dt>Remaining</dt><dd data-sensor-volume><%= (sensor.remainingMl / 1000).toFixed(2) %> L</dd></div><div><dt>Temperature</dt><dd data-sensor-temperature><%= sensor.temperatureC.toFixed(1) %> °C</dd></div></dl>
+        <% for (const sensor of simulation.sensors) { %>
+          <article class="card simulator-sensor" data-simulation-sensor="<%= sensor.tapId %>"
+            data-sensor-online="<%= sensor.online %>" data-sensor-pouring="<%= sensor.pouring %>"
+            data-sensor-state="<%= sensor.status %>" aria-labelledby="sensor-<%= sensor.tapId %>-heading">
+            <header class="header-row simulator-sensor__header">
+              <div>
+                <p class="eyebrow">Tap <%= sensor.tapNumber %></p>
+                <h3 id="sensor-<%= sensor.tapId %>-heading" data-sensor-label><%= sensor.label %></h3>
+              </div>
+              <span class="simulator-sensor__status" data-sensor-status><span class="simulator-sensor__dot"
+                aria-hidden="true"></span><span data-sensor-status-label><%= sensor.statusLabel %></span></span></header>
+            <dl class="simulator-sensor__readings">
+              <div>
+                <dt>Remaining</dt>
+                <dd data-sensor-volume><%= (sensor.remainingMl / 1000).toFixed(2) %> L</dd>
+              </div>
+              <div>
+                <dt>Temperature</dt>
+                <dd data-sensor-temperature><%= sensor.temperatureC.toFixed(1) %> °C</dd>
+              </div>
+            </dl>
             <p class="error simulator-sensor__error" data-sensor-error<% if (!sensor.error) { %> hidden<% } %>><%= sensor.error || '' %></p>
             <div class="simulator-pour-presets" role="group" aria-label="Quick pours for tap <%= sensor.tapNumber %>">
-              <% for (const ounces of [4, 12, 16]) { %><form action="/admin/simulation/pour" method="post" data-simulation-action data-pour-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><button class="button button--secondary" type="submit" name="ounces" value="<%= ounces %>" data-pour-button<% if (blocked) { %> disabled<% } %> aria-label="Pour <%= ounces %> US fl oz from tap <%= sensor.tapNumber %>"><%= ounces %> oz</button></form><% } %>
+              <% for (const ounces of [4, 12, 16]) { %>
+                <form action="/admin/simulation/pour" method="post" data-simulation-action
+                  data-pour-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>"
+                  /><input type="hidden" name="tapId" value="<%= sensor.tapId %>"
+                  /><button class="button button--secondary" type="submit" name="ounces" value="<%= ounces %>"
+                  data-pour-button<% if (sensor.pourBlocked) { %> disabled<% } %>
+                  aria-label="Pour <%= ounces %> US fl oz from tap <%= sensor.tapNumber %>"><%= ounces %>
+                  oz</button></form>
+              <% } %>
             </div>
             <form action="/admin/simulation/pour" method="post" class="form simulator-custom-pour" data-simulation-action data-pour-form>
               <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" />
-              <label class="field" for="sensor-<%= sensor.tapId %>-ounces">Custom pour <span class="sr-only">for tap <%= sensor.tapNumber %></span><span class="simulator-custom-pour__input"><input id="sensor-<%= sensor.tapId %>-ounces" name="ounces" type="number" min="1" max="32" step="0.01" value="8" inputmode="decimal" required /><span>oz</span></span></label>
-              <button class="button button--primary" type="submit" data-pour-button<% if (blocked) { %> disabled<% } %>>Pour</button>
+              <label class="field"
+                for="sensor-<%= sensor.tapId %>-ounces">Custom pour <span class="sr-only">for tap
+                <%= sensor.tapNumber %></span><span class="simulator-custom-pour__input"><input
+                id="sensor-<%= sensor.tapId %>-ounces" name="ounces" type="number" min="1" max="32" step="0.01"
+                value="8" inputmode="decimal" required /><span>oz</span></span></label>
+              <button class="button button--primary" type="submit" data-pour-button<% if (sensor.pourBlocked) { %> disabled<% } %>>Pour</button>
             </form>
             <div class="simulator-sensor__controls">
-              <form action="/admin/simulation/sensor" method="post" data-simulation-action data-online-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="online" value="<%= !sensor.online %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= sensor.online %>" data-online-button<% if (simulation.changing) { %> disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Online<span class="sr-only"> for tap <%= sensor.tapNumber %></span></button></form>
-              <form action="/admin/simulation/noise" method="post" data-simulation-action data-noise-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="enabled" value="<%= !sensor.noiseEnabled %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= sensor.noiseEnabled %>" data-noise-button<% if (simulation.changing) { %> disabled<% } %>><span class="switch__control" aria-hidden="true"></span>Noise<span class="sr-only"> for tap <%= sensor.tapNumber %></span></button></form>
+              <form action="/admin/simulation/sensor" method="post" data-simulation-action
+                data-online-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>"
+                /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="online"
+                value="<%= !sensor.online %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= sensor.online %>"
+                data-online-button<% if (simulation.changing) { %>
+                disabled<% } %>><span class="switch__control"
+                aria-hidden="true"></span>Online<span class="sr-only"> for tap
+                <%= sensor.tapNumber %></span></button></form>
+              <form action="/admin/simulation/noise" method="post" data-simulation-action
+                data-noise-form><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>"
+                /><input type="hidden" name="tapId" value="<%= sensor.tapId %>" /><input type="hidden" name="enabled"
+                value="<%= !sensor.noiseEnabled %>" /><button type="submit" class="switch" role="switch"
+                aria-checked="<%= sensor.noiseEnabled %>" data-noise-button<% if (simulation.changing) { %>
+                disabled<% } %>><span class="switch__control"
+                aria-hidden="true"></span>Noise<span class="sr-only"> for tap
+                <%= sensor.tapNumber %></span></button></form>
             </div>
           </article>
         <% } %>

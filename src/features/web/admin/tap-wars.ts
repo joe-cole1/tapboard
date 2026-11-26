@@ -53,6 +53,7 @@ export function registerTapWarsPages(dependencies: RegisterTapWarsPagesDependenc
         tapWars: {
           ...data,
           matchup: { side1, side2, duplicate: side1 !== "" && side1 === side2, banner },
+          guestBanner: data.current === null ? (banner ?? data.publicVisible) : data.publicVisible,
         },
         // The "What guests see" preview renders the public banner partial.
         includeDashboardStyles: true,
@@ -265,6 +266,9 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
   const totalVotes = firstVotes + secondVotes;
   const leaderSide =
     firstVotes === secondVotes ? null : firstVotes > secondVotes ? (1 as const) : (2 as const);
+  const isTie =
+    war.status === "completed" ? war.result === "tie" : totalVotes > 0 && leaderSide === null;
+  const shownLeader = war.status === "completed" ? null : leaderSide;
   return {
     id: war.id,
     status: war.status,
@@ -285,9 +289,20 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
     },
     completed: { datetime: war.completedAt ?? "", label: war.completedAt || "Unknown" },
     totalVotes,
-    leaderSide: war.status === "completed" ? null : leaderSide,
-    isTie:
-      war.status === "completed" ? war.result === "tie" : totalVotes > 0 && leaderSide === null,
+    voteWord: totalVotes === 1 ? "vote" : "votes",
+    resultLabel:
+      war.result === "tie"
+        ? "Tie"
+        : war.result === "side1" || war.result === "side2"
+          ? `${war.competitors[war.result === "side1" ? 0 : 1].adminBeverageTitle} wins`
+          : "Result pending",
+    leaderLabel: isTie
+      ? "Tied"
+      : shownLeader !== null
+        ? `Side ${shownLeader} leads`
+        : "No leader yet",
+    leaderSide: shownLeader,
+    isTie,
     completionPublicTitleSide1: war.completionPublicTitleSide1,
     completionPublicTitleSide2: war.completionPublicTitleSide2,
     competitors: war.competitors.map((competitor) => ({
@@ -306,14 +321,34 @@ export function adminTapWarView(war: TapWar | undefined): Readonly<Record<string
   };
 }
 
+/** Each side's title on the public Tapboard while this war is the one guests see. */
+function withPublicTitles(
+  war: Readonly<Record<string, unknown>> | null,
+  publicVisible: ReturnType<AdminTapWarsPageDataDependencies["publicTapWarsService"]["getVisible"]>,
+): Readonly<Record<string, unknown>> | null {
+  if (war === null) return null;
+  const visible = publicVisible !== null && publicVisible.id === war.id ? publicVisible : null;
+  return {
+    ...war,
+    competitors: (war.competitors as readonly { readonly side: 1 | 2 }[]).map((side) => ({
+      ...side,
+      publicTitle: (side.side === 1 ? visible?.side1 : visible?.side2)?.title || "Mystery Tap",
+    })),
+  };
+}
+
 export function adminTapWarsPageData(
   dependencies: AdminTapWarsPageDataDependencies,
 ): Readonly<Record<string, unknown>> {
   const rawCurrent = dependencies.tapWarsService.getCurrentUnfinished();
+  const publicVisible = dependencies.publicTapWarsService.getVisible();
   return {
-    current: adminTapWarView(rawCurrent),
-    published: adminTapWarView(dependencies.tapWarsService.getPublishedResult()),
-    publicVisible: dependencies.publicTapWarsService.getVisible(),
+    current: withPublicTitles(adminTapWarView(rawCurrent), publicVisible),
+    published: withPublicTitles(
+      adminTapWarView(dependencies.tapWarsService.getPublishedResult()),
+      publicVisible,
+    ),
+    publicVisible,
     history: dependencies.tapWarsService
       .listCompletedHistory()
       .map((completed) => adminTapWarView(completed)!),
