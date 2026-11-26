@@ -33,8 +33,15 @@ class CapturedResponse extends EventEmitter {
   destroy(): void {}
 }
 
-/** A real application on `database`, signed in, with GET and form-POST helpers. */
-export async function adminApp(context: TestContext, database: DatabaseConnection) {
+/**
+ * A real application on `database`, signed in, with GET and form-POST helpers. Pass a
+ * `secretKey` for pages that store credentials (outbound destinations).
+ */
+export async function adminApp(
+  context: TestContext,
+  database: DatabaseConnection,
+  options: { readonly secretKey?: string } = {},
+) {
   const auth = createAuthService(database, { canonicalOrigin: ORIGIN });
   await auth.setPin("1234");
   const login = await auth.authenticate("1234");
@@ -48,6 +55,7 @@ export async function adminApp(context: TestContext, database: DatabaseConnectio
       databasePath: ":memory:",
       shutdownGraceMs: 100,
       canonicalExternalOrigin: ORIGIN,
+      ...(options.secretKey === undefined ? {} : { secretKey: options.secretKey }),
     },
     logger: createLogger({ sink: () => undefined }),
     openDatabase: () => database,

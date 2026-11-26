@@ -1,0 +1,1 @@
+<label class="field">Payload format <select name="payloadFormat"><option value="standard"<% if (it.payloadFormat !== "discord") { %> selected<% } %>>Standard Tapboard JSON</option><option value="discord"<% if (it.payloadFormat === "discord") { %> selected<% } %>>Discord webhook JSON</option></select></label>

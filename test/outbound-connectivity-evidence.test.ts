@@ -29,16 +29,15 @@ function setup(transport: "webhook" | "home_assistant" = "webhook") {
     now: currentTime,
     idFactory: () => `22222222-2222-4222-8222-${(++sequence).toString(16).padStart(12, "0")}`,
   });
-  service.createConfigured({
+  service.create({
     id: DESTINATION,
     label: "Required connection",
     required: true,
     transport,
     ...(transport === "webhook"
       ? { webhookUrl: "https://example.test/original" }
-      : { baseUrl: "http://ha.example.test", secret: "original-token" }),
-    secretHeaders: [{ name: "Authorization", slot: "auth_header" }],
-    headerSecrets: [{ name: "Authorization", value: "Bearer original" }],
+      : { baseUrl: "http://ha.example.test", token: "original-token" }),
+    secretHeaders: [{ name: "Authorization", slot: "auth_header", value: "Bearer original" }],
     subscriptions: ["pour.completed"],
   });
   let eventSequence = 0;
@@ -101,7 +100,7 @@ void test("endpoint edits invalidate confirmed health; historical delivery canno
     const historical = admit();
     const historyBeforeEdit = service.listDeliveries(DESTINATION);
     const oldVersion = service.get(DESTINATION)!.currentVersion!.id;
-    service.edit(DESTINATION, { webhookUrl: "https://example.test/replacement" });
+    service.changeEndpoint(DESTINATION, { url: "https://example.test/replacement" });
     assertPending();
     assert.deepEqual(service.listDeliveries(DESTINATION), historyBeforeEdit);
 
@@ -144,9 +143,12 @@ for (const change of ["endpoint", "static_header", "header_secret", "ha_token"] 
       const polling = outboundWorker.pollOnce();
       assert.equal(sends, 1);
       if (change === "endpoint") {
-        service.edit(DESTINATION, { webhookUrl: "https://example.test/replacement" });
+        service.changeEndpoint(DESTINATION, { url: "https://example.test/replacement" });
       } else if (change === "static_header") {
-        service.edit(DESTINATION, { staticHeaders: [{ name: "X-Route", value: "replacement" }] });
+        service.replaceHeaders(DESTINATION, {
+          staticHeaders: [{ name: "X-Route", value: "replacement" }],
+          secretHeaders: [{ name: "Authorization", slot: "auth_header" }],
+        });
       } else if (change === "header_secret") {
         service.setHeaderSecret(DESTINATION, "auth_header", "Bearer replacement");
       } else {
@@ -174,16 +176,19 @@ void test("label, Required, subscription, and unchanged config edits preserve co
   try {
     service.recordSuccess(DESTINATION);
     const original = service.get(DESTINATION)!;
-    service.edit(DESTINATION, { label: "Renamed connection" });
+    service.updateSettings(DESTINATION, { label: "Renamed connection" });
     service.setRequired(DESTINATION, false);
     service.setRequired(DESTINATION, true);
-    service.edit(DESTINATION, { subscriptions: ["pour.completed", "fill.assigned"] });
-    service.updateConfigured(DESTINATION, {
-      enabled: true,
+    service.updateSettings(DESTINATION, { subscriptions: ["pour.completed", "fill.assigned"] });
+    // Every form saved again with the values it already holds.
+    service.updateSettings(DESTINATION, {
       label: "Full submission",
-      transport: "webhook",
-      webhookUrl: "https://example.test/original",
+      subscriptions: ["pour.completed", "fill.assigned"],
       payloadFormat: "standard",
+      allowPrivateNetwork: false,
+    });
+    service.changeEndpoint(DESTINATION, { url: "https://example.test/original" });
+    service.replaceHeaders(DESTINATION, {
       staticHeaders: [],
       secretHeaders: [{ name: "Authorization", slot: "auth_header" }],
     });
@@ -225,7 +230,7 @@ void test("failed atomic edit restores old configuration and successful evidence
       BEFORE INSERT ON activity_log WHEN NEW.action = 'configuration_changed'
       BEGIN SELECT RAISE(ABORT, 'fixture rollback'); END;`);
     assert.throws(
-      () => service.edit(DESTINATION, { webhookUrl: "https://example.test/replacement" }),
+      () => service.changeEndpoint(DESTINATION, { url: "https://example.test/replacement" }),
       /fixture rollback/u,
     );
     const restored = service.get(DESTINATION)!;
@@ -256,7 +261,7 @@ void test("persistent HA evidence requires the current credential generation and
     };
     evidence(originalGeneration, { outcome: "success" });
     assert.equal(requiredDestinationConnectivity(service.get(DESTINATION)!), "healthy");
-    service.edit(DESTINATION, { label: "Renamed HA" });
+    service.updateSettings(DESTINATION, { label: "Renamed HA" });
     service.setRequired(DESTINATION, false);
     service.setRequired(DESTINATION, true);
     assert.equal(readDestinationCredentialRevision(database, DESTINATION), originalGeneration);
@@ -329,7 +334,7 @@ void test("a historical endpoint failure leaves current successful evidence inta
   const { database, service, admit, worker, setNow } = setup();
   try {
     admit();
-    service.edit(DESTINATION, { webhookUrl: "https://example.test/replacement" });
+    service.changeEndpoint(DESTINATION, { url: "https://example.test/replacement" });
     setNow(LATER);
     service.recordSuccess(DESTINATION);
     await worker({

@@ -354,11 +354,19 @@ test("targeted updates preserve the graphic node and On Deck updates do not rebu
     request.url().endsWith("/api/public/dashboard/header"),
   );
   await admin.goto("/admin/integrations/brewfather");
-  await admin.getByText("Connection settings", { exact: true }).click();
-  await admin.getByLabel("User ID").fill("PRIVATE_UPDATED_USER");
-  await admin.getByLabel("Enabled").selectOption("false");
-  await admin.getByRole("button", { name: "Save Brewfather configuration" }).click();
+  // The sync switch saves live; the public header still refreshes in place. The fixture
+  // account starts with sync off, so turn it on and back off, leaving it as it was.
+  const sync = admin.getByRole("switch", { name: "Sync from Brewfather" });
+  const syncStatus = admin
+    .locator('form[action="/admin/integrations/brewfather/enabled"]')
+    .locator("[data-autosave-status]");
+  await expect(sync).toHaveAttribute("aria-checked", "false");
+  await sync.click();
+  await expect(sync).toHaveAttribute("aria-checked", "true");
   await headerRefresh;
+  await sync.click();
+  await expect(sync).toHaveAttribute("aria-checked", "false");
+  await expect(syncStatus).toHaveAttribute("data-autosave-state", "saved");
   expect(
     await publicPage.evaluate(
       () =>

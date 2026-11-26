@@ -168,8 +168,30 @@ function emitValuesApplied(form, fields) {
   );
 }
 
+/**
+ * Elsewhere on the page, show what a save changed: `data-autosave-text="field"` takes the
+ * saved text (an empty value hides it) and `data-autosave-badge="field"` the badge variant.
+ */
+function showSavedValues(resource) {
+  if (!resource || typeof resource !== "object" || typeof document === "undefined") return;
+  if (typeof document.querySelectorAll !== "function") return;
+  for (const element of document.querySelectorAll("[data-autosave-text]")) {
+    const value = resource[element.dataset.autosaveText];
+    if (typeof value !== "string" && typeof value !== "number") continue;
+    element.textContent = String(value);
+    element.hidden = String(value) === "";
+  }
+  for (const element of document.querySelectorAll("[data-autosave-badge]")) {
+    const value = resource[element.dataset.autosaveBadge];
+    if (typeof value === "string" && /^[a-z]+$/u.test(value)) {
+      element.className = `badge badge--${value}`;
+    }
+  }
+}
+
 /** Tell the page a save landed, with the server's resource (a page may redraw a preview). */
 function emitSaved(form, resource) {
+  showSavedValues(resource);
   if (typeof form.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
   form.dispatchEvent(
     new CustomEvent("tapboard:autosave-saved", {

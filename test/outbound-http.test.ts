@@ -72,7 +72,9 @@ function buildDependencies(): {
   readonly logs: unknown[];
   readonly calls: {
     readonly creates: LooseRecord[];
-    readonly edits: LooseRecord[];
+    readonly settings: LooseRecord[];
+    readonly endpoints: LooseRecord[];
+    readonly headers: LooseRecord[];
     readonly tokens: string[];
     readonly headerSecrets: string[];
     readonly enabled: boolean[];
@@ -87,7 +89,9 @@ function buildDependencies(): {
   let current = destination();
   const calls = {
     creates: [] as LooseRecord[],
-    edits: [] as LooseRecord[],
+    settings: [] as LooseRecord[],
+    endpoints: [] as LooseRecord[],
+    headers: [] as LooseRecord[],
     tokens: [] as string[],
     headerSecrets: [] as string[],
     enabled: [] as boolean[],
@@ -98,6 +102,13 @@ function buildDependencies(): {
   };
   const database = {
     prepare: () => ({ run: () => ({ changes: 1 }) }),
+  };
+  const recordHeaderValues = (rows: unknown): void => {
+    if (!Array.isArray(rows)) return;
+    for (const item of rows) {
+      const value = typeof item === "object" && item !== null ? (item as LooseRecord).value : null;
+      if (typeof value === "string") calls.headerSecrets.push(value);
+    }
   };
   const outboundService = {
     get: (id: string) => (id === DESTINATION_ID ? current : undefined),
@@ -122,45 +133,34 @@ function buildDependencies(): {
       },
     ],
     database,
-    createConfigured: (input: unknown) => {
+    create: (input: unknown) => {
       const record = input as LooseRecord;
       calls.creates.push(record);
-      if (typeof input === "object" && input !== null && "secret" in input) {
-        const secret = record.secret;
-        if (typeof secret === "string") calls.tokens.push(secret);
-      }
-      const headerSecrets = record.headerSecrets;
-      if (Array.isArray(headerSecrets)) {
-        for (const item of headerSecrets) {
-          if (typeof item === "object" && item !== null) {
-            const value = (item as LooseRecord).value;
-            if (typeof value === "string") calls.headerSecrets.push(value);
-          }
-        }
-      }
+      if (typeof record.token === "string") calls.tokens.push(record.token);
+      recordHeaderValues(record.secretHeaders);
       current = { ...current, enabled: record.enabled === true };
       return current;
     },
-    updateConfigured: (_id: string, input: unknown) => {
+    updateSettings: (_id: string, input: unknown) => {
       const record = input as LooseRecord;
-      calls.edits.push(record);
-      if (typeof record.token === "string") calls.tokens.push(record.token);
-      if (Array.isArray(record.headerSecrets)) {
-        for (const item of record.headerSecrets) {
-          if (typeof item === "object" && item !== null) {
-            const value = (item as LooseRecord).value;
-            if (typeof value === "string") calls.headerSecrets.push(value);
-          }
-        }
-      }
-      calls.enabled.push(record.enabled === true);
+      calls.settings.push(record);
       current = {
         ...current,
         label: record.label ?? current.label,
-        required: record.required ?? current.required,
         subscriptions: record.subscriptions ?? current.subscriptions,
-        enabled: record.enabled === true,
       };
+      return current;
+    },
+    changeEndpoint: (_id: string, input: unknown) => {
+      const record = input as LooseRecord;
+      calls.endpoints.push(record);
+      if (typeof record.token === "string") calls.tokens.push(record.token);
+      return current;
+    },
+    replaceHeaders: (_id: string, input: unknown) => {
+      const record = input as LooseRecord;
+      calls.headers.push(record);
+      recordHeaderValues(record.secretHeaders);
       return current;
     },
     setToken: (_id: string, value: string) => {
@@ -182,16 +182,6 @@ function buildDependencies(): {
     setEnabled: (_id: string, enabled: boolean) => {
       calls.enabled.push(enabled);
       current = { ...current, enabled };
-      return current;
-    },
-    enable: (_id: string) => {
-      calls.enabled.push(true);
-      current = { ...current, enabled: true };
-      return current;
-    },
-    disable: (_id: string) => {
-      calls.enabled.push(false);
-      current = { ...current, enabled: false };
       return current;
     },
     setRequired: (_id: string, required: boolean) => {
@@ -384,44 +374,68 @@ void test("outbound Admin HTTP surface protects mutations and redacts endpoints/
   assert.doesNotMatch(detailHtml, new RegExp(TOKEN_SENTINEL, "u"));
   assert.doesNotMatch(detailHtml, new RegExp(HEADER_SENTINEL, "u"));
 
-  const edit = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/edit`, {
+  const settings = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/settings`, {
     method: "POST",
     body: form({
-      transport: "home_assistant",
       label: "Edited destination",
-      required: "on",
-      enabled: "on",
       subscription_fill_assigned: "on",
       subscription_pour_completed: "on",
+      // Fields of the other forms are ignored here.
+      token: TOKEN_SENTINEL,
+      baseUrl: "http://elsewhere.test",
+    }),
+    origin: ORIGIN,
+  });
+  assert.equal(settings.status, 303);
+  assert.deepEqual(calls.settings.at(-1), {
+    label: "Edited destination",
+    subscriptions: ["fill.assigned", "pour.completed"],
+  });
+  assert.equal(calls.endpoints.length, 0);
+
+  const endpoint = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/endpoint`, {
+    method: "POST",
+    body: form({ url: ENDPOINT_SENTINEL, token: TOKEN_SENTINEL }),
+    origin: ORIGIN,
+  });
+  assert.equal(endpoint.status, 303);
+  assert.doesNotMatch(endpoint.headers.get("location") ?? "", /sentinel/iu);
+  assert.deepEqual(calls.endpoints.at(-1), { url: ENDPOINT_SENTINEL, token: TOKEN_SENTINEL });
+
+  const headers = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/headers`, {
+    method: "POST",
+    body: form({
       static_header_0_name: "X-Source",
       static_header_0_value: "",
       secret_header_0_name: "X-Secret",
       secret_header_0_slot: "x-secret",
       secret_header_0_value: HEADER_SENTINEL,
-      token: TOKEN_SENTINEL,
+      secret_header_1_name: "X-Kept",
+      secret_header_1_slot: "x-kept",
     }),
     origin: ORIGIN,
   });
-  assert.equal(edit.status, 303);
-  assert.equal(calls.edits.length, 1);
-  assert.equal(calls.edits[0]?.["required"], true);
-  assert.deepEqual(calls.edits[0]?.["subscriptions"], ["fill.assigned", "pour.completed"]);
-  assert.deepEqual(calls.tokens.at(-1), TOKEN_SENTINEL);
-  assert.deepEqual(calls.enabled.at(-1), true);
+  assert.equal(headers.status, 303);
+  assert.deepEqual(calls.headers.at(-1)?.["secretHeaders"], [
+    { name: "X-Secret", slot: "x-secret", value: HEADER_SENTINEL },
+    { name: "X-Kept", slot: "x-kept" },
+  ]);
+  assert.equal(calls.headerSecrets.at(-1), HEADER_SENTINEL);
 
-  const forbidden = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/disable`, {
+  const forbidden = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/enabled`, {
     method: "POST",
-    body: form(),
+    body: form({ enabled: "false" }),
   });
   assert.equal(forbidden.status, 303);
   assert.match(forbidden.headers.get("location") ?? "", /error=/u);
-  assert.equal(calls.enabled.at(-1), true);
+  assert.equal(calls.enabled.length, 0);
 
-  for (const [path, expected] of [
-    [`/admin/integrations/outbound/${DESTINATION_ID}/disable`, false],
-    [`/admin/integrations/outbound/${DESTINATION_ID}/enable`, true],
-  ] as const) {
-    const response = await request(base, path, { method: "POST", body: form(), origin: ORIGIN });
+  for (const expected of [false, true]) {
+    const response = await request(base, `/admin/integrations/outbound/${DESTINATION_ID}/enabled`, {
+      method: "POST",
+      body: form({ enabled: String(expected) }),
+      origin: ORIGIN,
+    });
     assert.equal(response.status, 303);
     assert.equal(calls.enabled.at(-1), expected);
   }
@@ -458,9 +472,10 @@ void test("outbound Admin HTTP surface protects mutations and redacts endpoints/
   const retiredHtml = await retiredDetail.text();
   assert.match(retiredHtml, /permanent read-only history/u);
   for (const mutation of [
-    "/edit",
-    "/enable",
-    "/disable",
+    "/settings",
+    "/endpoint",
+    "/headers",
+    "/enabled",
     "/required",
     "/token",
     "/header-secret",
@@ -470,7 +485,7 @@ void test("outbound Admin HTTP surface protects mutations and redacts endpoints/
   ]) {
     assert.equal(retiredHtml.includes(`${DESTINATION_ID}${mutation}`), false, mutation);
   }
-  assert.doesNotMatch(retiredHtml, /Save outbound destination|Replacement token/u);
+  assert.doesNotMatch(retiredHtml, /Save settings|Save headers|Replacement token/u);
 
   const webhookCreate = await request(base, "/admin/integrations/outbound/create", {
     method: "POST",

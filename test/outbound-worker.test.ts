@@ -325,7 +325,7 @@ void test("transport status evidence is discarded after destination configuratio
     });
     const pending = worker.pollOnce();
     await sendStarted;
-    service.edit(DESTINATION, { label: "Edited while sending" });
+    service.updateSettings(DESTINATION, { label: "Edited while sending" });
     resolveSend!({ outcome: "success" });
     await pending;
     assert.equal(delivery(database).state, "succeeded");
@@ -409,12 +409,12 @@ void test("enabled HA creation connects after commit while the worker is running
     worker.start();
     await Promise.resolve();
     assert.equal(authenticated, 0);
-    service.createConfigured({
+    service.create({
       id: DESTINATION,
       label: "Runtime HA",
       transport: "home_assistant",
       baseUrl: "http://192.168.1.35:8123",
-      secret: "runtime-token",
+      token: "runtime-token",
     });
     await Promise.resolve();
     assert.equal(authenticated, 1);
@@ -441,7 +441,7 @@ void test("persistent HA connection evidence drives sustained Required degradati
       label: "Required HA",
       transport: "home_assistant",
       baseUrl: "http://192.168.1.35:8123",
-      secret: "required-token",
+      token: "required-token",
       required: true,
     });
     const worker = createOutboundWorker({
@@ -606,13 +606,11 @@ void test("same-origin historical delivery keeps v1 endpoint while logical heade
     });
     const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
     service.setHeaderSecret(DESTINATION, slot, "Bearer old");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event("33333333-3333-4333-8333-333333333336"));
 
-    const v2 = service.edit(DESTINATION, {
-      webhookUrl: "https://old.example.test/v2-hook",
-      subscriptions: ["fill.assigned"],
-    });
+    service.changeEndpoint(DESTINATION, { url: "https://old.example.test/v2-hook" });
+    const v2 = service.updateSettings(DESTINATION, { subscriptions: ["fill.assigned"] });
     service.setHeaderSecret(DESTINATION, slot, "Bearer rotated");
     assert.notEqual(v2.currentVersion!.id, v1.currentVersion!.id);
     assert.throws(() =>
@@ -693,17 +691,17 @@ void test("moving a destination to another origin never sends its secrets to the
     });
     const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
     service.setHeaderSecret(DESTINATION, slot, "Bearer old");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event("33333333-3333-4333-8333-333333333346"));
 
-    const moved = service.edit(DESTINATION, { webhookUrl: "https://new.example.test/hook" });
+    const moved = service.changeEndpoint(DESTINATION, { url: "https://new.example.test/hook" });
     assert.equal(moved.enabled, false);
     assert.equal(moved.disabledReason, "secret_missing");
     assert.throws(() => secrets.revealPrivileged("outbound", DESTINATION, slot));
     assert.equal(delivery(database, "33333333-3333-4333-8333-333333333346").state, "dismissed");
 
     service.setHeaderSecret(DESTINATION, slot, "Bearer new");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event("33333333-3333-4333-8333-333333333347"));
     const worker = createOutboundWorker({
       database,
@@ -793,13 +791,13 @@ void test("send-time guard: a revived Home Assistant delivery never takes the ne
       label: "Moved HA",
       transport: "home_assistant",
       baseUrl: "http://192.168.1.35:8123",
-      secret: "token-a",
+      token: "token-a",
     });
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event(eventId));
-    service.edit(DESTINATION, { baseUrl: "http://192.168.1.99:8123" });
+    service.changeEndpoint(DESTINATION, { url: "http://192.168.1.99:8123" });
     service.setToken(DESTINATION, "token-b");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     reviveDelivery(database, eventId);
 
     for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
@@ -831,11 +829,11 @@ void test("send-time guard: a revived webhook delivery never takes the new secre
     });
     const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
     service.setHeaderSecret(DESTINATION, slot, "Bearer old");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event(eventId));
-    service.edit(DESTINATION, { webhookUrl: "https://new.example.test/hook" });
+    service.changeEndpoint(DESTINATION, { url: "https://new.example.test/hook" });
     service.setHeaderSecret(DESTINATION, slot, "Bearer new");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     reviveDelivery(database, eventId);
 
     for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
@@ -870,9 +868,9 @@ for (const unreadable of ["pinned", "current"] as const) {
       });
       const slot = v1.currentVersion!.config.secretHeaders[0]!.slot;
       service.setHeaderSecret(DESTINATION, slot, "Bearer kept");
-      service.enable(DESTINATION);
+      service.setEnabled(DESTINATION, true);
       service.admit(database, event(eventId));
-      const v2 = service.edit(DESTINATION, { webhookUrl: "https://hooks.example.test/two" });
+      const v2 = service.changeEndpoint(DESTINATION, { url: "https://hooks.example.test/two" });
       assert.equal(v2.enabled, true, "a same-origin edit keeps the destination enabled");
       const version = unreadable === "pinned" ? v1 : v2;
       secrets.remove("outbound", version.currentVersion!.id, "endpoint");
@@ -903,7 +901,7 @@ void test("private-network opt-in needs both the claimed and the current webhook
       webhookUrl: "http://n8n.lan:5678/webhook/tapboard",
       allowPrivateNetwork: true,
     });
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.admit(database, event(optedIn));
     for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();
     assert.equal(
@@ -912,7 +910,7 @@ void test("private-network opt-in needs both the claimed and the current webhook
     );
 
     reviveDelivery(database, optedIn);
-    service.edit(DESTINATION, { allowPrivateNetwork: false });
+    service.updateSettings(DESTINATION, { allowPrivateNetwork: false });
     service.admit(database, event(optedOut));
     sent.length = 0;
     for (let poll = 0; poll < 3; poll += 1) await worker.pollOnce();

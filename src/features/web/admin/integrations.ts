@@ -11,13 +11,22 @@ import {
 } from "../../outbound/outbound-validation.ts";
 import type {
   CreateOutboundDestinationInput,
-  EditOutboundDestinationInput,
   OutboundDeliveryHistoryItem,
   OutboundDestination,
   OutboundHeader,
+  OutboundHeadersInput,
+  OutboundSecretHeaderInput,
+  OutboundSettingsInput,
+  OutboundTransport,
 } from "../../outbound/types.ts";
+import type { BrewfatherStatus } from "../../beverages/service.ts";
 import type { TelemetryService } from "../../telemetry/service.ts";
-import { registerAdminGet, registerAdminAction } from "./http.ts";
+import {
+  autosaveFieldStrings,
+  registerAdminAction,
+  registerAdminGet,
+  validationFieldsFor,
+} from "./http.ts";
 import { adminBreadcrumbs, adminNavItems, adminTabs, renderAdmin } from "./layout.ts";
 import { requestUrl, actor, adminContext, messageLocation, type AdminContext } from "./context.ts";
 import { adminTimestampLabel } from "./presentation.ts";
@@ -146,6 +155,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           destination: outboundDestinationPresentation(destination),
           history,
           eventFields: OUTBOUND_EVENT_FIELDS,
+          settingsFields: OUTBOUND_SETTINGS_FIELDS.join(","),
           maxHeaderRows: OUTBOUND_MAX_HEADER_ROWS,
         },
       );
@@ -167,6 +177,8 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         brewfather: {
           configured: brewfather.configured,
           enabled: brewfather.account?.enabled ?? false,
+          updatedAt: brewfather.account?.updatedAt ?? "",
+          badge: brewfatherConnectionBadge(brewfather),
           apiKeyConfigured: brewfather.apiKeyConfigured,
           linkedBeverages: brewfather.totalLinkedBeverages,
           candidates: brewfather.totalCandidates,
@@ -317,80 +329,149 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
 export function registerOutboundMutations(
   dependencies: RegisterOutboundMutationsDependencies,
 ): void {
+  const destinationFor = (params: Readonly<Record<string, string>>): OutboundDestination =>
+    outboundDestinationOrNotFound(requireOutboundService(dependencies), params.id ?? "");
+
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/create",
     "/admin/integrations/outbound",
     (form) => {
-      const service = requireOutboundService(dependencies);
-      const parsed = parseOutboundForm(form, "create");
-      service.createConfigured({
-        ...outboundCreateInput(parsed),
-        headerSecrets: parsed.secretValues,
-      });
+      requireOutboundService(dependencies).create(outboundCreateFromForm(form));
     },
     "Outbound destination created.",
     { maxBytes: 16_384, maxFields: 100 },
   );
 
+  const saveSettings = (
+    form: Readonly<Record<string, string>>,
+    params: Readonly<Record<string, string>>,
+  ): OutboundDestination => {
+    const destination = destinationFor(params);
+    return requireOutboundService(dependencies).updateSettings(
+      destination.id,
+      outboundSettingsFromForm(form, destination.transport),
+    );
+  };
   registerAdminAction(
     dependencies,
-    "/admin/integrations/outbound/:id/edit",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    "/admin/integrations/outbound/:id/settings",
+    outboundDestinationPath,
     (form, _context, params) => {
-      const service = requireOutboundService(dependencies);
-      const destination = outboundDestinationOrNotFound(service, params.id ?? "");
-      const parsed = parseOutboundForm(form, "edit");
-      service.updateConfigured(destination.id, {
-        ...outboundEditInput(parsed, destination, form),
-        enabled: parsed.enabled,
-        headerSecrets: parsed.secretValues,
-        ...(parsed.token === undefined || parsed.transport !== "home_assistant"
-          ? {}
-          : { token: parsed.token }),
+      saveSettings(form, params);
+    },
+    "Outbound settings saved.",
+    {},
+    {
+      // The service checks no revision, so this answers with the destination's current one.
+      handle: (body, _context, params) => {
+        const saved = saveSettings(autosaveFieldStrings(body, OUTBOUND_SETTINGS_FIELDS), params);
+        return { resource: outboundSettingsResource(saved), revision: saved.updatedAt };
+      },
+      current: (params) => {
+        const destination = destinationFor(params);
+        return { current: outboundSettingsResource(destination), revision: destination.updatedAt };
+      },
+      validationFields: validationFieldsFor(OUTBOUND_SETTINGS_FIELDS),
+    },
+  );
+
+  registerAdminAction(
+    dependencies,
+    "/admin/integrations/outbound/:id/endpoint",
+    outboundDestinationPath,
+    (form, _context, params) => {
+      const url = (form.url ?? "").trim();
+      if (url === "") invalidForm("Enter the new address.", "url");
+      requireOutboundService(dependencies).changeEndpoint(params.id ?? "", {
+        url,
+        ...outboundTokenFromForm(form),
       });
     },
-    "Outbound destination updated.",
+    "Endpoint changed.",
+    { maxBytes: 16_384, maxFields: 20 },
+  );
+
+  registerAdminAction(
+    dependencies,
+    "/admin/integrations/outbound/:id/headers",
+    outboundDestinationPath,
+    (form, _context, params) => {
+      const destination = destinationFor(params);
+      requireOutboundService(dependencies).replaceHeaders(
+        destination.id,
+        outboundHeadersFromForm(form, destination),
+      );
+    },
+    "Headers saved.",
     { maxBytes: 16_384, maxFields: 100 },
   );
 
+  // One-click switches: each posts the value it changes to.
+  const saveEnabled = (
+    form: Readonly<Record<string, string>>,
+    params: Readonly<Record<string, string>>,
+  ): OutboundDestination =>
+    requireOutboundService(dependencies).setEnabled(
+      params.id ?? "",
+      switchValue(form, "enabled", "delivery"),
+    );
   registerAdminAction(
     dependencies,
-    "/admin/integrations/outbound/:id/enable",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
-    (_form, _context, params) => {
-      requireOutboundService(dependencies).enable(params.id ?? "");
+    "/admin/integrations/outbound/:id/enabled",
+    outboundDestinationPath,
+    (form, _context, params) => {
+      saveEnabled(form, params);
     },
-    "Outbound destination enabled.",
+    "Delivery setting updated.",
+    {},
+    {
+      handle: (body, _context, params) => {
+        const saved = saveEnabled(autosaveFieldStrings(body, ["enabled"]), params);
+        return { resource: outboundEnabledResource(saved), revision: saved.updatedAt };
+      },
+      current: (params) => {
+        const destination = destinationFor(params);
+        return { current: outboundEnabledResource(destination), revision: destination.updatedAt };
+      },
+      validationFields: validationFieldsFor(["enabled"]),
+    },
   );
 
-  registerAdminAction(
-    dependencies,
-    "/admin/integrations/outbound/:id/disable",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
-    (_form, _context, params) => {
-      requireOutboundService(dependencies).disable(params.id ?? "");
-    },
-    "Outbound destination disabled.",
-  );
-
+  const saveRequired = (
+    form: Readonly<Record<string, string>>,
+    params: Readonly<Record<string, string>>,
+  ): OutboundDestination =>
+    requireOutboundService(dependencies).setRequired(
+      params.id ?? "",
+      switchValue(form, "required", "Required"),
+    );
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/required",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (form, _context, params) => {
-      requireOutboundService(dependencies).setRequired(
-        params.id ?? "",
-        form.required === "true" || form.required === "on",
-      );
+      saveRequired(form, params);
     },
     "Required-delivery setting updated.",
+    {},
+    {
+      handle: (body, _context, params) => {
+        const saved = saveRequired(autosaveFieldStrings(body, ["required"]), params);
+        return { resource: { required: saved.required }, revision: saved.updatedAt };
+      },
+      current: (params) => {
+        const destination = destinationFor(params);
+        return { current: { required: destination.required }, revision: destination.updatedAt };
+      },
+      validationFields: validationFieldsFor(["required"]),
+    },
   );
 
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/token",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (form, _context, params) => {
       const token = form.token ?? "";
       if (token === "") invalidForm("A replacement Home Assistant token is required.", "token");
@@ -403,7 +484,7 @@ export function registerOutboundMutations(
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/token/remove",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (_form, _context, params) => {
       requireOutboundService(dependencies).removeToken(params.id ?? "");
     },
@@ -413,7 +494,7 @@ export function registerOutboundMutations(
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/header-secret",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (form, _context, params) => {
       const slot = (form.slot ?? "").trim();
       const secret = form.secret ?? "";
@@ -427,7 +508,7 @@ export function registerOutboundMutations(
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/header-secret/remove",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (form, _context, params) => {
       const slot = (form.slot ?? "").trim();
       if (slot === "") invalidForm("A header secret slot is required.");
@@ -449,7 +530,7 @@ export function registerOutboundMutations(
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/deliveries/:deliveryId/retry",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (_form, _context, params) => {
       const service = requireOutboundService(dependencies);
       const destination = outboundDestinationOrNotFound(service, params.id ?? "");
@@ -477,7 +558,7 @@ export function registerOutboundMutations(
   registerAdminAction(
     dependencies,
     "/admin/integrations/outbound/:id/deliveries/:deliveryId/dismiss",
-    (params) => `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`,
+    outboundDestinationPath,
     (_form, _context, params) => {
       const service = requireOutboundService(dependencies);
       const destination = outboundDestinationOrNotFound(service, params.id ?? "");
@@ -506,21 +587,74 @@ export function registerOutboundMutations(
 export function registerIntegrationMutations(
   dependencies: RegisterIntegrationMutationsDependencies,
 ): void {
+  // The User ID and API key identify one account, so they change together; the account keeps
+  // its Enabled setting and discovery statuses.
   registerAdminAction(
     dependencies,
     "/admin/integrations/brewfather",
     "/admin/integrations/brewfather",
     (form, context) => {
+      const account = dependencies.beverageService.getBrewfatherStatus().account;
       dependencies.beverageService.configureBrewfatherAccount(
         {
           userId: form.userId,
           ...(form.apiKey ? { apiKey: form.apiKey } : {}),
-          enabled: form.enabled === "true",
+          ...(account === undefined
+            ? {}
+            : { enabled: account.enabled, discoveryStatuses: account.discoveryStatuses }),
         },
         actor(context),
       );
     },
-    "Brewfather configuration saved. Stored secrets are never displayed.",
+    "Brewfather account saved. Stored secrets are never displayed.",
+  );
+  const saveBrewfatherEnabled = (
+    form: Readonly<Record<string, string>>,
+    context: AdminContext,
+  ): { readonly enabled: boolean; readonly updatedAt: string } => {
+    const account = dependencies.beverageService.getBrewfatherStatus().account;
+    if (account === undefined) invalidForm("Save the Brewfather account first.", "enabled");
+    return dependencies.beverageService.configureBrewfatherAccount(
+      {
+        userId: account.userId,
+        enabled: switchValue(form, "enabled", "Brewfather sync"),
+        discoveryStatuses: account.discoveryStatuses,
+      },
+      actor(context),
+    );
+  };
+  registerAdminAction(
+    dependencies,
+    "/admin/integrations/brewfather/enabled",
+    "/admin/integrations/brewfather",
+    (form, context) => {
+      saveBrewfatherEnabled(form, context);
+    },
+    "Brewfather sync setting updated.",
+    {},
+    {
+      // The account keeps no revision check, so this answers with its current one.
+      handle: (body, context) => {
+        const saved = saveBrewfatherEnabled(autosaveFieldStrings(body, ["enabled"]), context);
+        const badge = brewfatherConnectionBadge(dependencies.beverageService.getBrewfatherStatus());
+        return {
+          resource: {
+            enabled: saved.enabled,
+            statusLabel: badge.label,
+            statusClass: badge.badgeClass,
+          },
+          revision: saved.updatedAt,
+        };
+      },
+      current: () => {
+        const account = dependencies.beverageService.getBrewfatherStatus().account;
+        return {
+          current: { enabled: account?.enabled ?? false },
+          ...(account === undefined ? {} : { revision: account.updatedAt }),
+        };
+      },
+      validationFields: validationFieldsFor(["enabled"]),
+    },
   );
   registerAdminAction(
     dependencies,
@@ -756,25 +890,93 @@ export const OUTBOUND_EVENT_FIELDS = [
 
 export const OUTBOUND_MAX_HEADER_ROWS = 8;
 
-export interface OutboundHeaderSecretValue {
-  readonly name: string;
-  readonly value: string;
+/** The live Settings form on a destination's page. */
+const OUTBOUND_SETTINGS_FIELDS = [
+  "label",
+  ...OUTBOUND_EVENT_FIELDS.map((field) => field.name),
+  "payloadFormat",
+  "allowPrivateNetwork",
+];
+
+/** A one-click switch posts the value it changes to: "true" or "false". */
+function switchValue(
+  form: Readonly<Record<string, string>>,
+  field: string,
+  label: string,
+): boolean {
+  if (form[field] !== "true" && form[field] !== "false") {
+    invalidForm(`Choose On or Off for ${label}.`, field);
+  }
+  return form[field] === "true";
 }
 
-export interface ParsedOutboundForm {
+export function outboundDestinationPath(params: Readonly<Record<string, string>>): string {
+  return `/admin/integrations/outbound/${encodeURIComponent(params.id ?? "")}`;
+}
+
+/** The Settings form's saved values: never an endpoint, header value or token. */
+function outboundSettingsResource(destination: OutboundDestination): Record<string, unknown> {
+  const config = destination.currentVersion?.config;
+  return {
+    label: destination.label,
+    // Shown in the page header and Status card, which a save updates in place.
+    versionNumber: String(destination.currentVersion?.versionNumber ?? "—"),
+    ...Object.fromEntries(
+      OUTBOUND_EVENT_FIELDS.map((field) => [
+        field.name,
+        destination.subscriptions.includes(field.eventType),
+      ]),
+    ),
+    ...(config?.transport === "webhook"
+      ? { payloadFormat: config.payloadFormat, allowPrivateNetwork: config.allowPrivateNetwork }
+      : {}),
+  };
+}
+
+/** The Enabled switch's value, with the Status card's badge and reason that follow it. */
+function outboundEnabledResource(destination: OutboundDestination): Record<string, unknown> {
+  const status = outboundStatusBadge(destination);
+  return {
+    enabled: destination.enabled,
+    statusLabel: status.label,
+    statusClass: status.badgeClass,
+    disabledNote:
+      destination.disabledReason === null || destination.enabled
+        ? ""
+        : `Disabled: ${outboundStateLabel(destination.disabledReason)}`,
+  };
+}
+
+const BREWFATHER_CONNECTION_LABELS: Readonly<Record<string, string>> = {
+  healthy: "Connected",
+  unknown: "Awaiting verification",
+  partial: "Refresh incomplete",
+  disconnected: "Disconnected",
+  disabled: "Disabled",
+};
+
+export function brewfatherConnectionBadge(status: BrewfatherStatus): {
   readonly label: string;
-  readonly transport: "home_assistant" | "webhook";
-  readonly required: boolean;
-  readonly enabled: boolean;
-  readonly subscriptions: readonly EventType[];
-  readonly staticHeaders: readonly OutboundHeader[];
-  readonly secretHeaders: readonly { readonly name: string; readonly slot?: string }[];
-  readonly secretValues: readonly OutboundHeaderSecretValue[];
-  readonly token?: string;
-  readonly baseUrl?: string;
-  readonly webhookUrl?: string;
-  readonly payloadFormat?: "standard" | "discord";
-  readonly allowPrivateNetwork?: boolean;
+  readonly badgeClass: "healthy" | "muted";
+} {
+  const label = !status.configured
+    ? "Not configured"
+    : status.account?.enabled !== true
+      ? "Disabled"
+      : (BREWFATHER_CONNECTION_LABELS[status.connectionState] ?? "Awaiting verification");
+  return { label, badgeClass: label === "Connected" ? "healthy" : "muted" };
+}
+
+export function outboundStatusBadge(destination: OutboundDestination): {
+  readonly label: string;
+  readonly badgeClass: "healthy" | "degraded" | "muted";
+} {
+  if (destination.retiredAt !== null) return { label: "Retired", badgeClass: "muted" };
+  if (!destination.enabled) return { label: "Disabled", badgeClass: "muted" };
+  return {
+    label: outboundStateLabel(destination.state),
+    badgeClass: outboundStateClass(destination.state),
+  };
 }
 
 export function requireOutboundService(
@@ -866,6 +1068,7 @@ export function outboundDestinationPresentation(
   const version = destination.currentVersion;
   return {
     id: destination.id,
+    updatedAt: destination.updatedAt,
     label: destination.label,
     transport: destination.transport,
     transportLabel: destination.transport === "home_assistant" ? "Home Assistant" : "Webhook",
@@ -878,6 +1081,8 @@ export function outboundDestinationPresentation(
     stateClass: outboundStateClass(destination.state),
     disabledReason:
       destination.disabledReason === null ? null : outboundStateLabel(destination.disabledReason),
+    // The badge and reason the Enabled switch updates in place.
+    ...outboundEnabledResource(destination),
     failure:
       destination.failure === null
         ? null
@@ -938,155 +1143,121 @@ export function outboundSubscriptionsFromForm(
   );
 }
 
-export function outboundStaticHeadersFromForm(
+/**
+ * The filled-in static header rows. Values are never shown again, so a blank value keeps the
+ * stored value of the header with that name.
+ */
+function outboundStaticHeadersFromForm(
   form: Readonly<Record<string, string>>,
+  stored: readonly OutboundHeader[] = [],
 ): readonly OutboundHeader[] {
   const rows: OutboundHeader[] = [];
   for (let index = 0; index < OUTBOUND_MAX_HEADER_ROWS; index += 1) {
     const name = (form[`static_header_${index}_name`] ?? "").trim();
     const value = form[`static_header_${index}_value`] ?? "";
     if (name === "" && value.trim() === "") continue;
-    rows.push({ name, value });
+    const kept =
+      value === ""
+        ? stored.find((header) => header.name.toLowerCase() === name.toLowerCase())?.value
+        : undefined;
+    rows.push({ name, value: kept ?? value });
   }
   return rows;
 }
 
-export function outboundSecretHeadersFromForm(form: Readonly<Record<string, string>>): {
-  readonly headers: readonly { readonly name: string; readonly slot?: string }[];
-  readonly values: readonly OutboundHeaderSecretValue[];
-} {
-  const headers: { name: string; slot?: string }[] = [];
-  const values: OutboundHeaderSecretValue[] = [];
+/** The filled-in secret header rows; a blank value keeps the stored one. */
+function outboundSecretHeadersFromForm(
+  form: Readonly<Record<string, string>>,
+): readonly OutboundSecretHeaderInput[] {
+  const rows: OutboundSecretHeaderInput[] = [];
   for (let index = 0; index < OUTBOUND_MAX_HEADER_ROWS; index += 1) {
     const name = (form[`secret_header_${index}_name`] ?? "").trim();
     const slot = (form[`secret_header_${index}_slot`] ?? "").trim();
     const value = form[`secret_header_${index}_value`] ?? "";
     if (name === "" && slot === "" && value.trim() === "") continue;
-    headers.push({ name, ...(slot === "" ? {} : { slot }) });
-    if (value !== "") values.push({ name, value: validateHeaderSecretValue(value) });
+    rows.push({
+      name,
+      ...(slot === "" ? {} : { slot }),
+      ...(value === "" ? {} : { value: validateHeaderSecretValue(value) }),
+    });
   }
-  return { headers, values };
+  return rows;
 }
 
-export function parseOutboundForm(
-  form: Readonly<Record<string, string>>,
-  mode: "create" | "edit",
-): ParsedOutboundForm {
-  const transport =
-    form.transport === "webhook"
-      ? "webhook"
-      : form.transport === "home_assistant" || form.transport === "ha"
-        ? "home_assistant"
-        : invalidForm("Choose an outbound transport.", "transport");
-  const label = form.label ?? "";
-  const required = form.required === "on";
-  const enabled = form.enabled === "on";
-  const subscriptions = outboundSubscriptionsFromForm(form);
-  const staticHeaders = outboundStaticHeadersFromForm(form);
-  const secretRows = outboundSecretHeadersFromForm(form);
-  const result: ParsedOutboundForm = {
-    label,
-    transport,
-    required,
-    enabled,
-    subscriptions,
-    staticHeaders,
-    secretHeaders: secretRows.headers,
-    secretValues: secretRows.values,
-  };
-  if (transport === "home_assistant") {
-    const baseUrl = (form.baseUrl ?? "").trim();
-    if (mode === "create" && baseUrl === "")
-      invalidForm("Home Assistant base URL is required.", "baseUrl");
-    return {
-      ...result,
-      ...(baseUrl === "" ? {} : { baseUrl }),
-      ...(form.token === undefined || form.token === ""
-        ? {}
-        : { token: validateHomeAssistantToken(form.token) }),
-    };
-  }
-  const webhookUrl = (form.webhookUrl ?? "").trim();
-  if (mode === "create" && webhookUrl === "")
-    invalidForm("Webhook endpoint is required.", "webhookUrl");
+/** A submitted Home Assistant token, checked before it goes anywhere; blank keeps the stored one. */
+function outboundTokenFromForm(form: Readonly<Record<string, string>>): {
+  readonly token?: string;
+} {
+  return form.token === undefined || form.token === ""
+    ? {}
+    : { token: validateHomeAssistantToken(form.token) };
+}
+
+function outboundPayloadFromForm(form: Readonly<Record<string, string>>): {
+  readonly payloadFormat: "standard" | "discord";
+  readonly allowPrivateNetwork: boolean;
+} {
   const payloadFormat =
     form.payloadFormat === undefined || form.payloadFormat === "standard"
       ? "standard"
       : form.payloadFormat === "discord"
         ? "discord"
         : invalidForm("Payload format is invalid.", "payloadFormat");
+  return { payloadFormat, allowPrivateNetwork: form.allowPrivateNetwork === "on" };
+}
+
+/** The New destination form. */
+export function outboundCreateFromForm(
+  form: Readonly<Record<string, string>>,
+): CreateOutboundDestinationInput {
+  const transport =
+    form.transport === "webhook"
+      ? "webhook"
+      : form.transport === "home_assistant"
+        ? "home_assistant"
+        : invalidForm("Choose an outbound transport.", "transport");
+  const common = {
+    label: form.label ?? "",
+    transport,
+    required: form.required === "on",
+    enabled: form.enabled === "on",
+    subscriptions: outboundSubscriptionsFromForm(form),
+    staticHeaders: outboundStaticHeadersFromForm(form),
+    secretHeaders: outboundSecretHeadersFromForm(form),
+  } as const;
+  if (transport === "home_assistant") {
+    const baseUrl = (form.baseUrl ?? "").trim();
+    if (baseUrl === "") invalidForm("Home Assistant base URL is required.", "baseUrl");
+    return { ...common, baseUrl, ...outboundTokenFromForm(form) };
+  }
+  const webhookUrl = (form.webhookUrl ?? "").trim();
+  if (webhookUrl === "") invalidForm("Webhook endpoint is required.", "webhookUrl");
+  return { ...common, webhookUrl, ...outboundPayloadFromForm(form) };
+}
+
+/** A destination page's live Settings form. */
+export function outboundSettingsFromForm(
+  form: Readonly<Record<string, string>>,
+  transport: OutboundTransport,
+): OutboundSettingsInput {
   return {
-    ...result,
-    ...(webhookUrl === "" ? {} : { webhookUrl }),
-    payloadFormat,
-    allowPrivateNetwork: form.allowPrivateNetwork === "on",
+    label: form.label ?? "",
+    subscriptions: outboundSubscriptionsFromForm(form),
+    ...(transport === "webhook" ? outboundPayloadFromForm(form) : {}),
   };
 }
 
-export function mergeOutboundStaticHeaders(
-  submitted: readonly OutboundHeader[],
-  existing: readonly OutboundHeader[] | undefined,
+/** A destination page's Headers form, which always posts every row. */
+export function outboundHeadersFromForm(
   form: Readonly<Record<string, string>>,
-): readonly OutboundHeader[] {
-  const hasRows = Object.keys(form).some((key) => key.startsWith("static_header_"));
-  if (!hasRows && existing !== undefined) return existing;
-  return submitted.map((header) => {
-    if (header.value !== "" || existing === undefined) return header;
-    const match = existing.find(
-      (candidate) => candidate.name.toLowerCase() === header.name.toLowerCase(),
-    );
-    return match === undefined ? header : match;
-  });
-}
-
-export function outboundCreateInput(parsed: ParsedOutboundForm): CreateOutboundDestinationInput {
+  destination: OutboundDestination,
+): OutboundHeadersInput {
   return {
-    label: parsed.label,
-    transport: parsed.transport,
-    required: parsed.required,
-    enabled: parsed.enabled,
-    subscriptions: parsed.subscriptions,
-    staticHeaders: parsed.staticHeaders,
-    secretHeaders: parsed.secretHeaders,
-    ...(parsed.token === undefined ? {} : { secret: parsed.token }),
-    ...(parsed.baseUrl === undefined ? {} : { baseUrl: parsed.baseUrl }),
-    ...(parsed.webhookUrl === undefined ? {} : { webhookUrl: parsed.webhookUrl }),
-    ...(parsed.payloadFormat === undefined ? {} : { payloadFormat: parsed.payloadFormat }),
-    ...(parsed.allowPrivateNetwork === undefined
-      ? {}
-      : { allowPrivateNetwork: parsed.allowPrivateNetwork }),
-  };
-}
-
-export function outboundEditInput(
-  parsed: ParsedOutboundForm,
-  existing: OutboundDestination,
-  form: Readonly<Record<string, string>>,
-): EditOutboundDestinationInput {
-  const existingConfig = existing.currentVersion?.config;
-  const staticHeaders = mergeOutboundStaticHeaders(
-    parsed.staticHeaders,
-    existingConfig?.staticHeaders,
-    form,
-  );
-  const hasSecretRows = Object.keys(form).some((key) => key.startsWith("secret_header_"));
-  const secretHeaders =
-    !hasSecretRows && existingConfig !== undefined
-      ? existingConfig.secretHeaders.map((header) => ({ name: header.name, slot: header.slot }))
-      : parsed.secretHeaders;
-  return {
-    label: parsed.label,
-    transport: parsed.transport,
-    required: parsed.required,
-    subscriptions: parsed.subscriptions,
-    staticHeaders,
-    secretHeaders,
-    ...(parsed.baseUrl === undefined ? {} : { baseUrl: parsed.baseUrl }),
-    ...(parsed.webhookUrl === undefined ? {} : { webhookUrl: parsed.webhookUrl }),
-    ...(parsed.payloadFormat === undefined ? {} : { payloadFormat: parsed.payloadFormat }),
-    ...(parsed.allowPrivateNetwork === undefined
-      ? {}
-      : { allowPrivateNetwork: parsed.allowPrivateNetwork }),
+    staticHeaders: outboundStaticHeadersFromForm(
+      form,
+      destination.currentVersion?.config.staticHeaders,
+    ),
+    secretHeaders: outboundSecretHeadersFromForm(form),
   };
 }
 
