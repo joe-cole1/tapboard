@@ -427,7 +427,7 @@ void test("optional HA failure is ignored, while required failure becomes red at
       label: "Fixture Home Assistant",
       transport: "home_assistant",
       baseUrl: "http://ha.example.test:8123",
-      secret: "fixture-token",
+      token: "fixture-token",
     });
     outbound.recordFailure(DESTINATION, "connect_timeout", "connectivity");
     assertHeader(service, "healthy");
@@ -445,9 +445,9 @@ void test("optional HA failure is ignored, while required failure becomes red at
     assertHeader(service, "healthy");
     outbound.recordFailure(DESTINATION, "auth_invalid", "authentication");
     assertHeader(service, "disconnected");
-    outbound.disable(DESTINATION);
+    outbound.setEnabled(DESTINATION, false);
     assertHeader(service, "healthy");
-    outbound.enable(DESTINATION);
+    outbound.setEnabled(DESTINATION, true);
     outbound.recordFailure(DESTINATION, "auth_invalid", "authentication");
     outbound.retire(DESTINATION);
     assertHeader(service, "healthy");
@@ -507,7 +507,7 @@ void test("required auto-disabled missing tokens and header secrets remain Disco
     assert.equal(missingToken.disabledReason, "token_missing");
     assertHeader(service, "disconnected");
     outbound.setToken(DESTINATION, "fixture-token");
-    outbound.enable(DESTINATION);
+    outbound.setEnabled(DESTINATION, true);
     // Replacing credentials does not prove the previous auth failure recovered.
     assertHeader(service, "disconnected");
     outbound.recordSuccess(DESTINATION);
@@ -538,7 +538,7 @@ void test("unavailable configured secrets and missing required config cannot ret
       label: "Required fixture HA",
       transport: "home_assistant",
       baseUrl: "http://ha.example.test:8123",
-      secret: "fixture-token",
+      token: "fixture-token",
       required: true,
     });
     outbound.recordSuccess(DESTINATION);

@@ -151,12 +151,24 @@ interface DeferredSave {
 
 let browserImport = 0;
 
-async function initializeBrowser(t: TestContext, forms: readonly BrowserForm[]) {
+async function initializeBrowser(
+  t: TestContext,
+  forms: readonly BrowserForm[],
+  /** Elements elsewhere on the page that show saved values. */
+  shown: readonly BrowserElement[] = [],
+) {
   const globals = {
     document: {
-      // `form[data-autosave="blur"]` or `form[data-autosave="submit"]`.
-      querySelectorAll: (selector: string) =>
-        forms.filter((form) => selector.includes(`"${form.dataset.autosave}"`)),
+      // `form[data-autosave="blur"]` or `form[data-autosave="submit"]`, or the elements
+      // marked `[data-autosave-text]` or `[data-autosave-badge]`.
+      querySelectorAll: (selector: string) => {
+        const key = {
+          "[data-autosave-text]": "autosaveText",
+          "[data-autosave-badge]": "autosaveBadge",
+        }[selector];
+        if (key !== undefined) return shown.filter((element) => element.dataset[key] !== undefined);
+        return forms.filter((form) => selector.includes(`"${form.dataset.autosave}"`));
+      },
       createElement: () => new BrowserElement(),
     },
     window: {
@@ -594,6 +606,43 @@ void test("a one-click switch shows the saved value and arms the next flip", asy
   assert.equal(form.switchButton.getAttribute("aria-checked"), "true");
   assert.equal(form.control("featured").value, "false");
   assert.equal(form.status.dataset.autosaveState, "conflict");
+});
+
+void test("a save updates the text and badge elsewhere on the page that show its values", async (t) => {
+  const form = new SwitchForm();
+  const badge = new BrowserElement();
+  badge.className = "badge badge--healthy";
+  badge.dataset.autosaveText = "statusLabel";
+  badge.dataset.autosaveBadge = "statusClass";
+  const note = new BrowserElement();
+  note.dataset.autosaveText = "disabledNote";
+  const untouched = new BrowserElement();
+  untouched.dataset.autosaveText = "notInTheAnswer";
+  untouched.textContent = "Kept";
+  const requests = await initializeBrowser(t, [form], [badge, note, untouched]);
+  form.submit();
+  await requests[0]!.respond(200, {
+    resource: {
+      featured: false,
+      statusLabel: "Disabled",
+      statusClass: "muted",
+      disabledNote: "Disabled: Operator disabled",
+    },
+    revision: "2",
+  });
+  assert.equal(badge.textContent, "Disabled");
+  assert.equal(badge.className, "badge badge--muted");
+  assert.equal(note.textContent, "Disabled: Operator disabled");
+  assert.equal(note.hidden, false);
+  assert.equal(untouched.textContent, "Kept");
+
+  form.submit();
+  await requests[1]!.respond(200, {
+    resource: { featured: true, statusClass: "not a class!", disabledNote: "" },
+    revision: "3",
+  });
+  assert.equal(badge.className, "badge badge--muted", "only a plain variant name is applied");
+  assert.equal(note.hidden, true, "an empty value hides its element");
 });
 
 void test("a number field being stepped saves once, when it loses focus", async (t) => {

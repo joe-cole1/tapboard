@@ -1,0 +1,17 @@
+<%/* Subscription switches for an outbound destination. `subscriptions` lists the checked event types. */%>
+<fieldset class="fieldset">
+  <legend>Subscriptions</legend>
+  <% if (it.hint) { %><p class="muted"><%= it.hint %></p><% } %>
+  <div class="outbound-subscription-groups">
+    <% for (const group of [{ label: "Serving", fields: it.eventFields.slice(0, 3) }, { label: "Alerts", fields: it.eventFields.slice(3, 5) }, { label: "System", fields: it.eventFields.slice(5) }]) { %>
+      <section class="outbound-subscription-group" aria-label="<%= group.label %>">
+        <h3><%= group.label %></h3>
+        <div class="auto-grid auto-grid--md">
+          <% for (const field of group.fields) { %>
+            <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="<%= field.name %>" value="on"<% if (it.subscriptions.includes(field.eventType)) { %> checked<% } %> /> <%= field.label %></label>
+          <% } %>
+        </div>
+      </section>
+    <% } %>
+  </div>
+</fieldset>

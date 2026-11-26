@@ -111,6 +111,14 @@ export interface OutboundDeliveryHistoryItem {
   readonly terminalAt: string | null;
 }
 
+/** A secret header row. `value` is write-only; leaving it out keeps the stored value. */
+export interface OutboundSecretHeaderInput {
+  readonly name: string;
+  readonly slot?: string;
+  readonly value?: string;
+}
+
+/** A new destination with its token and secret header values, created in one step. */
 export interface CreateOutboundDestinationInput {
   readonly id?: string;
   readonly label: string;
@@ -123,52 +131,33 @@ export interface CreateOutboundDestinationInput {
   readonly payloadFormat?: "standard" | "discord";
   readonly allowPrivateNetwork?: boolean;
   readonly staticHeaders?: readonly OutboundHeader[];
-  readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
-  readonly secret?: string;
-}
-
-export interface EditOutboundDestinationInput {
-  readonly label?: string;
-  readonly transport?: OutboundTransport;
-  readonly required?: boolean;
-  readonly subscriptions?: readonly EventType[];
-  readonly baseUrl?: string;
-  readonly webhookUrl?: string;
-  readonly payloadFormat?: "standard" | "discord";
-  readonly allowPrivateNetwork?: boolean;
-  readonly staticHeaders?: readonly OutboundHeader[];
-  readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
-}
-
-export interface OutboundHeaderSecretReplacement {
-  readonly name: string;
-  readonly value: string;
-}
-
-/** One complete Admin create submission, including write-only secret values. */
-export interface CreateConfiguredOutboundDestinationInput extends CreateOutboundDestinationInput {
-  readonly headerSecrets?: readonly OutboundHeaderSecretReplacement[];
-}
-
-/** One complete Admin edit submission, including final enabled state and write-only secrets. */
-export interface UpdateConfiguredOutboundDestinationInput extends EditOutboundDestinationInput {
-  readonly enabled: boolean;
+  readonly secretHeaders?: readonly OutboundSecretHeaderInput[];
+  /** Home Assistant only. */
   readonly token?: string;
-  readonly headerSecrets?: readonly OutboundHeaderSecretReplacement[];
 }
 
-export interface OutboundDestinationPatch {
+/** What a destination sends. None of these change where it sends. */
+export interface OutboundSettingsInput {
   readonly label?: string;
-  readonly required?: boolean;
-  readonly enabled?: boolean;
-  readonly transport?: OutboundTransport;
   readonly subscriptions?: readonly EventType[];
-  readonly baseUrl?: string;
-  readonly webhookUrl?: string;
+  /** Webhook only. */
   readonly payloadFormat?: "standard" | "discord";
+  /** Webhook only. */
   readonly allowPrivateNetwork?: boolean;
-  readonly staticHeaders?: readonly OutboundHeader[];
-  readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
+}
+
+/** Where a destination sends. A new origin discards its stored credentials. */
+export interface OutboundEndpointInput {
+  /** The Home Assistant base URL or the webhook endpoint. */
+  readonly url: string;
+  /** Home Assistant only: the token for the new address, stored with it. */
+  readonly token?: string;
+}
+
+/** The complete static and secret header lists, replacing the current ones. */
+export interface OutboundHeadersInput {
+  readonly staticHeaders: readonly OutboundHeader[];
+  readonly secretHeaders: readonly OutboundSecretHeaderInput[];
 }
 
 export interface OutboundAdmissionPort {

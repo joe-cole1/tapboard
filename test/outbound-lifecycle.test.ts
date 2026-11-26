@@ -65,7 +65,7 @@ function setup(transport: "home_assistant" | "webhook" = "home_assistant") {
     label: "Lifecycle test destination",
     transport,
     ...(transport === "home_assistant"
-      ? { baseUrl: "http://ha.example.test:8123", secret: "fake-ha-token" }
+      ? { baseUrl: "http://ha.example.test:8123", token: "fake-ha-token" }
       : { webhookUrl: "https://example.test/fake-hook" }),
   });
   let databaseCalls = 0;

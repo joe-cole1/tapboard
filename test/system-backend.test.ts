@@ -647,9 +647,9 @@ void test("Terminal outbox retention protects active deliveries, shared events a
       webhookUrl: "https://example.test/private-path",
     });
     const firstVersion = destination.currentVersion!.id;
-    const obsoleteVersion = outbound.edit(destination.id, { payloadFormat: "discord" })
+    const obsoleteVersion = outbound.updateSettings(destination.id, { payloadFormat: "discord" })
       .currentVersion!.id;
-    const currentVersion = outbound.edit(destination.id, { payloadFormat: "standard" })
+    const currentVersion = outbound.updateSettings(destination.id, { payloadFormat: "standard" })
       .currentVersion!.id;
     const other = createDestination(h.database, { label: "Other", createdAt: OLD });
     const otherVersion = createDestinationVersion(h.database, {
@@ -733,11 +733,11 @@ void test("Outbox retention preserves encrypted endpoint ownership until explici
       webhookUrl: "https://example.test/retention-private-first",
     });
     const firstVersion = destination.currentVersion!.id;
-    const secondVersion = outbound.edit(destination.id, {
-      webhookUrl: "https://example.test/retention-private-second",
+    const secondVersion = outbound.changeEndpoint(destination.id, {
+      url: "https://example.test/retention-private-second",
     }).currentVersion!.id;
-    const currentVersion = outbound.edit(destination.id, {
-      webhookUrl: "https://example.test/retention-private-current",
+    const currentVersion = outbound.changeEndpoint(destination.id, {
+      url: "https://example.test/retention-private-current",
     }).currentVersion!.id;
     h.setNow(NOW);
     const cutoff = new Date(Date.parse(NOW) - 30 * 86_400_000).toISOString();

@@ -1,0 +1,26 @@
+<%/* Static and secret header rows for an outbound destination. Stored values are never rendered. */%>
+<% const staticHeaders = it.staticHeaders || []; %>
+<% const secretHeaders = it.secretHeaders || []; %>
+<fieldset class="fieldset">
+  <legend>Static headers</legend>
+  <p class="muted">Values are never shown again. Leave a value blank to keep the stored one. Unsafe hop-by-hop headers are rejected.</p>
+  <div class="outbound-header-grid outbound-header-grid--static">
+    <% for (let index = 0; index < it.maxHeaderRows; index += 1) { const header = staticHeaders[index]; %>
+      <label class="field">Header name <input name="static_header_<%= index %>_name" maxlength="64" value="<%= header ? header.name : "" %>" autocomplete="off" /></label>
+      <label class="field">Header value <input name="static_header_<%= index %>_value" maxlength="1024" value="" autocomplete="off" /></label>
+    <% } %>
+  </div>
+</fieldset>
+
+<fieldset class="fieldset">
+  <legend>Secret headers</legend>
+  <p class="muted">Names and slots are safe metadata. Existing secret values are never rendered; enter a value only to replace it.</p>
+  <div class="outbound-header-grid outbound-header-grid--secret">
+    <% for (let index = 0; index < it.maxHeaderRows; index += 1) { const header = secretHeaders[index]; %>
+      <label class="field">Header name <input name="secret_header_<%= index %>_name" maxlength="64" value="<%= header ? header.name : "" %>" autocomplete="off" /></label>
+      <label class="field">Secret slot <input name="secret_header_<%= index %>_slot" maxlength="32" value="<%= header ? header.slot : "" %>" autocomplete="off" /></label>
+      <label class="field">Replace value <input name="secret_header_<%= index %>_value" type="password" maxlength="1024" value="" autocomplete="new-password" /></label>
+      <span class="outbound-secret-state"><%= header ? (header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured") : "New row" %></span>
+    <% } %>
+  </div>
+</fieldset>

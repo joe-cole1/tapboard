@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 
+import { ApplicationError } from "../../shared/errors.ts";
 import { EVENT_TYPES, type EventType } from "../events/types.ts";
 import type {
   CreateOutboundDestinationInput,
-  EditOutboundDestinationInput,
   OutboundHeader,
   OutboundTransport,
   OutboundUrlSummary,
@@ -91,8 +91,14 @@ export interface NormalizedDestinationConfig {
   readonly safeSummary: string;
 }
 
+/** Invalid operator input, shown on the form with the field it names. */
 function fail(field: string, reason: string): never {
-  throw new TypeError(`Invalid outbound ${field}: ${reason}`);
+  throw new ApplicationError({
+    category: "validation",
+    code: "outbound.invalid_input",
+    clientMessage: `Invalid outbound ${field}: ${reason}`,
+    details: { field, reason },
+  });
 }
 
 export function validateOutboundId(value: unknown, field = "id"): string {
@@ -297,51 +303,36 @@ function safeConfigJson(config: {
   return JSON.stringify(safe);
 }
 
+/** Everything a configuration version records, before validation. */
+export type DestinationConfigInput = Pick<
+  CreateOutboundDestinationInput,
+  | "transport"
+  | "baseUrl"
+  | "webhookUrl"
+  | "staticHeaders"
+  | "secretHeaders"
+  | "payloadFormat"
+  | "allowPrivateNetwork"
+>;
+
 export function normalizeDestinationConfig(
-  input:
-    | Pick<
-        CreateOutboundDestinationInput,
-        | "transport"
-        | "baseUrl"
-        | "webhookUrl"
-        | "staticHeaders"
-        | "secretHeaders"
-        | "payloadFormat"
-        | "allowPrivateNetwork"
-      >
-    | Pick<
-        EditOutboundDestinationInput,
-        | "transport"
-        | "baseUrl"
-        | "webhookUrl"
-        | "staticHeaders"
-        | "secretHeaders"
-        | "payloadFormat"
-        | "allowPrivateNetwork"
-      >,
-  fallback?: {
-    readonly transport: OutboundTransport;
-    readonly baseUrl?: string;
-    readonly webhookUrl?: string;
-    readonly staticHeaders?: readonly OutboundHeader[];
-    readonly secretHeaders?: readonly { readonly name: string; readonly slot?: string }[];
-    readonly payloadFormat?: "standard" | "discord";
-    readonly allowPrivateNetwork?: boolean;
-  },
+  input: DestinationConfigInput,
 ): NormalizedDestinationConfig {
-  const transport = validateOutboundTransport(input.transport ?? fallback?.transport);
-  const baseUrl = input.baseUrl ?? fallback?.baseUrl;
-  const webhookUrl = input.webhookUrl ?? fallback?.webhookUrl;
-  const staticHeaders = validateStaticHeaders(input.staticHeaders ?? fallback?.staticHeaders);
+  const transport = validateOutboundTransport(input.transport);
+  const baseUrl = input.baseUrl;
+  const webhookUrl = input.webhookUrl;
+  const staticHeaders = validateStaticHeaders(input.staticHeaders);
   const secretHeaders = validateSecretHeaders(
-    input.secretHeaders ?? fallback?.secretHeaders,
+    input.secretHeaders?.map((header) =>
+      header.slot === undefined ? { name: header.name } : { name: header.name, slot: header.slot },
+    ),
     staticHeaders,
   );
   if (staticHeaders.length + secretHeaders.length > MAX_CONFIGURED_HEADERS) {
     fail("headers", "must contain at most 8 total static and secret headers");
   }
-  const payloadFormat = validatePayloadFormat(input.payloadFormat ?? fallback?.payloadFormat);
-  const allowPrivateNetwork = input.allowPrivateNetwork ?? fallback?.allowPrivateNetwork ?? false;
+  const payloadFormat = validatePayloadFormat(input.payloadFormat);
+  const allowPrivateNetwork = input.allowPrivateNetwork ?? false;
   if (typeof allowPrivateNetwork !== "boolean") fail("allowPrivateNetwork", "must be boolean");
 
   if (transport === "home_assistant") {
@@ -407,6 +398,7 @@ export function normalizeCreateInput(input: CreateOutboundDestinationInput): {
   readonly enabled: boolean;
   readonly subscriptions: readonly EventType[];
   readonly config: NormalizedDestinationConfig;
+  /** The transport's own secret: the Home Assistant token, or the webhook endpoint URL. */
   readonly secret?: string;
 } {
   const label = validateDestinationLabel(input.label);
@@ -416,15 +408,15 @@ export function normalizeCreateInput(input: CreateOutboundDestinationInput): {
   if (input.enabled !== undefined && typeof input.enabled !== "boolean")
     fail("enabled", "must be boolean");
   const config = normalizeDestinationConfig(input);
-  if (transport === "webhook" && input.secret !== undefined) {
-    fail("secret", "is not accepted for webhook endpoints");
+  if (transport === "webhook" && input.token !== undefined) {
+    fail("token", "is not accepted for webhook endpoints");
   }
   const secret =
     transport === "webhook"
       ? parseOutboundUrl(input.webhookUrl, "webhookUrl").url
-      : input.secret === undefined
+      : input.token === undefined
         ? undefined
-        : validateHomeAssistantToken(input.secret);
+        : validateHomeAssistantToken(input.token);
   return {
     label,
     transport,

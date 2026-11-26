@@ -1,83 +1,40 @@
-<% const editing = it.destination !== undefined && it.destination !== null; %>
-<% const selectedTransport = editing ? it.destination.transport : it.transport; %>
-<% const config = editing ? (it.destination.config || {}) : {}; %>
-<% const subscriptions = editing ? (it.destination.subscriptions || []) : []; %>
-<% const staticHeaders = config.staticHeaders || []; %>
-<% const secretHeaders = config.secretHeaders || []; %>
-<form class="form form--wide" action="<%= it.action %>" method="post">
+<% const transport = it.transport; %>
+<form class="form form--wide" action="/admin/integrations/outbound/create" method="post">
   <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
-  <input type="hidden" name="transport" value="<%= selectedTransport %>" />
+  <input type="hidden" name="transport" value="<%= transport %>" />
   <div class="auto-grid auto-grid--md">
-    <label class="field">Friendly name <input name="label" maxlength="120" required value="<%= editing ? it.destination.label : "" %>" autocomplete="off" /></label>
-    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="required" value="on"<% if (editing && it.destination.required) { %> checked<% } %> /><span>Required destination <small>When enabled, delivery health contributes to the required integration status.</small></span></label>
-    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="on"<% if (!editing || it.destination.enabled) { %> checked<% } %> /><span>Enabled <small>Disable while configuring a destination to prevent delivery attempts.</small></span></label>
+    <label class="field">Friendly name <input name="label" maxlength="120" required autocomplete="off" /></label>
+    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="required" value="on" /><span>Required destination <small>When enabled, delivery health contributes to the required integration status.</small></span></label>
+    <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="enabled" value="on" checked /><span>Enabled <small>Disable while configuring a destination to prevent delivery attempts.</small></span></label>
   </div>
 
-  <fieldset class="fieldset">
-    <legend>Subscriptions</legend>
-    <p class="muted">All six event types are selected by default for a new destination.</p>
-    <div class="outbound-subscription-groups">
-      <% for (const group of [{ label: "Serving", fields: it.eventFields.slice(0, 3) }, { label: "Alerts", fields: it.eventFields.slice(3, 5) }, { label: "System", fields: it.eventFields.slice(5) }]) { %>
-        <section class="outbound-subscription-group" aria-label="<%= group.label %>">
-          <h3><%= group.label %></h3>
-          <div class="auto-grid auto-grid--md">
-            <% for (const field of group.fields) { %>
-              <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="<%= field.name %>" value="on"<% if ((!editing) || subscriptions.includes(field.eventType)) { %> checked<% } %> /> <%= field.label %></label>
-            <% } %>
-          </div>
-        </section>
-      <% } %>
-    </div>
-  </fieldset>
+  <%~ include("/partials/outbound-subscriptions", { eventFields: it.eventFields, subscriptions: it.eventFields.map((field) => field.eventType), hint: "All six event types are selected by default for a new destination." }) %>
 
-  <% if (selectedTransport === "home_assistant") { %>
+  <% if (transport === "home_assistant") { %>
     <fieldset class="fieldset">
       <legend>Home Assistant</legend>
-      <p class="muted">Use an <code>http://</code> or <code>https://</code> Home Assistant base URL. The token is write-only. Changing the scheme, host, or port discards the saved token and queued deliveries, so enter the token again.</p>
+      <p class="muted">Use an <code>http://</code> or <code>https://</code> Home Assistant base URL. The token is write-only.</p>
       <div class="auto-grid auto-grid--lg">
-        <label class="field">Base URL <input name="baseUrl" type="url" maxlength="2048" placeholder="<%= editing ? "Enter to replace; leave blank to retain current value" : "http://homeassistant.lan:8123" %>"<% if (!editing) { %> required<% } %> autocomplete="off" /></label>
-        <label class="field">Token <input name="token" type="password" maxlength="4096" placeholder="<%= editing ? "Leave blank to retain current token" : "Paste token" %>" autocomplete="new-password" /></label>
+        <label class="field">Base URL <input name="baseUrl" type="url" maxlength="2048" placeholder="http://homeassistant.lan:8123" required autocomplete="off" /></label>
+        <label class="field">Token <input name="token" type="password" maxlength="4096" placeholder="Paste token" autocomplete="new-password" /></label>
       </div>
     </fieldset>
   <% } else { %>
     <fieldset class="fieldset">
       <legend>Webhook</legend>
-      <p class="muted">Endpoints must be public HTTP(S) addresses unless private network addresses are allowed below. Redirects are not followed. Changing the endpoint's scheme, host, or port discards saved secret header values and queued deliveries, so enter the values again.</p>
+      <p class="muted">Endpoints must be public HTTP(S) addresses unless private network addresses are allowed below. Redirects are not followed.</p>
       <div class="auto-grid auto-grid--lg">
-        <label class="field">Endpoint <input name="webhookUrl" type="url" maxlength="2048" placeholder="<%= editing ? "Enter to replace; leave blank to retain current endpoint" : "https://example.invalid/events" %>"<% if (!editing) { %> required<% } %> autocomplete="off" /></label>
-        <label class="field">Payload format <select name="payloadFormat"><option value="standard"<% if (!editing || config.payloadFormat === "standard") { %> selected<% } %>>Standard Tapboard JSON</option><option value="discord"<% if (editing && config.payloadFormat === "discord") { %> selected<% } %>>Discord webhook JSON</option></select></label>
+        <label class="field">Endpoint <input name="webhookUrl" type="url" maxlength="2048" placeholder="https://example.invalid/events" required autocomplete="off" /></label>
+        <%~ include("/partials/outbound-payload-format", { payloadFormat: "standard" }) %>
       </div>
-      <label class="switch"><input class="switch__control" role="switch" type="checkbox" name="allowPrivateNetwork" value="on"<% if (editing && config.allowPrivateNetwork) { %> checked<% } %> /> Allow private network address</label>
-      <p class="muted">For receivers on your LAN or VPN, such as n8n or Node-RED over Tailscale: allows 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, and fc00::/7. This includes the Docker network and its host gateway. Loopback, link-local (including cloud metadata), multicast, and unspecified addresses are always blocked.</p>
+      <%~ include("/partials/outbound-private-network", { allowPrivateNetwork: false }) %>
     </fieldset>
   <% } %>
 
-  <fieldset class="fieldset">
-    <legend>Static headers</legend>
-    <p class="muted">Header values are retained when an existing row is left blank. Unsafe hop-by-hop headers are rejected.</p>
-    <div class="outbound-header-grid outbound-header-grid--static">
-      <% for (let index = 0; index < (it.maxHeaderRows || 8); index += 1) { const header = staticHeaders[index]; %>
-        <label class="field">Header name <input name="static_header_<%= index %>_name" maxlength="64" value="<%= header ? header.name : "" %>" autocomplete="off" /></label>
-        <label class="field">Header value <input name="static_header_<%= index %>_value" maxlength="1024" value="" autocomplete="off" /></label>
-      <% } %>
-    </div>
-  </fieldset>
-
-  <fieldset class="fieldset">
-    <legend>Secret headers</legend>
-    <p class="muted">Names and slots are safe metadata. Existing secret values are never rendered; enter a value only to replace it.</p>
-    <div class="outbound-header-grid outbound-header-grid--secret">
-      <% for (let index = 0; index < (it.maxHeaderRows || 8); index += 1) { const header = secretHeaders[index]; %>
-        <label class="field">Header name <input name="secret_header_<%= index %>_name" maxlength="64" value="<%= header ? header.name : "" %>" autocomplete="off" /></label>
-        <label class="field">Secret slot <input name="secret_header_<%= index %>_slot" maxlength="32" value="<%= header ? header.slot : "" %>" autocomplete="off" /></label>
-        <label class="field">Replace value <input name="secret_header_<%= index %>_value" type="password" maxlength="1024" value="" autocomplete="new-password" /></label>
-        <span class="outbound-secret-state"><%= header ? (header.available ? "Configured" : header.configured ? "Configured but unavailable" : "Not configured") : "New row" %></span>
-      <% } %>
-    </div>
-  </fieldset>
+  <%~ include("/partials/outbound-headers", { maxHeaderRows: it.maxHeaderRows }) %>
 
   <div class="form-actions">
-    <button class="button button--primary" type="submit"><%= editing ? "Save outbound destination" : "Create outbound destination" %></button>
-    <a class="button button--secondary" href="<%= editing ? `/admin/integrations/outbound/${encodeURIComponent(it.destination.id)}` : "/admin/integrations/outbound" %>">Cancel</a>
+    <button class="button button--primary" type="submit">Create outbound destination</button>
+    <a class="button button--secondary" href="/admin/integrations/outbound">Cancel</a>
   </div>
 </form>

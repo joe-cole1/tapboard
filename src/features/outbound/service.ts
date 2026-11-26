@@ -12,9 +12,7 @@ import type {
   AssignmentClosedEventContext,
   AssignmentOpenedEventContext,
   CompletedPourEventContext,
-  CreateConfiguredOutboundDestinationInput,
   CreateOutboundDestinationInput,
-  EditOutboundDestinationInput,
   HealthTransitionEventContext,
   IntegrationStatusEventContext,
   OutboundAdmissionPort,
@@ -22,11 +20,13 @@ import type {
   OutboundConfig,
   OutboundDestination,
   OutboundDestinationListItem,
-  OutboundDestinationPatch,
-  OutboundHeaderSecretReplacement,
+  OutboundEndpointInput,
+  OutboundHeader,
+  OutboundHeadersInput,
+  OutboundSecretHeaderInput,
   OutboundSecretStore,
   OutboundServiceOptions,
-  UpdateConfiguredOutboundDestinationInput,
+  OutboundSettingsInput,
 } from "./types.ts";
 import {
   HA_TOKEN_SLOT,
@@ -39,7 +39,6 @@ import {
   normalizeDestinationConfig,
   validateOutboundId,
   validateDestinationLabel,
-  validateOutboundTransport,
   validateHeaderSecretValue,
   validateHomeAssistantToken,
   parseOutboundUrl,
@@ -125,13 +124,40 @@ function secretAvailable(
   );
 }
 
-function credentialsRequiredForNewAddress(): ApplicationError {
-  return new ApplicationError({
-    category: "validation",
-    code: "outbound.credentials_required",
-    clientMessage:
-      "Re-enter the token and secret header values when changing where this destination sends.",
-  });
+/** Why a destination cannot deliver yet, as its disabled reason and the operator's message. */
+type EnableBlocker = "token_missing" | "endpoint_missing" | "secret_missing" | "pending_secret";
+
+const ENABLE_BLOCKERS: Readonly<
+  Record<EnableBlocker, { readonly reason: string; readonly message: string }>
+> = {
+  token_missing: {
+    reason: "token_missing",
+    message: "Home Assistant token is required before enabling",
+  },
+  endpoint_missing: {
+    reason: "endpoint_missing",
+    message: "Webhook endpoint is required before enabling",
+  },
+  secret_missing: {
+    reason: "secret_missing",
+    message: "Every configured secret header requires a value before enabling",
+  },
+  pending_secret: {
+    reason: "secret_missing",
+    message: "Pending delivery requires a removed secret header value",
+  },
+};
+
+/** A change to what a configuration version records; absent fields keep their values. */
+interface ConfigChange {
+  readonly label?: string;
+  readonly subscriptions?: readonly EventType[];
+  readonly baseUrl?: string;
+  readonly webhookUrl?: string;
+  readonly payloadFormat?: "standard" | "discord";
+  readonly allowPrivateNetwork?: boolean;
+  readonly staticHeaders?: readonly OutboundHeader[];
+  readonly secretHeaders?: readonly OutboundSecretHeaderInput[];
 }
 
 function requireSecretStore(secrets: OutboundSecretStore | undefined): OutboundSecretStore {
@@ -139,19 +165,19 @@ function requireSecretStore(secrets: OutboundSecretStore | undefined): OutboundS
   return secrets;
 }
 
-function normalizedHeaderReplacements(
-  values: readonly OutboundHeaderSecretReplacement[] | undefined,
+/** The submitted secret header values, by the slot of the header each names. */
+function headerValuesBySlot(
+  headers: readonly { readonly name: string; readonly slot: string }[],
+  rows: readonly OutboundSecretHeaderInput[] | undefined,
 ): ReadonlyMap<string, string> {
   const result = new Map<string, string>();
-  for (const item of values ?? []) {
-    if (typeof item !== "object" || item === null) {
-      throw new TypeError("Invalid outbound header secret replacement");
-    }
-    const name = item.name.trim().toLowerCase();
-    if (name.length === 0 || result.has(name)) {
-      throw new TypeError("Invalid outbound header secret replacement name");
-    }
-    result.set(name, validateHeaderSecretValue(item.value));
+  for (const row of rows ?? []) {
+    if (row.value === undefined) continue;
+    const header = headers.find(
+      (candidate) => candidate.name.toLowerCase() === row.name.trim().toLowerCase(),
+    );
+    if (header === undefined) throw new Error("The submitted secret header is not configured");
+    result.set(header.slot, validateHeaderSecretValue(row.value));
   }
   return result;
 }
@@ -282,14 +308,24 @@ export class OutboundService implements OutboundAdmissionPort {
     this.#ids = options.idFactory ?? randomUUID;
   }
 
+  /** Create a destination, with its token and secret header values, in one step. */
   create(input: CreateOutboundDestinationInput): OutboundDestination {
     const normalized = normalizeCreateInput(input);
+    const headerValues = headerValuesBySlot(normalized.config.secretHeaders, input.secretHeaders);
+    this.#assertHeaderTotal(
+      normalized.config.staticHeaders,
+      normalized.config.secretHeaders,
+      headerValues,
+    );
     const now = iso(this.#now);
     const destinationId = canonicalId(input.id, this.#ids);
-    const missingToken =
-      normalized.transport === "home_assistant" && normalized.secret === undefined;
-    const missingHeaderSecret = normalized.config.secretHeaders.length > 0;
-    const enabled = normalized.enabled && !missingToken && !missingHeaderSecret;
+    const blocker: EnableBlocker | undefined =
+      normalized.transport === "home_assistant" && normalized.secret === undefined
+        ? "token_missing"
+        : normalized.config.secretHeaders.some((header) => !headerValues.has(header.slot))
+          ? "secret_missing"
+          : undefined;
+    const enabled = normalized.enabled && blocker === undefined;
     const result = this.#database.withTransaction(() => {
       const activeCount = listDestinationProfiles(this.#database).filter(
         (row) => row.retired_at === null,
@@ -314,14 +350,15 @@ export class OutboundService implements OutboundAdmissionPort {
         required: normalized.required,
       });
       this.#storeInitialSecret(destinationId, normalized.config, normalized.secret, now);
+      for (const [slot, value] of headerValues) {
+        requireSecretStore(this.#options.secrets).upsert("outbound", destinationId, slot, value, {
+          now: this.#now,
+        });
+      }
       if (!enabled) {
-        const reason = missingToken
-          ? "token_missing"
-          : missingHeaderSecret
-            ? "secret_missing"
-            : "created_disabled";
+        const reason = blocker === undefined ? "created_disabled" : ENABLE_BLOCKERS[blocker].reason;
         setEnabledState(this.#database, destinationId, false, now, reason);
-        if (missingToken) markTokenMissing(this.#database, destinationId, now);
+        if (blocker === "token_missing") markTokenMissing(this.#database, destinationId, now);
       }
       appendOutboundActivity(this.#database, "configuration_changed", destinationId, now, {
         change: "created",
@@ -337,356 +374,45 @@ export class OutboundService implements OutboundAdmissionPort {
     return result;
   }
 
-  /** Apply one complete Admin create submission atomically, including write-only headers. */
-  createConfigured(input: CreateConfiguredOutboundDestinationInput): OutboundDestination {
-    const { headerSecrets, ...destinationInput } = input;
-    const normalized = normalizeCreateInput(destinationInput);
-    const replacements = normalizedHeaderReplacements(headerSecrets);
-    const valuesBySlot = this.#resolveReplacementSlots(
-      normalized.config.secretHeaders,
-      replacements,
-    );
-    this.#assertHeaderTotal(
-      normalized.config.staticHeaders,
-      normalized.config.secretHeaders,
-      valuesBySlot,
-    );
-    const requestedEnabled = normalized.enabled;
-    const canEnable =
-      (normalized.transport !== "home_assistant" || normalized.secret !== undefined) &&
-      normalized.config.secretHeaders.every((header) => valuesBySlot.has(header.slot));
-
-    return this.#withDeferredLifecycle(
-      () =>
-        this.#database.withTransaction(() => {
-          const created = this.create({
-            ...destinationInput,
-            enabled: requestedEnabled && canEnable,
-          });
-          for (const [slot, value] of valuesBySlot) {
-            this.setHeaderSecret(created.id, slot, value);
-          }
-          if (requestedEnabled && canEnable && !created.enabled) {
-            this.enable(created.id);
-          }
-          return this.#requireDestination(created.id);
-        }),
-      (created) => {
-        if (created.enabled && created.transport === "home_assistant") {
-          this.#emitLifecycle("enabled", created.id);
-        }
-      },
-    );
-  }
-
-  edit(destinationId: string, input: EditOutboundDestinationInput): OutboundDestination {
-    const id = validateOutboundId(destinationId, "destinationId");
-    const now = iso(this.#now);
-    let removedSecretSlot = false;
-    let credentialsCleared = false;
-    let versioned = false;
-    let previousTransport: OutboundDestination["transport"] | undefined;
-    const result = this.#database.withTransaction(() => {
-      const current = this.#requireMutableDestination(id);
-      previousTransport = current.transport;
-      const currentVersion = current.currentVersion;
-      if (currentVersion === null) throw new Error("Outbound destination configuration is missing");
-      const currentConfig = currentVersion.config;
-      const label =
-        input.label === undefined ? current.label : validateDestinationLabel(input.label);
-      const required = input.required === undefined ? current.required : input.required;
-      if (typeof required !== "boolean") throw new TypeError("required must be boolean");
-      const transport =
-        input.transport === undefined
-          ? current.transport
-          : validateOutboundTransport(input.transport);
-      const configChanged =
-        input.transport !== undefined ||
-        input.baseUrl !== undefined ||
-        input.webhookUrl !== undefined ||
-        input.payloadFormat !== undefined ||
-        input.allowPrivateNetwork !== undefined ||
-        input.staticHeaders !== undefined ||
-        input.secretHeaders !== undefined;
-      const subscriptionsChanged = input.subscriptions !== undefined;
-      if (!configChanged && !subscriptionsChanged) {
-        updateDestinationLabelRequired(this.#database, id, label, required, now);
-        appendOutboundActivity(this.#database, "configuration_changed", id, now, {
-          change: "metadata",
-          required,
-        });
-        return this.#requireDestination(id);
-      }
-      let endpoint: string | undefined;
-      if (transport === "webhook") {
-        if (input.webhookUrl !== undefined) {
-          endpoint = parseOutboundUrl(input.webhookUrl, "webhookUrl").url;
-        } else if (currentConfig.transport === "webhook" && currentConfig.endpointConfigured) {
-          endpoint = this.#revealSecret(currentVersion.id, WEBHOOK_ENDPOINT_SLOT);
-        }
-      }
-      const config = normalizeDestinationConfig({
-        transport,
-        ...(input.baseUrl !== undefined
-          ? { baseUrl: input.baseUrl }
-          : currentConfig.transport === "home_assistant"
-            ? { baseUrl: currentConfig.baseUrl }
-            : {}),
-        ...(input.webhookUrl !== undefined
-          ? { webhookUrl: input.webhookUrl }
-          : endpoint !== undefined
-            ? { webhookUrl: endpoint }
-            : {}),
-        ...(input.payloadFormat !== undefined
-          ? { payloadFormat: input.payloadFormat }
-          : currentConfig.transport === "webhook"
-            ? { payloadFormat: currentConfig.payloadFormat }
-            : {}),
-        ...(input.allowPrivateNetwork !== undefined
-          ? { allowPrivateNetwork: input.allowPrivateNetwork }
-          : transport === "webhook" && currentConfig.transport === "webhook"
-            ? { allowPrivateNetwork: currentConfig.allowPrivateNetwork }
-            : {}),
-        staticHeaders: input.staticHeaders ?? currentConfig.staticHeaders,
-        secretHeaders:
-          input.secretHeaders ??
-          currentConfig.secretHeaders.map((header) => ({ name: header.name, slot: header.slot })),
-      });
-      const connectionChanged =
-        config.configJson !== readCurrentDestinationVersion(this.#database, id)?.configJson ||
-        (config.transport === "webhook" &&
-          input.webhookUrl !== undefined &&
-          (currentConfig.transport !== "webhook" ||
-            !currentConfig.endpointAvailable ||
-            endpoint !== this.#revealSecret(currentVersion.id, WEBHOOK_ENDPOINT_SLOT)));
-      for (const header of config.secretHeaders) {
-        const previous = currentConfig.secretHeaders.find(
-          (candidate) => candidate.slot === header.slot,
-        );
-        if (previous !== undefined && previous.name.toLowerCase() !== header.name.toLowerCase()) {
-          throw new Error("A secret header slot cannot be reused for another header");
-        }
-      }
-      this.#assertHistoricalSecretSlots(id, config.secretHeaders);
-      const credentialsMoved = this.#credentialOriginChanged(
-        currentVersion,
-        config.transport,
-        config.transport === "home_assistant" ? config.baseUrl : endpoint,
-      );
-      versioned = true;
-      updateDestinationLabelRequired(this.#database, id, label, required, now);
-      const versionId = this.#ids();
-      insertVersionConfig(this.#database, {
-        id: versionId,
-        destinationId: id,
-        versionNumber: nextVersionNumber(this.#database, id),
-        createdAt: now,
-        config,
-        subscriptions: validateSubscriptions(input.subscriptions ?? current.subscriptions),
-      });
-      this.#copyVersionSecrets(currentVersion.id, versionId, currentConfig, config, endpoint);
-      if (connectionChanged) resetConnectivityState(this.#database, id, now);
-      const store = this.#options.secrets;
-      for (const previous of currentConfig.secretHeaders) {
-        if (config.secretHeaders.some((header) => header.slot === previous.slot)) continue;
-        removedSecretSlot = true;
-        store?.remove("outbound", id, previous.slot, { now: this.#now });
-      }
-      if (removedSecretSlot) setEnabledState(this.#database, id, false, now, "secret_missing");
-      // Secrets never follow a destination to a new origin. Queued deliveries for the
-      // old address are dropped and failed ones made final (no Retry), so they cannot
-      // resolve replacement secrets.
-      let dismissedDeliveries = 0;
-      if (credentialsMoved) {
-        this.#removeDestinationSecrets(id);
-        dismissedDeliveries = dismissDestinationDeliveries(this.#database, id, now);
-        dismissFailedDestinationDeliveries(this.#database, id, now);
-        if (config.transport === "home_assistant") {
-          credentialsCleared = true;
-          setEnabledState(this.#database, id, false, now, "token_missing");
-          markTokenMissing(this.#database, id, now);
-        } else if (config.secretHeaders.length > 0) {
-          credentialsCleared = true;
-          setEnabledState(this.#database, id, false, now, "secret_missing");
-        }
-      }
-      appendOutboundActivity(this.#database, "configuration_changed", id, now, {
-        change: "versioned",
-        version: nextVersionNumber(this.#database, id) - 1,
-        subscriptions_changed: subscriptionsChanged,
-        ...(credentialsMoved
-          ? { origin_changed: true, deliveries_dismissed: dismissedDeliveries }
-          : {}),
-      });
-      return this.#requireDestination(id);
+  /** Change what a destination sends: its name, subscriptions and webhook payload options. */
+  updateSettings(destinationId: string, input: OutboundSettingsInput): OutboundDestination {
+    return this.#reconfigure(destinationId, {
+      ...(input.label === undefined ? {} : { label: input.label }),
+      ...(input.subscriptions === undefined ? {} : { subscriptions: input.subscriptions }),
+      ...(input.payloadFormat === undefined ? {} : { payloadFormat: input.payloadFormat }),
+      ...(input.allowPrivateNetwork === undefined
+        ? {}
+        : { allowPrivateNetwork: input.allowPrivateNetwork }),
     });
-    if (
-      removedSecretSlot ||
-      credentialsCleared ||
-      (previousTransport === "home_assistant" && result.transport !== "home_assistant")
-    ) {
-      this.#emitLifecycle("disabled", id);
-    } else if (versioned && result.enabled && result.transport === "home_assistant") {
-      this.#emitLifecycle("credentials_changed", id);
-    }
-    return result;
   }
 
-  /** Apply one complete Admin edit submission atomically, including secrets and enabled state. */
-  updateConfigured(
-    destinationId: string,
-    input: UpdateConfiguredOutboundDestinationInput,
-  ): OutboundDestination {
-    const id = validateOutboundId(destinationId, "destinationId");
-    if (typeof input.enabled !== "boolean") throw new TypeError("enabled must be boolean");
-    const { enabled, token, headerSecrets, ...editInput } = input;
-    const before = this.#requireMutableDestination(id);
-    const currentVersion = before.currentVersion;
-    if (currentVersion === null) throw new Error("Outbound destination configuration is missing");
-    const currentConfig = currentVersion.config;
-    const transport =
-      editInput.transport === undefined
-        ? before.transport
-        : validateOutboundTransport(editInput.transport);
-    let endpoint: string | undefined;
-    if (transport === "webhook") {
-      endpoint =
-        editInput.webhookUrl === undefined
-          ? currentConfig.transport === "webhook" && currentConfig.endpointConfigured
-            ? this.#revealSecret(currentVersion.id, WEBHOOK_ENDPOINT_SLOT)
-            : undefined
-          : parseOutboundUrl(editInput.webhookUrl, "webhookUrl").url;
-    }
-    const config = normalizeDestinationConfig({
-      transport,
-      ...(editInput.baseUrl !== undefined
-        ? { baseUrl: editInput.baseUrl }
-        : currentConfig.transport === "home_assistant"
-          ? { baseUrl: currentConfig.baseUrl }
-          : {}),
-      ...(editInput.webhookUrl !== undefined
-        ? { webhookUrl: editInput.webhookUrl }
-        : endpoint === undefined
-          ? {}
-          : { webhookUrl: endpoint }),
-      ...(editInput.payloadFormat !== undefined
-        ? { payloadFormat: editInput.payloadFormat }
-        : currentConfig.transport === "webhook"
-          ? { payloadFormat: currentConfig.payloadFormat }
-          : {}),
-      ...(editInput.allowPrivateNetwork !== undefined
-        ? { allowPrivateNetwork: editInput.allowPrivateNetwork }
-        : transport === "webhook" && currentConfig.transport === "webhook"
-          ? { allowPrivateNetwork: currentConfig.allowPrivateNetwork }
-          : {}),
-      staticHeaders: editInput.staticHeaders ?? currentConfig.staticHeaders,
-      secretHeaders:
-        editInput.secretHeaders ??
-        currentConfig.secretHeaders.map((header) => ({ name: header.name, slot: header.slot })),
-    });
-    for (const header of config.secretHeaders) {
-      const previous = currentConfig.secretHeaders.find(
-        (candidate) => candidate.slot === header.slot,
-      );
-      if (previous !== undefined && previous.name.toLowerCase() !== header.name.toLowerCase()) {
-        throw new Error("A secret header slot cannot be reused for another header");
-      }
-    }
-    this.#assertHistoricalSecretSlots(id, config.secretHeaders);
-    validateSubscriptions(editInput.subscriptions ?? before.subscriptions);
-    const replacements = normalizedHeaderReplacements(headerSecrets);
-    const replacementValues = this.#resolveReplacementSlots(config.secretHeaders, replacements);
-    // edit() discards stored secrets when the origin changes; only submitted values survive.
-    const credentialsMoved = this.#credentialOriginChanged(
-      currentVersion,
-      config.transport,
-      config.transport === "home_assistant" ? config.baseUrl : endpoint,
-    );
-    const finalHeaderValues = new Map(replacementValues);
-    for (const header of config.secretHeaders) {
-      if (finalHeaderValues.has(header.slot)) continue;
-      if (!credentialsMoved && secretAvailable(this.#options.secrets, id, header.slot)) {
-        finalHeaderValues.set(header.slot, this.#revealSecret(id, header.slot));
-      }
-    }
-    this.#assertHeaderTotal(config.staticHeaders, config.secretHeaders, finalHeaderValues);
-    const submittedToken = token === undefined ? undefined : validateHomeAssistantToken(token);
-    const finalTokenAvailable =
-      submittedToken !== undefined ||
-      (!credentialsMoved &&
-        transport === "home_assistant" &&
-        secretAvailable(this.#options.secrets, id, HA_TOKEN_SLOT));
-    if (token !== undefined && transport !== "home_assistant") {
-      throw new Error("Only Home Assistant destinations have tokens");
-    }
-    if (enabled) {
-      if (
-        credentialsMoved &&
-        ((transport === "home_assistant" && submittedToken === undefined) ||
-          config.secretHeaders.some((header) => !replacementValues.has(header.slot)))
-      ) {
-        throw credentialsRequiredForNewAddress();
-      }
-      if (transport === "home_assistant" && !finalTokenAvailable) {
-        throw new Error("Home Assistant token is required before enabling");
-      }
-      if (transport === "webhook" && endpoint === undefined) {
-        throw new Error("Webhook endpoint is required before enabling");
-      }
-      if (config.secretHeaders.some((header) => !finalHeaderValues.has(header.slot))) {
-        throw new Error("Every configured secret header requires a value before enabling");
-      }
-      const finalSlots = new Set(config.secretHeaders.map((header) => header.slot));
-      // A changed origin dismisses pending deliveries, so none can need old slots.
-      const unavailableHistoricalSlot = credentialsMoved
-        ? undefined
-        : listUnfinishedSecretSlots(this.#database, id).find(
-            (slot) =>
-              (currentConfig.secretHeaders.some((header) => header.slot === slot) &&
-                !finalSlots.has(slot)) ||
-              (!replacementValues.has(slot) && !secretAvailable(this.#options.secrets, id, slot)),
-          );
-      if (unavailableHistoricalSlot !== undefined) {
-        throw new Error("Pending delivery requires a removed secret header value");
-      }
-    }
-
-    return this.#withDeferredLifecycle(
-      () =>
-        this.#database.withTransaction(() => {
-          this.edit(id, editInput);
-          if (submittedToken !== undefined) this.setToken(id, submittedToken);
-          const updatedConfig = this.#requireDestination(id).currentVersion?.config;
-          if (updatedConfig === undefined)
-            throw new Error("Outbound destination configuration is missing");
-          for (const [slot, value] of replacementValues) {
-            if (!updatedConfig.secretHeaders.some((header) => header.slot === slot)) {
-              throw new Error("Header secret slot is not configured");
-            }
-            this.setHeaderSecret(id, slot, value);
-          }
-          const current = this.#requireDestination(id);
-          if (current.enabled !== enabled) this.setEnabled(id, enabled);
-          return this.#requireDestination(id);
-        }),
-      (updated) => {
-        if (updated.enabled && updated.transport === "home_assistant") {
-          this.#emitLifecycle("credentials_changed", id);
-        } else if (before.transport === "home_assistant" || !updated.enabled) {
-          this.#emitLifecycle("disabled", id);
-        }
-      },
-    );
-  }
-
-  patch(destinationId: string, input: OutboundDestinationPatch): OutboundDestination {
-    const current = this.#requireMutableDestination(
+  /**
+   * Change where a destination sends. A new origin discards its stored token and secret
+   * header values and its queued deliveries, so a Home Assistant token can come along.
+   */
+  changeEndpoint(destinationId: string, input: OutboundEndpointInput): OutboundDestination {
+    const destination = this.#requireMutableDestination(
       validateOutboundId(destinationId, "destinationId"),
     );
-    return this.updateConfigured(destinationId, {
-      ...input,
-      enabled: input.enabled ?? current.enabled,
-    });
+    if (input.token !== undefined && destination.transport !== "home_assistant") {
+      throw new Error("Only Home Assistant destinations have tokens");
+    }
+    return this.#reconfigure(
+      destination.id,
+      destination.transport === "home_assistant"
+        ? { baseUrl: input.url }
+        : { webhookUrl: input.url },
+      input.token === undefined ? {} : { token: validateHomeAssistantToken(input.token) },
+    );
+  }
+
+  /** Replace the static and secret header lists, storing any submitted secret values. */
+  replaceHeaders(destinationId: string, input: OutboundHeadersInput): OutboundDestination {
+    return this.#reconfigure(
+      destinationId,
+      { staticHeaders: input.staticHeaders, secretHeaders: input.secretHeaders },
+      { headerValues: input.secretHeaders },
+    );
   }
 
   setRequired(destinationId: string, required: boolean): OutboundDestination {
@@ -710,16 +436,14 @@ export class OutboundService implements OutboundAdmissionPort {
     });
   }
 
-  enable(destinationId: string): OutboundDestination {
-    return this.#setEnabled(destinationId, true);
-  }
-
-  disable(destinationId: string): OutboundDestination {
-    return this.#setEnabled(destinationId, false);
-  }
-
   setEnabled(destinationId: string, enabled: boolean): OutboundDestination {
-    return enabled ? this.enable(destinationId) : this.disable(destinationId);
+    if (typeof enabled !== "boolean") throw new TypeError("enabled must be boolean");
+    const id = validateOutboundId(destinationId, "destinationId");
+    const result = this.#database.withTransaction(() =>
+      this.#writeEnabled(id, enabled, "operator_disabled"),
+    );
+    this.#emitLifecycle(enabled ? "enabled" : "disabled", id);
+    return result;
   }
 
   retire(destinationId: string): OutboundDestination {
@@ -1124,67 +848,271 @@ export class OutboundService implements OutboundAdmissionPort {
         : { status: "no_targets" };
   }
 
-  #setEnabled(destinationId: string, enabled: boolean): OutboundDestination {
+  /**
+   * Apply one configuration change and any secrets that come with it, atomically. A destination
+   * that can no longer deliver is disabled with the reason; one that was enabled before and can
+   * deliver again (a new origin with its token) is enabled again.
+   */
+  #reconfigure(
+    destinationId: string,
+    change: ConfigChange,
+    secrets: {
+      readonly token?: string;
+      readonly headerValues?: readonly OutboundSecretHeaderInput[];
+    } = {},
+  ): OutboundDestination {
     const id = validateOutboundId(destinationId, "destinationId");
+    let changed = false;
+    return this.#withDeferredLifecycle(
+      () =>
+        this.#database.withTransaction(() => {
+          const before = this.#requireMutableDestination(id);
+          // A label is metadata: it never touches the connection.
+          changed = this.#writeVersion(id, change) === "version";
+          if (secrets.token !== undefined) {
+            this.setToken(id, secrets.token);
+            changed = true;
+          }
+          const config = this.#requireDestination(id).currentVersion?.config;
+          if (config === undefined)
+            throw new Error("Outbound destination configuration is missing");
+          for (const [slot, value] of headerValuesBySlot(
+            config.secretHeaders,
+            secrets.headerValues,
+          )) {
+            this.setHeaderSecret(id, slot, value);
+            changed = true;
+          }
+          // Only a change to where it sends or what it sends with can stop or restore delivery;
+          // a name or subscription change leaves the enabled state alone.
+          const credentialsTouched =
+            secrets.token !== undefined ||
+            secrets.headerValues !== undefined ||
+            change.baseUrl !== undefined ||
+            change.webhookUrl !== undefined ||
+            change.staticHeaders !== undefined ||
+            change.secretHeaders !== undefined;
+          if (!credentialsTouched) return this.#requireDestination(id);
+          const current = this.#requireDestination(id);
+          const blocker = this.#enableBlocker(current);
+          if (current.enabled && blocker !== undefined) {
+            this.#writeEnabled(id, false, ENABLE_BLOCKERS[blocker].reason);
+            changed = true;
+          } else if (before.enabled && !current.enabled && blocker === undefined) {
+            this.#writeEnabled(id, true);
+            changed = true;
+          }
+          return this.#requireDestination(id);
+        }),
+      (updated) => {
+        if (!changed) return;
+        if (updated.enabled && updated.transport === "home_assistant") {
+          this.#emitLifecycle("credentials_changed", id);
+        } else if (!updated.enabled) {
+          this.#emitLifecycle("disabled", id);
+        }
+      },
+    );
+  }
+
+  /**
+   * Record a change as a new configuration version, or as metadata when only the label changed.
+   * Secrets never follow a destination to a new origin. Returns what it wrote.
+   */
+  #writeVersion(id: string, change: ConfigChange): "nothing" | "label" | "version" {
     const now = iso(this.#now);
-    const result = this.#database.withTransaction(() => {
-      const current = this.#requireMutableDestination(id);
-      if (enabled) {
-        if (
-          current.transport === "home_assistant" &&
-          !secretAvailable(this.#options.secrets, id, HA_TOKEN_SLOT)
-        ) {
-          markTokenMissing(this.#database, id, now);
-          throw new Error("Home Assistant token is required before enabling");
-        }
-        if (
-          current.transport === "webhook" &&
-          (current.currentVersion === null ||
-            current.currentVersion.config.transport !== "webhook" ||
-            current.currentVersion.config.endpointAvailable !== true)
-        ) {
-          throw new Error("Webhook endpoint is required before enabling");
-        }
-        if (
-          current.currentVersion?.config.secretHeaders.some(
-            (header) => !header.configured || header.available !== true,
-          ) === true
-        ) {
-          throw new Error("Every configured secret header requires a value before enabling");
-        }
-        const unavailableHistoricalSlot = listUnfinishedSecretSlots(this.#database, id).find(
-          (slot) => !secretAvailable(this.#options.secrets, id, slot),
-        );
-        if (unavailableHistoricalSlot !== undefined) {
-          throw new Error("Pending delivery requires a removed secret header value");
-        }
-      }
-      if (!enabled) {
-        setEnabledState(this.#database, id, false, now, "operator_disabled");
-        appendOutboundActivity(this.#database, "configuration_changed", id, now, {
-          change: "disabled",
-        });
-      } else {
-        const disabledAt = current.disabledAt;
-        setEnabledState(this.#database, id, true, now);
-        if (disabledAt !== null) shiftDestinationDeliveries(this.#database, id, disabledAt, now);
-        appendOutboundActivity(this.#database, "configuration_changed", id, now, {
-          change: "enabled",
-        });
-      }
-      const after = this.#requireDestination(id);
-      this.integrationStatusChanged(this.#database, {
-        destinationId: id,
-        integrationType: after.transport,
-        previousState: integrationEventState(current),
-        state: integrationEventState(after),
-        reasonCode: enabled ? "enabled" : "operator_disabled",
-        occurredAt: now,
+    const current = this.#requireMutableDestination(id);
+    const currentVersion = current.currentVersion;
+    if (currentVersion === null) throw new Error("Outbound destination configuration is missing");
+    const currentConfig = currentVersion.config;
+    const label =
+      change.label === undefined ? current.label : validateDestinationLabel(change.label);
+    const writeLabel = (): "nothing" | "label" => {
+      if (label === current.label) return "nothing";
+      updateDestinationLabelRequired(this.#database, id, label, current.required, now);
+      appendOutboundActivity(this.#database, "configuration_changed", id, now, {
+        change: "metadata",
+        required: current.required,
       });
-      return after;
+      return "label";
+    };
+    const subscriptions =
+      change.subscriptions === undefined
+        ? current.subscriptions
+        : validateSubscriptions(change.subscriptions);
+    const subscriptionsChanged =
+      subscriptions.length !== current.subscriptions.length ||
+      subscriptions.some((eventType) => !current.subscriptions.includes(eventType));
+    const configChanged =
+      change.baseUrl !== undefined ||
+      change.webhookUrl !== undefined ||
+      change.payloadFormat !== undefined ||
+      change.allowPrivateNetwork !== undefined ||
+      change.staticHeaders !== undefined ||
+      change.secretHeaders !== undefined;
+    // A label-only change never reads the stored endpoint.
+    if (!configChanged && !subscriptionsChanged) return writeLabel();
+    const transport = current.transport;
+    let endpoint: string | undefined;
+    if (transport === "webhook") {
+      if (change.webhookUrl !== undefined) {
+        endpoint = parseOutboundUrl(change.webhookUrl, "webhookUrl").url;
+      } else if (currentConfig.transport === "webhook" && currentConfig.endpointConfigured) {
+        endpoint = this.#revealSecret(currentVersion.id, WEBHOOK_ENDPOINT_SLOT);
+      }
+    }
+    const config = normalizeDestinationConfig({
+      transport,
+      ...(change.baseUrl !== undefined
+        ? { baseUrl: change.baseUrl }
+        : currentConfig.transport === "home_assistant"
+          ? { baseUrl: currentConfig.baseUrl }
+          : {}),
+      ...(change.webhookUrl !== undefined
+        ? { webhookUrl: change.webhookUrl }
+        : endpoint !== undefined
+          ? { webhookUrl: endpoint }
+          : {}),
+      ...(change.payloadFormat !== undefined
+        ? { payloadFormat: change.payloadFormat }
+        : currentConfig.transport === "webhook"
+          ? { payloadFormat: currentConfig.payloadFormat }
+          : {}),
+      ...(change.allowPrivateNetwork !== undefined
+        ? { allowPrivateNetwork: change.allowPrivateNetwork }
+        : currentConfig.transport === "webhook"
+          ? { allowPrivateNetwork: currentConfig.allowPrivateNetwork }
+          : {}),
+      staticHeaders: change.staticHeaders ?? currentConfig.staticHeaders,
+      secretHeaders:
+        change.secretHeaders ??
+        currentConfig.secretHeaders.map((header) => ({ name: header.name, slot: header.slot })),
     });
-    this.#emitLifecycle(enabled ? "enabled" : "disabled", id);
-    return result;
+    const connectionChanged =
+      config.configJson !== readCurrentDestinationVersion(this.#database, id)?.configJson ||
+      (config.transport === "webhook" &&
+        change.webhookUrl !== undefined &&
+        (currentConfig.transport !== "webhook" ||
+          !currentConfig.endpointAvailable ||
+          endpoint !== this.#revealSecret(currentVersion.id, WEBHOOK_ENDPOINT_SLOT)));
+    // Saving the same values again records nothing.
+    if (!connectionChanged && !subscriptionsChanged) return writeLabel();
+    for (const header of config.secretHeaders) {
+      const previous = currentConfig.secretHeaders.find(
+        (candidate) => candidate.slot === header.slot,
+      );
+      if (previous !== undefined && previous.name.toLowerCase() !== header.name.toLowerCase()) {
+        throw new Error("A secret header slot cannot be reused for another header");
+      }
+    }
+    this.#assertHistoricalSecretSlots(id, config.secretHeaders);
+    const credentialsMoved = this.#credentialOriginChanged(
+      currentVersion,
+      config.transport,
+      config.transport === "home_assistant" ? config.baseUrl : endpoint,
+    );
+    updateDestinationLabelRequired(this.#database, id, label, current.required, now);
+    const versionId = this.#ids();
+    insertVersionConfig(this.#database, {
+      id: versionId,
+      destinationId: id,
+      versionNumber: nextVersionNumber(this.#database, id),
+      createdAt: now,
+      config,
+      subscriptions,
+    });
+    this.#copyVersionSecrets(currentVersion.id, versionId, currentConfig, config, endpoint);
+    if (connectionChanged) resetConnectivityState(this.#database, id, now);
+    const store = this.#options.secrets;
+    for (const previous of currentConfig.secretHeaders) {
+      if (config.secretHeaders.some((header) => header.slot === previous.slot)) continue;
+      store?.remove("outbound", id, previous.slot, { now: this.#now });
+    }
+    // Queued deliveries for the old address are dropped and failed ones made final (no
+    // Retry), so they cannot resolve replacement secrets.
+    let dismissedDeliveries = 0;
+    if (credentialsMoved) {
+      this.#removeDestinationSecrets(id);
+      dismissedDeliveries = dismissDestinationDeliveries(this.#database, id, now);
+      dismissFailedDestinationDeliveries(this.#database, id, now);
+      if (config.transport === "home_assistant") markTokenMissing(this.#database, id, now);
+    }
+    appendOutboundActivity(this.#database, "configuration_changed", id, now, {
+      change: "versioned",
+      version: nextVersionNumber(this.#database, id) - 1,
+      subscriptions_changed: subscriptionsChanged,
+      ...(credentialsMoved
+        ? { origin_changed: true, deliveries_dismissed: dismissedDeliveries }
+        : {}),
+    });
+    return "version";
+  }
+
+  /** The first thing that stops a destination delivering, if any. */
+  #enableBlocker(destination: OutboundDestination): EnableBlocker | undefined {
+    const config = destination.currentVersion?.config;
+    if (
+      destination.transport === "home_assistant" &&
+      !secretAvailable(this.#options.secrets, destination.id, HA_TOKEN_SLOT)
+    ) {
+      return "token_missing";
+    }
+    if (
+      destination.transport === "webhook" &&
+      (config?.transport !== "webhook" || config.endpointAvailable !== true)
+    ) {
+      return "endpoint_missing";
+    }
+    if (config?.secretHeaders.some((header) => !header.configured || header.available !== true)) {
+      return "secret_missing";
+    }
+    const pendingSlotMissing = listUnfinishedSecretSlots(this.#database, destination.id).some(
+      (slot) => !secretAvailable(this.#options.secrets, destination.id, slot),
+    );
+    return pendingSlotMissing ? "pending_secret" : undefined;
+  }
+
+  /** Enable or disable inside the caller's transaction; enabling refuses a blocked destination. */
+  #writeEnabled(
+    id: string,
+    enabled: boolean,
+    disabledReason = "operator_disabled",
+  ): OutboundDestination {
+    const now = iso(this.#now);
+    const current = this.#requireMutableDestination(id);
+    if (enabled) {
+      const blocker = this.#enableBlocker(current);
+      if (blocker !== undefined) {
+        throw new ApplicationError({
+          category: "validation",
+          code: `outbound.${blocker}`,
+          clientMessage: ENABLE_BLOCKERS[blocker].message,
+        });
+      }
+      const disabledAt = current.disabledAt;
+      setEnabledState(this.#database, id, true, now);
+      if (disabledAt !== null) shiftDestinationDeliveries(this.#database, id, disabledAt, now);
+      appendOutboundActivity(this.#database, "configuration_changed", id, now, {
+        change: "enabled",
+      });
+    } else {
+      setEnabledState(this.#database, id, false, now, disabledReason);
+      if (disabledReason === "token_missing") markTokenMissing(this.#database, id, now);
+      appendOutboundActivity(this.#database, "configuration_changed", id, now, {
+        change: "disabled",
+        ...(disabledReason === "operator_disabled" ? {} : { reason: disabledReason }),
+      });
+    }
+    const after = this.#requireDestination(id);
+    this.integrationStatusChanged(this.#database, {
+      destinationId: id,
+      integrationType: after.transport,
+      previousState: integrationEventState(current),
+      state: integrationEventState(after),
+      reasonCode: enabled ? "enabled" : disabledReason,
+      occurredAt: now,
+    });
+    return after;
   }
 
   #requireDestination(destinationId: string): OutboundDestination {
@@ -1211,19 +1139,6 @@ export class OutboundService implements OutboundAdmissionPort {
     ) {
       throw new Error("Outbound delivery was not found");
     }
-  }
-
-  #resolveReplacementSlots(
-    headers: readonly { readonly name: string; readonly slot: string }[],
-    replacements: ReadonlyMap<string, string>,
-  ): ReadonlyMap<string, string> {
-    const result = new Map<string, string>();
-    for (const [name, value] of replacements) {
-      const header = headers.find((candidate) => candidate.name.toLowerCase() === name);
-      if (header === undefined) throw new Error("The submitted secret header is not configured");
-      result.set(header.slot, value);
-    }
-    return result;
   }
 
   #assertHeaderTotal(

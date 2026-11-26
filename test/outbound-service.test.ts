@@ -7,6 +7,7 @@ import {
 } from "../src/infrastructure/database/connection.ts";
 import { createSecretsService } from "../src/features/secrets/service.ts";
 import { createOutboundService, type OutboundService } from "../src/features/outbound/service.ts";
+import type { OutboundDestination } from "../src/features/outbound/types.ts";
 import { applyDeliveryResult, claimDue } from "../src/features/outbox/repository.ts";
 import { readActivities } from "../src/features/activity/operations.ts";
 import { ApplicationError } from "../src/shared/errors.ts";
@@ -73,10 +74,6 @@ function pourCompleted(eventId: string) {
   } as const;
 }
 
-function credentialsRequired(error: unknown): boolean {
-  return error instanceof ApplicationError && error.code === "outbound.credentials_required";
-}
-
 function rowCount(database: DatabaseConnection, table: string): number {
   return database
     .prepare<[], { readonly count: number }>(`SELECT count(*) AS count FROM ${table}`)
@@ -107,7 +104,7 @@ void test("destination defaults, immutable versions, safe projections, and paylo
     assert.equal(JSON.stringify(created).includes("https://example.test/private-hook"), false);
     assert.equal(JSON.stringify(secrets.list()).includes("private-hook"), false);
 
-    const edited = service.edit(DESTINATION, { payloadFormat: "standard" });
+    const edited = service.updateSettings(DESTINATION, { payloadFormat: "standard" });
     assert.equal(edited.currentVersion?.versionNumber, 2);
     assert.equal(
       edited.currentVersion?.config.transport === "webhook" &&
@@ -119,7 +116,7 @@ void test("destination defaults, immutable versions, safe projections, and paylo
     assert.equal(rowCount(database, "outbound_destination_subscriptions"), 12);
 
     const replacedEndpoint = "https://replacement.example.test/new-hook?token=rotated";
-    const replaced = service.edit(DESTINATION, { webhookUrl: replacedEndpoint });
+    const replaced = service.changeEndpoint(DESTINATION, { url: replacedEndpoint });
     assert.equal(replaced.currentVersion?.versionNumber, 3);
     assert.equal(
       secrets.revealPrivileged("outbound", replaced.currentVersion.id, "endpoint"),
@@ -134,6 +131,113 @@ void test("destination defaults, immutable versions, safe projections, and paylo
   }
 });
 
+void test("saving unchanged settings records no new version and leaves the connection alone", () => {
+  const { database, service, lifecycleCalls } = harness();
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "Home",
+      transport: "home_assistant",
+      baseUrl: "http://ha.test:8123",
+      token: "token",
+    });
+    lifecycleCalls.length = 0;
+    const before = service.get(DESTINATION)!;
+    const same = service.updateSettings(DESTINATION, {
+      label: "Home",
+      subscriptions: [...before.subscriptions].reverse(),
+    });
+    assert.equal(same.currentVersion?.id, before.currentVersion?.id);
+    assert.equal(same.updatedAt, before.updatedAt);
+    assert.equal(rowCount(database, "outbound_destination_versions"), 1);
+    assert.deepEqual(lifecycleCalls, []);
+
+    const renamed = service.updateSettings(DESTINATION, { label: "Kitchen" });
+    assert.equal(renamed.label, "Kitchen");
+    assert.equal(renamed.currentVersion?.id, before.currentVersion?.id, "a label is metadata");
+    const narrowed = service.updateSettings(DESTINATION, { subscriptions: ["pour.completed"] });
+    assert.equal(narrowed.currentVersion?.versionNumber, 2);
+    assert.deepEqual(lifecycleCalls, [`credentials:${DESTINATION}`], "only the new version");
+  } finally {
+    database.close();
+  }
+});
+
+void test("a settings change never pauses a destination whose stored secret can't be read", () => {
+  const { database, service } = harness();
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "Hook",
+      transport: "webhook",
+      webhookUrl: "https://hooks.example.test/a",
+      secretHeaders: [{ name: "Authorization", value: "Bearer kept" }],
+    });
+    // The same database after a restart without the server key: secrets are stored but
+    // unreadable, so the destination couldn't be enabled now.
+    const keyless = createOutboundService(database, {
+      secrets: createSecretsService(database),
+      now: () => new Date(NOW),
+    });
+    assert.equal(
+      keyless.get(DESTINATION)?.currentVersion?.config.secretHeaders[0]?.available,
+      false,
+    );
+
+    const renamed = keyless.updateSettings(DESTINATION, { label: "Renamed hook" });
+    assert.equal(renamed.label, "Renamed hook");
+    assert.equal(renamed.enabled, true);
+    assert.equal(renamed.disabledReason, null);
+  } finally {
+    database.close();
+  }
+});
+
+void test("webhook payload options are refused for Home Assistant", () => {
+  const { database, service } = harness();
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "Home",
+      transport: "home_assistant",
+      baseUrl: "http://192.168.1.35:8123",
+      token: "token",
+    });
+    assert.throws(
+      () => service.updateSettings(DESTINATION, { allowPrivateNetwork: true }),
+      /allowPrivateNetwork/u,
+    );
+    assert.throws(
+      () => service.changeEndpoint(DESTINATION, { url: "http://ha.test", token: "" }),
+      ApplicationError,
+    );
+  } finally {
+    database.close();
+  }
+});
+
+void test("enabling a destination that cannot deliver is a validation error with the reason", () => {
+  const { database, service } = harness();
+  try {
+    service.create({
+      id: DESTINATION,
+      label: "Needs token",
+      transport: "home_assistant",
+      baseUrl: "http://ha.test:8123",
+    });
+    assert.throws(
+      () => service.setEnabled(DESTINATION, true),
+      (error: unknown) =>
+        error instanceof ApplicationError &&
+        error.category === "validation" &&
+        error.clientMessage === "Home Assistant token is required before enabling",
+    );
+    assert.equal(service.get(DESTINATION)?.enabled, false);
+  } finally {
+    database.close();
+  }
+});
+
 void test("malformed secret-bearing configuration fails without exposing or persisting secrets", () => {
   const { database, service, secrets } = harness();
   try {
@@ -143,7 +247,7 @@ void test("malformed secret-bearing configuration fails without exposing or pers
         label: "Invalid HA",
         transport: "home_assistant",
         baseUrl: "http://ha.test?ambiguous=1",
-        secret: SECRET_SENTINEL,
+        token: SECRET_SENTINEL,
       }),
     );
     assert.deepEqual(service.list(), []);
@@ -174,7 +278,7 @@ void test("malformed secret-bearing configuration fails without exposing or pers
         label: "Divergent endpoint",
         transport: "webhook",
         webhookUrl: "https://example.test/hook",
-        secret: "https://different.example.test/hook",
+        token: "https://different.example.test/hook",
       }),
     );
     assert.deepEqual(service.list(), []);
@@ -205,7 +309,7 @@ void test("enabled HA create connects after commit while missing-token create st
       label: "Configured HA",
       transport: "home_assistant",
       baseUrl: "http://ha.test:8123",
-      secret: "configured-token",
+      token: "configured-token",
     });
     assert.equal(configured.enabled, true);
     assert.deepEqual(lifecycleCalls, [`enabled:${DESTINATION}`]);
@@ -227,7 +331,7 @@ void test("enabled HA create connects after commit while missing-token create st
   }
 });
 
-void test("complete Admin create and edit commands are locally atomic", () => {
+void test("create and each reconfiguration are locally atomic", () => {
   const { database, service, secrets, lifecycleCalls } = harness();
   try {
     const oversizedHeaders = ["One", "Two", "Three", "Four"].map((suffix) => ({
@@ -235,14 +339,13 @@ void test("complete Admin create and edit commands are locally atomic", () => {
       value: "s".repeat(1_024),
     }));
     assert.throws(() =>
-      service.createConfigured({
+      service.create({
         id: DESTINATION,
         label: "Rolled back create",
         transport: "home_assistant",
         baseUrl: "http://ha.test:8123",
-        secret: "create-token",
-        secretHeaders: oversizedHeaders.map(({ name }) => ({ name })),
-        headerSecrets: oversizedHeaders,
+        token: "create-token",
+        secretHeaders: oversizedHeaders,
       }),
     );
     for (const table of [
@@ -260,32 +363,28 @@ void test("complete Admin create and edit commands are locally atomic", () => {
     );
     assert.deepEqual(lifecycleCalls, []);
 
-    const created = service.createConfigured({
+    const created = service.create({
       id: DESTINATION,
       label: "Atomic HA",
       transport: "home_assistant",
       baseUrl: "http://ha.test:8123",
-      secret: "first-token",
+      token: "first-token",
       enabled: false,
-      secretHeaders: [{ name: "X-Webhook-Token", slot: "webhook_token" }],
-      headerSecrets: [{ name: "X-Webhook-Token", value: "first-header" }],
+      secretHeaders: [{ name: "X-Webhook-Token", slot: "webhook_token", value: "first-header" }],
     });
     const initialVersionId = created.currentVersion!.id;
     const initialVersionCount = rowCount(database, "outbound_destination_versions");
     const initialActivityCount = readActivities(database).length;
     const initialProjection = JSON.stringify(service.get(DESTINATION));
 
+    // The new version is written before the header values, which then exceed the limit.
     assert.throws(() =>
-      service.updateConfigured(DESTINATION, {
-        label: "Must roll back",
-        transport: "home_assistant",
-        baseUrl: "http://replacement-ha.test:8123",
-        required: true,
-        enabled: true,
-        subscriptions: ["pour.completed"],
-        token: "must-not-commit-token",
-        secretHeaders: oversizedHeaders.map(({ name }) => ({ name })),
-        headerSecrets: oversizedHeaders,
+      service.replaceHeaders(DESTINATION, { staticHeaders: [], secretHeaders: oversizedHeaders }),
+    );
+    assert.throws(() =>
+      service.changeEndpoint(DESTINATION, {
+        url: "http://replacement-ha.test:8123",
+        token: "bad\ntoken",
       }),
     );
     assert.equal(service.get(DESTINATION)?.currentVersion?.id, initialVersionId);
@@ -298,23 +397,31 @@ void test("complete Admin create and edit commands are locally atomic", () => {
     );
     assert.equal(readActivities(database).length, initialActivityCount);
 
-    lifecycleCalls.length = 0;
-    const updated = service.updateConfigured(DESTINATION, {
+    service.setEnabled(DESTINATION, true);
+    service.setRequired(DESTINATION, true);
+    service.updateSettings(DESTINATION, {
       label: "Committed HA",
-      transport: "home_assistant",
-      baseUrl: "http://replacement-ha.test:8123",
-      required: true,
-      enabled: true,
       subscriptions: ["fill.assigned", "pour.completed"],
-      token: "rotated-token",
-      secretHeaders: [{ name: "X-Webhook-Token", slot: "webhook_token" }],
-      headerSecrets: [{ name: "X-Webhook-Token", value: "rotated-header" }],
     });
+    lifecycleCalls.length = 0;
+    // A new origin drops the header value too, so the destination pauses until it is re-entered.
+    const moved = service.changeEndpoint(DESTINATION, {
+      url: "http://replacement-ha.test:8123",
+      token: "rotated-token",
+    });
+    assert.equal(moved.enabled, false);
+    assert.equal(moved.disabledReason, "secret_missing");
+    assert.deepEqual(lifecycleCalls, [`disabled:${DESTINATION}`]);
+    service.replaceHeaders(DESTINATION, {
+      staticHeaders: [],
+      secretHeaders: [{ name: "X-Webhook-Token", slot: "webhook_token", value: "rotated-header" }],
+    });
+    const updated = service.setEnabled(DESTINATION, true);
     assert.equal(updated.label, "Committed HA");
     assert.equal(updated.required, true);
     assert.equal(updated.enabled, true);
     assert.deepEqual(updated.subscriptions, ["fill.assigned", "pour.completed"]);
-    assert.equal(updated.currentVersion?.versionNumber, 2);
+    assert.equal(updated.currentVersion?.versionNumber, 3);
     assert.equal(
       secrets.revealPrivileged("outbound", DESTINATION, "token_current"),
       "rotated-token",
@@ -323,7 +430,6 @@ void test("complete Admin create and edit commands are locally atomic", () => {
       secrets.revealPrivileged("outbound", DESTINATION, "webhook_token"),
       "rotated-header",
     );
-    assert.deepEqual(lifecycleCalls, [`credentials:${DESTINATION}`]);
 
     service.admit(database, {
       schema_version: 1,
@@ -335,10 +441,11 @@ void test("complete Admin create and edit commands are locally atomic", () => {
     });
     service.removeHeaderSecret(DESTINATION, "webhook_token");
     assert.equal(service.get(DESTINATION)?.enabled, false);
-    const repaired = service.updateConfigured(DESTINATION, {
-      enabled: true,
-      headerSecrets: [{ name: "X-Webhook-Token", value: "restored-header" }],
+    service.replaceHeaders(DESTINATION, {
+      staticHeaders: [],
+      secretHeaders: [{ name: "X-Webhook-Token", slot: "webhook_token", value: "restored-header" }],
     });
+    const repaired = service.setEnabled(DESTINATION, true);
     assert.equal(repaired.enabled, true);
     assert.equal(
       secrets.revealPrivileged("outbound", DESTINATION, "webhook_token"),
@@ -349,7 +456,7 @@ void test("complete Admin create and edit commands are locally atomic", () => {
   }
 });
 
-void test("a new Home Assistant origin requires the token again and drops queued deliveries", () => {
+void test("a new Home Assistant origin discards the token and queued deliveries", () => {
   const { database, service, secrets, lifecycleCalls } = harness();
   try {
     service.create({
@@ -357,44 +464,36 @@ void test("a new Home Assistant origin requires the token again and drops queued
       label: "Home",
       transport: "home_assistant",
       baseUrl: "http://ha.test:8123",
-      secret: "original-token",
+      token: "original-token",
     });
     service.admit(database, pourCompleted("33333333-3333-4333-8333-333333333401"));
-    const versionBefore = service.get(DESTINATION)?.currentVersion?.id;
-
-    assert.throws(
-      () =>
-        service.updateConfigured(DESTINATION, {
-          baseUrl: "http://other-ha.test:8123",
-          enabled: true,
-        }),
-      credentialsRequired,
-    );
-    assert.equal(service.get(DESTINATION)?.currentVersion?.id, versionBefore);
-    assert.equal(
-      secrets.revealPrivileged("outbound", DESTINATION, "token_current"),
-      "original-token",
-    );
-    assert.equal(deliveryState(database, "33333333-3333-4333-8333-333333333401"), "pending");
 
     lifecycleCalls.length = 0;
-    // A scheme change is an origin change too.
-    const moved = service.edit(DESTINATION, { baseUrl: "https://ha.test:8123" });
+    // Without a token for the new address, the destination pauses instead of sending.
+    const moved = service.changeEndpoint(DESTINATION, { url: "http://other-ha.test:8123" });
     assert.equal(moved.enabled, false);
     assert.equal(moved.disabledReason, "token_missing");
     assert.throws(() => secrets.revealPrivileged("outbound", DESTINATION, "token_current"));
     assert.equal(deliveryState(database, "33333333-3333-4333-8333-333333333401"), "dismissed");
     assert.deepEqual(lifecycleCalls, [`disabled:${DESTINATION}`]);
+    assert.throws(() => service.setEnabled(DESTINATION, true), /token is required/u);
 
-    const restored = service.updateConfigured(DESTINATION, {
-      enabled: true,
+    service.setToken(DESTINATION, "second-token");
+    service.setEnabled(DESTINATION, true);
+    service.admit(database, pourCompleted("33333333-3333-4333-8333-333333333404"));
+    lifecycleCalls.length = 0;
+    // A scheme change is an origin change too; a token that comes along keeps it enabled.
+    const restored = service.changeEndpoint(DESTINATION, {
+      url: "https://other-ha.test:8123",
       token: "replacement-token",
     });
     assert.equal(restored.enabled, true);
+    assert.equal(deliveryState(database, "33333333-3333-4333-8333-333333333404"), "dismissed");
     assert.equal(
       secrets.revealPrivileged("outbound", DESTINATION, "token_current"),
       "replacement-token",
     );
+    assert.deepEqual(lifecycleCalls, [`credentials:${DESTINATION}`]);
   } finally {
     database.close();
   }
@@ -410,32 +509,32 @@ void test("a failed delivery for an old origin cannot be retried with the new or
           label: "Home",
           transport: "home_assistant",
           baseUrl: "http://ha.test:8123",
-          secret: "original-token",
+          token: "original-token",
         }),
       move: (service: OutboundService) =>
-        service.updateConfigured(DESTINATION, {
-          baseUrl: "http://other-ha.test:8123",
-          enabled: true,
+        service.changeEndpoint(DESTINATION, {
+          url: "http://other-ha.test:8123",
           token: "replacement-token",
         }),
     },
     {
       transport: "webhook",
       create: (service: OutboundService) =>
-        service.createConfigured({
+        service.create({
           id: DESTINATION,
           label: "Hook",
           transport: "webhook",
           webhookUrl: "https://hooks.example.test/a",
-          secretHeaders: [{ name: "Authorization" }],
-          headerSecrets: [{ name: "Authorization", value: "Bearer original" }],
+          secretHeaders: [{ name: "Authorization", value: "Bearer original" }],
         }),
-      move: (service: OutboundService) =>
-        service.updateConfigured(DESTINATION, {
-          webhookUrl: "https://elsewhere.example.test/b",
-          enabled: true,
-          headerSecrets: [{ name: "Authorization", value: "Bearer replacement" }],
-        }),
+      move: (service: OutboundService) => {
+        service.changeEndpoint(DESTINATION, { url: "https://elsewhere.example.test/b" });
+        service.replaceHeaders(DESTINATION, {
+          staticHeaders: [],
+          secretHeaders: [{ name: "Authorization", value: "Bearer replacement" }],
+        });
+        return service.setEnabled(DESTINATION, true);
+      },
     },
   ] as const;
   for (const { transport, create, move } of cases) {
@@ -482,65 +581,37 @@ void test("a failed delivery for an old origin cannot be retried with the new or
   }
 });
 
-void test("switching a destination's transport discards its stored Home Assistant token", () => {
-  const { database, service, secrets } = harness();
-  try {
-    service.create({
-      id: DESTINATION,
-      label: "Home",
-      transport: "home_assistant",
-      baseUrl: "http://ha.test:8123",
-      secret: "original-token",
-    });
-    const switched = service.edit(DESTINATION, {
-      transport: "webhook",
-      webhookUrl: "https://hooks.example.test/a",
-    });
-    assert.equal(switched.transport, "webhook");
-    assert.throws(() => secrets.revealPrivileged("outbound", DESTINATION, "token_current"));
-  } finally {
-    database.close();
-  }
-});
-
 void test("webhook secrets follow same-origin edits but must be re-entered for a new origin", () => {
   const { database, service, secrets } = harness();
   try {
-    const created = service.createConfigured({
+    const created = service.create({
       id: DESTINATION,
       label: "Hook",
       transport: "webhook",
       webhookUrl: "https://hooks.example.test/a",
-      secretHeaders: [{ name: "Authorization" }],
-      headerSecrets: [{ name: "Authorization", value: "Bearer kept" }],
+      secretHeaders: [{ name: "Authorization", value: "Bearer kept" }],
     });
     const slot = created.currentVersion!.config.secretHeaders[0]!.slot;
     assert.equal(created.enabled, true);
     service.admit(database, pourCompleted("33333333-3333-4333-8333-333333333402"));
 
-    const samePath = service.updateConfigured(DESTINATION, {
-      webhookUrl: "https://hooks.example.test/b",
-      enabled: true,
-    });
+    const samePath = service.changeEndpoint(DESTINATION, { url: "https://hooks.example.test/b" });
     assert.equal(samePath.enabled, true);
     assert.equal(secrets.revealPrivileged("outbound", DESTINATION, slot), "Bearer kept");
     assert.equal(deliveryState(database, "33333333-3333-4333-8333-333333333402"), "pending");
 
-    assert.throws(
-      () =>
-        service.updateConfigured(DESTINATION, {
-          webhookUrl: "https://elsewhere.example.test/b",
-          enabled: true,
-        }),
-      credentialsRequired,
-    );
-    assert.equal(secrets.revealPrivileged("outbound", DESTINATION, slot), "Bearer kept");
-
-    const moved = service.updateConfigured(DESTINATION, {
-      webhookUrl: "https://elsewhere.example.test/b",
-      enabled: true,
-      headerSecrets: [{ name: "Authorization", value: "Bearer moved" }],
+    const elsewhere = service.changeEndpoint(DESTINATION, {
+      url: "https://elsewhere.example.test/b",
     });
+    assert.equal(elsewhere.enabled, false);
+    assert.equal(elsewhere.disabledReason, "secret_missing");
+    assert.throws(() => secrets.revealPrivileged("outbound", DESTINATION, slot));
+
+    service.replaceHeaders(DESTINATION, {
+      staticHeaders: [],
+      secretHeaders: [{ name: "Authorization", value: "Bearer moved" }],
+    });
+    const moved = service.setEnabled(DESTINATION, true);
     assert.equal(moved.enabled, true);
     assert.equal(secrets.revealPrivileged("outbound", DESTINATION, slot), "Bearer moved");
     // Dismissed by the move, never left to resend, and kept as history for System retention.
@@ -562,7 +633,7 @@ void test("HA token rotation does not fake recovery and removal disables the des
       enabled: false,
     });
     service.setToken(DESTINATION, "first-token");
-    service.enable(DESTINATION);
+    service.setEnabled(DESTINATION, true);
     service.recordFailure(DESTINATION, "ha_auth_invalid", "authentication");
     service.setToken(DESTINATION, "rotated-token");
     assert.equal(service.get(DESTINATION)?.failure?.code, "ha_auth_invalid");
@@ -594,14 +665,14 @@ void test("optional failures remain visible while required degradation waits fiv
       transport: "home_assistant",
       baseUrl: "http://ha.test",
       required: true,
-      secret: "required-token",
+      token: "required-token",
     });
     service.create({
       id: DESTINATION_TWO,
       label: "Optional",
       transport: "home_assistant",
       baseUrl: "http://ha2.test",
-      secret: "optional-token",
+      token: "optional-token",
     });
     service.recordFailure(DESTINATION, "auth_invalid", "authentication");
     service.recordFailure(DESTINATION_TWO, "connect_timeout", "connectivity");
@@ -684,25 +755,24 @@ void test("retirement dismisses pending work and revokes endpoint material", () 
 void test("retired destinations are permanent read-only service history", () => {
   const { database, service } = harness();
   try {
-    service.createConfigured({
+    service.create({
       id: DESTINATION,
       label: "Retired HA",
       transport: "home_assistant",
       baseUrl: "http://ha.test:8123",
-      secret: "ha-token",
+      token: "ha-token",
       enabled: false,
-      secretHeaders: [{ name: "X-Secret", slot: "x_secret" }],
-      headerSecrets: [{ name: "X-Secret", value: "header-token" }],
+      secretHeaders: [{ name: "X-Secret", slot: "x_secret", value: "header-token" }],
     });
     service.retire(DESTINATION);
     const versionCount = rowCount(database, "outbound_destination_versions");
     const mutationCalls: readonly (() => unknown)[] = [
-      () => service.edit(DESTINATION, { label: "Changed" }),
-      () => service.patch(DESTINATION, { label: "Changed again" }),
-      () => service.updateConfigured(DESTINATION, { label: "Changed", enabled: false }),
+      () => service.updateSettings(DESTINATION, { label: "Changed" }),
+      () => service.changeEndpoint(DESTINATION, { url: "http://other-ha.test:8123" }),
+      () => service.replaceHeaders(DESTINATION, { staticHeaders: [], secretHeaders: [] }),
       () => service.setRequired(DESTINATION, true),
-      () => service.enable(DESTINATION),
-      () => service.disable(DESTINATION),
+      () => service.setEnabled(DESTINATION, true),
+      () => service.setEnabled(DESTINATION, false),
       () => service.setToken(DESTINATION, "replacement"),
       () => service.removeToken(DESTINATION),
       () => service.setHeaderSecret(DESTINATION, "x_secret", "replacement"),
@@ -736,7 +806,8 @@ void test("secret header slots follow logical names and removal pauses historica
     const first = created.currentVersion!.config;
     assert.equal(first.transport, "webhook");
     const firstSlots = new Map(first.secretHeaders.map((header) => [header.name, header.slot]));
-    const edited = service.edit(DESTINATION, {
+    const edited = service.replaceHeaders(DESTINATION, {
+      staticHeaders: [],
       secretHeaders: [{ name: "X-Second" }, { name: "X-First" }],
     });
     const second = edited.currentVersion!.config;
@@ -756,7 +827,7 @@ void test("secret header slots follow logical names and removal pauses historica
     service.removeHeaderSecret(DESTINATION, firstSlot);
     assert.equal(service.get(DESTINATION)?.enabled, false);
     assert.throws(
-      () => service.enable(DESTINATION),
+      () => service.setEnabled(DESTINATION, true),
       /Every configured secret header requires a value/u,
     );
     assert.equal(
@@ -830,7 +901,7 @@ void test("producer admission methods preserve fill-end semantics and low-keg ev
 
 void test("private-network opt-in is stored per webhook version, defaults off, and is refused for Home Assistant", () => {
   const { database, service } = harness();
-  const allowPrivate = (value: ReturnType<OutboundService["edit"]>): boolean | undefined =>
+  const allowPrivate = (value: OutboundDestination): boolean | undefined =>
     value.currentVersion?.config.transport === "webhook"
       ? value.currentVersion.config.allowPrivateNetwork
       : undefined;
@@ -852,18 +923,20 @@ void test("private-network opt-in is stored per webhook version, defaults off, a
     assert.equal(allowPrivate(created), false);
     assert.equal("allowPrivateNetwork" in storedConfig(), false);
 
-    const opted = service.edit(DESTINATION, { allowPrivateNetwork: true });
+    const opted = service.updateSettings(DESTINATION, { allowPrivateNetwork: true });
     assert.equal(opted.currentVersion?.versionNumber, 2);
     assert.equal(allowPrivate(opted), true);
     assert.equal(storedConfig().allowPrivateNetwork, true);
     assert.equal(opted.enabled, true, "the option does not move the origin");
 
-    const relabelled = service.edit(DESTINATION, { label: "LAN n8n (renamed)" });
+    const relabelled = service.updateSettings(DESTINATION, { label: "LAN n8n (renamed)" });
     assert.equal(allowPrivate(relabelled), true);
-    const kept = service.edit(DESTINATION, { webhookUrl: "http://n8n.lan:5678/webhook/other" });
+    const kept = service.changeEndpoint(DESTINATION, {
+      url: "http://n8n.lan:5678/webhook/other",
+    });
     assert.equal(allowPrivate(kept), true, "an endpoint edit keeps the option");
 
-    const off = service.edit(DESTINATION, { allowPrivateNetwork: false });
+    const off = service.updateSettings(DESTINATION, { allowPrivateNetwork: false });
     assert.equal(allowPrivate(off), false);
 
     assert.throws(
@@ -877,12 +950,6 @@ void test("private-network opt-in is stored per webhook version, defaults off, a
         }),
       /allowPrivateNetwork/u,
     );
-    assert.equal(allowPrivate(service.edit(DESTINATION, { allowPrivateNetwork: true })), true);
-    const toHomeAssistant = service.edit(DESTINATION, {
-      transport: "home_assistant",
-      baseUrl: "http://192.168.1.35:8123",
-    });
-    assert.equal(toHomeAssistant.transport, "home_assistant");
   } finally {
     database.close();
   }

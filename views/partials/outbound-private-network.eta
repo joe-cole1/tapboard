@@ -1,0 +1,2 @@
+<label class="switch"><input class="switch__control" role="switch" type="checkbox" name="allowPrivateNetwork" value="on"<% if (it.allowPrivateNetwork) { %> checked<% } %> /> Allow private network address</label>
+<p class="muted">For receivers on your LAN or VPN, such as n8n or Node-RED over Tailscale: allows 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, and fc00::/7. This includes the Docker network and its host gateway. Loopback, link-local (including cloud metadata), multicast, and unspecified addresses are always blocked.</p>
