@@ -39,15 +39,26 @@
           <% for (const tap of it.taps) { %>
             <tr data-tap-id="<%= tap.id %>">
               <th scope="row"><div class="library-cell">
-                <% if (tap.publicCard) { %><div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: `tap-${tap.id}`, graphic: tap.publicCard.graphic, title: tap.publicCard.title, accessibleLabel: tap.publicCard.accessibleLabel, fillPercent: tap.publicCard.fillPercent, displayColor: tap.publicCard.displayColor, tapNumber: tap.tapNumber } }) %></div><% } else { %><div class="library-cell__preview" aria-hidden="true"></div><% } %>
+                <% if (tap.vessel) { %>
+                  <div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: tap.vessel }) %></div>
+                  <% } else { %>
+                  <div class="library-cell__preview" aria-hidden="true"></div>
+                <% } %>
                 <a class="library-cell__name" href="/admin/taps/<%= tap.id %>">Tap <%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } else { %> — Unnamed Tap<% } %></a>
-                <span class="library-cell__type"><%= tap.publicCard ? "Public card preview" : "No public preview" %></span>
+                <span class="library-cell__type"><%= tap.previewLabel %></span>
               </div></th>
-              <td data-label="Assignment"><% if (tap.assignment) { %><a href="/admin/keg-room/fills/<%= tap.assignment.fillId %>"><%= tap.assignmentLabel %></a><% if (tap.assignment.kegId) { %><span class="muted"> · <a href="/admin/keg-room/kegs/<%= tap.assignment.kegId %>">Keg <%= tap.assignment.kegNumber %><% if (tap.assignment.kegLabel) { %> — <%= tap.assignment.kegLabel %><% } %></a></span><% } %><% } else { %>Unassigned<% } %></td>
+              <td data-label="Assignment"><% if (tap.assignment) { %><a
+                href="/admin/keg-room/fills/<%= tap.assignment.fillId %>"><%= tap.assignmentLabel %></a><% if (tap.assignment.kegId) { %><span
+                class="muted"> · <a href="/admin/keg-room/kegs/<%= tap.assignment.kegId %>">Keg
+                <%= tap.assignment.kegNumber %><% if (tap.assignment.kegLabel) { %> —
+                <%= tap.assignment.kegLabel %><% } %></a></span><% } %><% } else { %>Unassigned<% } %></td>
               <td data-label="Remaining"><%= tap.remaining %></td>
               <td data-label="Health"><%~ include("/partials/status-badge", tap.healthBadge) %></td>
               <td data-label="Status"><%~ include("/partials/status-badge", tap.statusBadge) %></td>
-              <td><a class="button button--secondary button--small" href="/admin/taps/<%= tap.id %>">Open<span class="sr-only"> Tap <%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } else { %> — Unnamed Tap<% } %></span></a></td>
+              <td><a class="button button--secondary button--small"
+                href="/admin/taps/<%= tap.id %>">Open<span class="sr-only"> Tap
+                <%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } else { %> — Unnamed
+                Tap<% } %></span></a></td>
             </tr>
           <% } %>
         </tbody>

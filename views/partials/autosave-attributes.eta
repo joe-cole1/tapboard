@@ -1,0 +1,18 @@
+<% /*
+  The attributes of a form that saves as its fields change (public/js/admin-autosave.js),
+  printed inside the form's opening tag. The record's revision field is always updatedAt.
+  it.action: where the form posts
+  it.mode: "blur" or "submit"
+  it.resource: "kind:id" of the record a save updates
+  it.fields: comma-separated names a save sends
+  it.statusId: optional id of the element that shows the save status
+*/ %>
+action="<%= it.action %>"
+method="post"
+data-autosave="<%= it.mode %>"
+data-autosave-resource="<%= it.resource %>"
+data-autosave-revision="updatedAt"
+data-autosave-fields="<%= it.fields %>"
+<% if (it.statusId) { %>
+data-autosave-status-id="<%= it.statusId %>"
+<% } %>

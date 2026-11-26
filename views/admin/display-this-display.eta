@@ -15,8 +15,16 @@
       <%~ include("/partials/display-font-cards", { options: it.fontOptions, selected: "", inherit: true }) %>
       <%~ include("/partials/display-accent-picker", { options: it.accentOptions, selected: "", inherit: true }) %>
       <label class="field">Units <select name="unitSystem"><option value="">Use default</option><option value="us">US customary</option><option value="metric">Metric</option></select></label>
-      <label class="field">Serving temperature <select name="showServingTemperature"><option value="">Use default</option><option value="true">Shown</option><option value="false">Hidden</option></select></label>
-      <label class="field">More than six Taps <select name="layoutMode"><option value="">Use default</option><option value="scroll">Responsive and scroll</option><option value="rotation">Automatic rotation</option></select></label>
+      <label class="field">Serving temperature <select name="showServingTemperature">
+      <option value="">Use default</option>
+      <option value="true">Shown</option>
+      <option value="false">Hidden</option>
+      </select></label>
+      <label class="field">More than six Taps <select name="layoutMode">
+      <option value="">Use default</option>
+      <option value="scroll">Responsive and scroll</option>
+      <option value="rotation">Automatic rotation</option>
+      </select></label>
       <div class="form-actions"><button class="button button--secondary" type="button" data-reset-preferences>Reset to default theme</button></div>
     </form>
     <p data-display-preference-status role="status" aria-live="polite"></p>

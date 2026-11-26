@@ -11,7 +11,9 @@
     <form class="form" action="/admin/integrations/telemetry-sources/create" method="post">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <label class="field">Source name <input name="name" maxlength="120" required /></label>
-      <div class="cluster"><button class="button button--primary" type="submit">Create source and show key</button><a class="button button--secondary" href="/admin/integrations/telemetry">Cancel</a></div>
+      <div class="cluster"><button class="button button--primary"
+        type="submit">Create source and show key</button><a class="button button--secondary"
+        href="/admin/integrations/telemetry">Cancel</a></div>
     </form>
   </section>
 </main>

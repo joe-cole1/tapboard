@@ -122,6 +122,21 @@ export function renderTapDetail(
   );
 }
 
+/** What a Mystery Tap can reveal to guests, in the order the switches show. */
+const MYSTERY_REVEALS = [
+  ["revealBeverageType", "Beverage type"],
+  ["revealStyle", "Style"],
+  ["revealAbv", "ABV"],
+  ["revealIbu", "IBU"],
+  ["revealOg", "OG"],
+  ["revealFg", "FG"],
+  ["revealSrm", "SRM"],
+  ["revealDescription", "Description"],
+  ["revealRecipe", "Recipe"],
+  ["revealSensory", "Sensory profile"],
+  ["revealHistory", "Fill history"],
+] as const;
+
 /** The Assignment heading links to the Filled Keg on the Tap. */
 function assignmentActions(assignment: { readonly fillId: string } | null | undefined) {
   return assignment
@@ -187,7 +202,16 @@ function cardTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView, r
     // Keep the deterministic preview fallback for small service doubles.
   }
   return {
-    assignment: { active: assignment, mystery, actions: assignmentActions(assignment) },
+    assignment: {
+      active: assignment,
+      mystery,
+      actions: assignmentActions(assignment),
+      revealSwitches: MYSTERY_REVEALS.map(([name, label]) => ({
+        name,
+        label,
+        checked: mystery?.[name] === true,
+      })),
+    },
     cardMetrics,
     publicPreview: mysteryLookupFailed
       ? null
@@ -436,8 +460,18 @@ function sensorsTab(dependencies: RenderTapDetailDependencies, tap: AdminTapView
       pressureLabel,
       sources: telemetrySources,
     },
-    detector: { fields: detectorFields, groups: detectorGroups },
-    health: { overview: healthOverview, sections: healthSections },
+    detector: {
+      fields: detectorFields,
+      groups: detectorGroups,
+      autosaveFields: detectorFields.map((field) => `detector.${String(field.name)}`).join(","),
+    },
+    health: {
+      overview: healthOverview,
+      sections: healthSections,
+      autosaveFields: healthSections
+        .flatMap((section) => section.fields.map((field) => `health.${section.id}.${field.name}`))
+        .join(","),
+    },
   };
 }
 

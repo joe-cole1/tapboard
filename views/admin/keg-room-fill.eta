@@ -12,7 +12,19 @@
       intro: "Read-first lifecycle projection.",
       badge: { label: it.fill.stateLabel, tone: it.fill.state },
     }) %>
-    <div class="keg-room-detail-visual"><%~ include("/partials/fill-graphic", { tap: { id: it.fill.id, graphic: it.fill.graphic, title: it.fill.beverageName, accessibleLabel: `${it.fill.beverageName} Filled Keg`, fillPercent: it.fill.fillPercent, displayColor: it.fill.displayColor, tapNumber: it.fill.tapNumber || 0 } }) %></div><dl class="key-value-list"><div><dt>Beverage</dt><dd><%= it.fill.beverageName %></dd></div><div><dt>Physical Keg</dt><dd>Keg <%= it.fill.kegNumber %><% if (it.fill.kegLabel) { %> — <%= it.fill.kegLabel %><% } %></dd></div><div><dt>Tap or queue</dt><dd><% if (it.fill.tapNumber) { %>Tap <%= it.fill.tapNumber %><% } else if (it.fill.queuePosition) { %>Queue position <%= it.fill.queuePosition %><% } else { %>Not queued<% } %></dd></div><div><dt>Remaining estimate</dt><dd><%= it.fill.remainingEstimate %></dd></div><div><dt>Fill date</dt><dd><%= it.fill.fillDate %></dd></div><div><dt>Updated</dt><dd><time datetime="<%= it.fill.updatedAt %>"><%= it.fill.updatedAt %></time></dd></div></dl></section>
+    <div class="keg-room-detail-visual"><%~ include("/partials/fill-graphic", { tap: it.fill.vessel }) %></div>
+    <dl class="key-value-list">
+      <div><dt>Beverage</dt><dd><%= it.fill.beverageName %></dd></div>
+      <div><dt>Physical Keg</dt><dd>Keg <%= it.fill.kegNumber %><% if (it.fill.kegLabel) { %> — <%= it.fill.kegLabel %><% } %></dd></div>
+      <div>
+        <dt>Tap or queue</dt>
+        <dd><% if (it.fill.tapNumber) { %>Tap <%= it.fill.tapNumber %><% } else if (it.fill.queuePosition) { %>Queue position <%= it.fill.queuePosition %><% } else { %>Not queued<% } %></dd>
+      </div>
+      <div><dt>Remaining estimate</dt><dd><%= it.fill.remainingEstimate %></dd></div>
+      <div><dt>Fill date</dt><dd><%= it.fill.fillDate %></dd></div>
+      <div><dt>Updated</dt><dd><time datetime="<%= it.fill.updatedAt %>"><%= it.fill.updatedAt %></time></dd></div>
+    </dl>
+    </section>
     <section id="pour-history" aria-labelledby="filled-keg-pours">
       <%~ include("/partials/section-heading", {
         id: "filled-keg-pours",
@@ -21,9 +33,18 @@
       }) %>
       <% const pours = it.pourHistory; %>
       <% if (pours.cursorRejected) { %><p class="error" role="alert">That pour history link is no longer valid. Showing the newest pours.</p><% } %>
-      <% if (!pours.available) { %><p class="muted">Pour history is unavailable right now.</p><% } else if (pours.entries.length === 0) { %><p class="muted"><%= pours.isFirstPage ? "No pours recorded yet." : "No older pours." %></p><% } else { %>
+      <% if (!pours.available) { %>
+        <p class="muted">Pour history is unavailable right now.</p>
+        <% } else if (pours.entries.length === 0) { %>
+        <p class="muted"><%= pours.isFirstPage ? "No pours recorded yet." : "No older pours." %></p>
+        <% } else { %>
         <table class="table"><caption class="sr-only">Pours from this Filled Keg, newest first</caption><thead><tr><th scope="col">Volume</th><th scope="col">Poured</th></tr></thead><tbody>
-          <% for (const pour of pours.entries) { %><tr><td><%= pour.volumeLabel %></td><td data-label="Poured"><%= pour.relativeLabel %> — <time datetime="<%= pour.completedAt %>"><%= pour.absoluteLabel %></time></td></tr><% } %>
+          <% for (const pour of pours.entries) { %>
+            <tr>
+              <td><%= pour.volumeLabel %></td>
+              <td data-label="Poured"><%= pour.relativeLabel %> — <time datetime="<%= pour.completedAt %>"><%= pour.absoluteLabel %></time></td>
+            </tr>
+          <% } %>
         </tbody></table>
       <% } %>
       <% if (pours.navigation) { %>
@@ -36,16 +57,54 @@
       title: "Featured on public card",
       intro: "Choose whether this active Filled Keg is highlighted on the public card.",
     }) %>
-    <form class="cluster" action="/admin/fills/<%= it.fill.id %>/featured" method="post" data-autosave="submit" data-autosave-fields="featured" data-autosave-resource="fill:<%= it.fill.id %>" data-autosave-revision="updatedAt"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="updatedAt" value="<%= it.fillRecord.updatedAt %>" /><input type="hidden" name="featured" value="<%= it.fillRecord.featured === true ? "false" : "true" %>" /><button type="submit" class="switch" role="switch" aria-checked="<%= it.fillRecord.featured === true %>"><span class="switch__control" aria-hidden="true"></span>Featured</button><output class="autosave-status" data-autosave-status aria-live="polite"></output></form></section><% } %>
-    <% if (it.fill.state !== "ended") { %><section aria-labelledby="assignment"><h2 id="assignment">Tap assignment</h2><% if (it.activeTap) { %><p>Currently assigned to <strong>Tap <%= it.activeTap.tapNumber %></strong><% if (it.activeTap.name) { %> — <%= it.activeTap.name %><% } %>. Assignment lifecycle remains owned by Taps.</p><% } else if (it.availableTaps.length === 0) { %><p class="muted">No available active Taps. Assignment can be started here when a Tap is available.</p><% } else { %><p>Assign this Filled Keg through the existing Tap assignment service.</p><div class="cluster"><% for (const tap of it.availableTaps) { %><form action="/admin/taps/<%= tap.id %>/assign" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="fillId" value="<%= it.fill.id %>" /><button class="button button--primary" type="submit">Assign to Tap <%= tap.tapNumber %><% if (tap.name) { %> — <%= tap.name %><% } %></button></form><% } %></div><% } %></section><% } %>
-    <% if (it.fill.state !== "ended") { %><section aria-labelledby="filled-keg-lifecycle"><h2 id="filled-keg-lifecycle">Lifecycle</h2><%~ include("/partials/kick-keg-disclosure", { fillId: it.fill.id, csrfToken: it.page.csrfToken }) %></section><% } %>
+    <form class="cluster" action="/admin/fills/<%= it.fill.id %>/featured" method="post" data-autosave="submit"
+      data-autosave-fields="featured" data-autosave-resource="fill:<%= it.fill.id %>"
+      data-autosave-revision="updatedAt"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>"
+      /><input type="hidden" name="updatedAt" value="<%= it.fillRecord.updatedAt %>" /><input type="hidden"
+      name="featured" value="<%= it.fillRecord.featured === true ? "false" : "true" %>" /><button type="submit"
+      class="switch" role="switch" aria-checked="<%= it.fillRecord.featured === true %>"><span class="switch__control"
+      aria-hidden="true"></span>Featured</button><output class="autosave-status" data-autosave-status
+      aria-live="polite"></output></form>
+    </section>
+    <% } %>
+    <% if (it.fill.state !== "ended") { %>
+      <section aria-labelledby="assignment">
+        <h2 id="assignment">Tap assignment</h2>
+        <% if (it.activeTap) { %>
+          <p>Currently assigned to <strong>Tap <%= it.activeTap.tapNumber %></strong><% if (it.activeTap.name) { %> — <%= it.activeTap.name %><% } %>. Assignment lifecycle remains owned by Taps.</p>
+          <% } else if (it.availableTaps.length === 0) { %>
+          <p class="muted">No available active Taps. Assignment can be started here when a Tap is available.</p>
+          <% } else { %>
+          <p>Assign this Filled Keg through the existing Tap assignment service.</p>
+          <div class="cluster">
+            <% for (const tap of it.availableTaps) { %>
+              <form action="/admin/taps/<%= tap.id %>/assign" method="post"><input type="hidden" name="_csrf"
+                value="<%= it.page.csrfToken %>" /><input type="hidden" name="fillId" value="<%= it.fill.id %>"
+                /><button class="button button--primary"
+                type="submit">Assign to Tap <%= tap.tapNumber %><% if (tap.name) { %> —
+                <%= tap.name %><% } %></button></form>
+            <% } %>
+          </div>
+        <% } %>
+      </section>
+    <% } %>
+    <% if (it.fill.state !== "ended") { %>
+      <section aria-labelledby="filled-keg-lifecycle">
+        <h2 id="filled-keg-lifecycle">Lifecycle</h2>
+        <%~ include("/partials/kick-keg-disclosure", { fillId: it.fill.id, csrfToken: it.page.csrfToken }) %>
+      </section>
+    <% } %>
     <section class="card card--danger" aria-labelledby="delete-filled-keg">
       <%~ include("/partials/section-heading", {
         id: "delete-filled-keg",
         title: "Permanent deletion",
         intro: "Deletion removes this Fill record and its pour history.",
       }) %>
-      <%~ include("/partials/permanent-action", { id: `fill-delete-${it.fill.id}`, blockers: it.deletion.blockers, impact: it.deletion.impact, action: `/admin/fills/${it.fill.id}/delete`, hiddenFields: [{ name: "_csrf", value: it.page.csrfToken }], confirmation: { field: "confirmation", value: it.fill.confirmationLabel }, reason: true, disclosure: "Delete Filled Keg permanently", buttonLabel: "Permanently delete Filled Keg" }) %>
+      <%~ include("/partials/permanent-action", { id: `fill-delete-${it.fill.id}`, blockers: it.deletion.blockers,
+        impact: it.deletion.impact, action: `/admin/fills/${it.fill.id}/delete`,
+        hiddenFields: [{ name: "_csrf", value: it.page.csrfToken }],
+        confirmation: { field: "confirmation", value: it.fill.confirmationLabel }, reason: true,
+        disclosure: "Delete Filled Keg permanently", buttonLabel: "Permanently delete Filled Keg" }) %>
     </section>
   <% } else { %>
     <%~ include("/partials/page-header", {
@@ -53,6 +112,24 @@
       intro: "Create a Filled Keg using an active, unoccupied physical Keg.",
     }) %>
     <%~ include("/partials/admin-messages", { page: it.page }) %>
-    <section aria-labelledby="new-fill-form"><h2 id="new-fill-form">Fill a Keg</h2><% if (it.beverages.length === 0 || it.kegs.length === 0) { %><p class="muted">Add a Beverage and an available active Physical Keg before creating a Filled Keg.</p><% } else { %><form class="form" action="/admin/fills/create" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><label class="field">Beverage <select name="beverageId" required><option value="">Choose Beverage</option><% for (const beverage of it.beverages) { %><option value="<%= beverage.id %>"><%= beverage.name %></option><% } %></select></label><label class="field">Physical Keg <select name="kegId" required><option value="">Choose Keg</option><% for (const keg of it.kegs) { %><option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option><% } %></select></label><label class="field">Fill date <input name="fillDate" type="date" /></label><button class="button button--primary" type="submit">Create Filled Keg</button></form><% } %></section>
+    <section aria-labelledby="new-fill-form">
+      <h2 id="new-fill-form">Fill a Keg</h2>
+      <% if (it.beverages.length === 0 || it.kegs.length === 0) { %>
+        <p class="muted">Add a Beverage and an available active Physical Keg before creating a Filled Keg.</p>
+        <% } else { %>
+        <form class="form" action="/admin/fills/create" method="post"><input type="hidden" name="_csrf"
+          value="<%= it.page.csrfToken %>" /><label class="field">Beverage <select name="beverageId" required>
+          <option value="">Choose Beverage</option>
+          <% for (const beverage of it.beverages) { %>
+            <option value="<%= beverage.id %>"><%= beverage.name %></option>
+          <% } %>
+          </select></label><label class="field">Physical Keg <select name="kegId" required>
+          <option value="">Choose Keg</option>
+          <% for (const keg of it.kegs) { %>
+            <option value="<%= keg.id %>">Keg <%= keg.kegNumber %><% if (keg.label) { %> — <%= keg.label %><% } %></option>
+          <% } %>
+          </select></label><label class="field">Fill date <input name="fillDate" type="date" /></label><button class="button button--primary" type="submit">Create Filled Keg</button></form>
+      <% } %>
+    </section>
   <% } %>
 </main>

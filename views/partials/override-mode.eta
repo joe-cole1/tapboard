@@ -1,0 +1,13 @@
+<% /*
+  How one Brewfather value is set on a linked beverage: inherited, cleared or overridden.
+  it.field: the field name; the select posts <field>Mode
+  it.mode: "inherit", "clear" or "value"
+  it.canClear: whether the value can be cleared
+*/ %>
+<label class="field">Mode <select name="<%= it.field %>Mode">
+  <option value="inherit"<% if (it.mode === "inherit") { %> selected<% } %>>Reset to inherited</option>
+  <% if (it.canClear) { %>
+    <option value="clear"<% if (it.mode === "clear") { %> selected<% } %>>Clear</option>
+  <% } %>
+  <option value="value"<% if (it.mode === "value") { %> selected<% } %>>Override</option>
+</select></label>

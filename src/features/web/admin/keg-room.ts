@@ -27,6 +27,7 @@ import {
   pourHistoryEntry,
   numberedPageNavigation,
   tareLabel,
+  type AutosaveForm,
   type PageHeader,
   type PageNavigation,
 } from "./presentation.ts";
@@ -130,6 +131,11 @@ function fillPourHistory(
   }
 }
 
+/** A live-saving part of a Physical Keg's page. */
+function kegForm(id: string, fields: string): AutosaveForm {
+  return { action: `/admin/kegs/${id}/update`, mode: "blur", resource: `keg:${id}`, fields };
+}
+
 export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependencies): void {
   // Canonical Keg Room index. Ended fills are deliberately omitted unless the
   // operator asks for history through the validated state filter.
@@ -153,13 +159,28 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       {
         fills,
         sections: [
-          { id: "available", title: "Available", items: section("available") },
-          { id: "on-deck", title: "On Deck", items: section("on_deck") },
-          { id: "on-tap", title: "On Tap", items: section("on_tap") },
+          {
+            id: "available",
+            title: "Available",
+            eyebrow: "Ready to serve",
+            items: section("available"),
+          },
+          { id: "on-deck", title: "On Deck", eyebrow: "Queued next", items: section("on_deck") },
+          { id: "on-tap", title: "On Tap", eyebrow: "Serving now", items: section("on_tap") },
           ...(page.state === "ended" || page.state === "all"
-            ? [{ id: "history", title: "History", items: section("ended") }]
+            ? [
+                {
+                  id: "history",
+                  title: "History",
+                  eyebrow: "Audit trail",
+                  items: section("ended"),
+                },
+              ]
             : []),
-        ],
+        ].map((item) => ({
+          ...item,
+          itemIds: item.items.map((fill) => String(fill.id)).join(","),
+        })),
         query: requested,
         pagination: { total: page.total },
         pageNavigation: numberedPageNavigation(
@@ -244,6 +265,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           displayColor: currentCard?.displayColor ?? null,
           tapNumber: 0,
         },
+        fillCountLabel: `${fillHistory.length} fill record${fillHistory.length === 1 ? "" : "s"}`,
         fillHistorySummary:
           fillHistory.length === 0
             ? "No fills recorded"
@@ -344,6 +366,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
             confirmationLabel: kegDeletionConfirmationLabel(physical),
             tareHistory: tareHistory.map((item) => ({
               ...item,
+              changeLabel: `${item.previousTareG === null ? "Initial" : `${item.previousTareG} g`} → ${item.newTareG} g`,
               recordedAtLabel: adminTimestampLabel(item.recordedAt),
             })),
             maintenanceHistory: maintenanceHistory.map((item) => ({
@@ -355,6 +378,11 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
             currentFill: fillHistory.find((fill) => fill.state !== "ended") ?? null,
           },
           breadcrumbParents: [PHYSICAL_KEGS_CRUMB],
+          forms: {
+            label: kegForm(physical.id, "label"),
+            details: kegForm(physical.id, "kegNumber,capacityMl,isActive"),
+            tare: kegForm(physical.id, "currentTareG,reason"),
+          },
         },
       );
     },
@@ -865,9 +893,15 @@ export function safeFillCard(
   const authoritativeTapNumber = fill.tapNumber ?? publicCard?.tapNumber ?? null;
   const fillGlass = safeVesselForDisplay(fill.fillGlass);
   const graphicId = fillGlass ?? "pint_glass";
+  const beverageName = boundedAdminString(fill.beverageName, 160) ?? "Unknown Beverage";
+  const displayColor = beverageDisplayColor({
+    displayColor: fill.displayColor,
+    srm: fill.srm,
+    beverageType: fill.beverageType,
+  });
   return {
     id: fill.id,
-    beverageName: boundedAdminString(fill.beverageName, 160) ?? "Unknown Beverage",
+    beverageName,
     beverageType: boundedAdminString(fill.beverageType, 32) ?? "other",
     beverageStyle: boundedAdminString(fill.beverageStyle, 120),
     beverageAbv: Number.isFinite(fill.beverageAbv) ? fill.beverageAbv : null,
@@ -894,13 +928,18 @@ export function safeFillCard(
       daysRemaining,
     ),
     fillGlass: fillGlass ?? "pint_glass",
-    displayColor: beverageDisplayColor({
-      displayColor: fill.displayColor,
-      srm: fill.srm,
-      beverageType: fill.beverageType,
-    }),
+    displayColor,
     featured: fill.featured === true,
     graphic: getVesselDescriptor(graphicId),
+    vessel: {
+      id: fill.id,
+      graphic: getVesselDescriptor(graphicId),
+      title: beverageName,
+      accessibleLabel: `${beverageName} Filled Keg`,
+      fillPercent,
+      displayColor,
+      tapNumber: authoritativeTapNumber || 0,
+    },
     updatedAt: fill.updatedAt,
   };
 }

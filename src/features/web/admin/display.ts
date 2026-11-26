@@ -76,6 +76,15 @@ export function registerDisplayPages(dependencies: RegisterDisplayPagesDependenc
         fontOptions: displayFontOptions(),
         accentOptions: displayAccentOptions(),
         tapCardSettings,
+        metricSwitches: (
+          [
+            ["showAbv", "ABV"],
+            ["showIbu", "IBU"],
+            ["showOg", "OG"],
+            ["showFg", "FG"],
+            ["showSrm", "SRM"],
+          ] as const
+        ).map(([name, label]) => ({ name, label, checked: tapCardSettings?.[name] === true })),
         previewTap,
         displayStylesheetHref: displayStylesheetHref(
           sharedDisplay.theme,

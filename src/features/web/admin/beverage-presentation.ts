@@ -446,7 +446,17 @@ export function safeAdminGuidance(value: unknown): {
 
 export function adminBeverageListItem(item: BeverageListRecord): Record<string, unknown> {
   const fillGlass = safeVesselForDisplay(item.effectivePresentation.fillGlass);
+  const name = item.effectivePresentation.name;
   return {
+    vessel: {
+      id: `beverage-${item.beverage.id}`,
+      graphic: getVesselDescriptor(fillGlass ?? "pint_glass"),
+      title: name,
+      accessibleLabel: `${name} vessel preview`,
+      fillPercent: 100,
+      displayColor: beverageDisplayColor(item.effectivePresentation),
+      tapNumber: 0,
+    },
     id: item.beverage.id,
     name: item.effectivePresentation.name,
     ownershipType: item.beverage.ownershipType,

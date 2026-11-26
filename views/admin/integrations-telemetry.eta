@@ -16,7 +16,11 @@
     </ol>
     <p>Endpoint: <code>POST /api/v1/telemetry/taps/{tapNumber}</code></p>
   </section>
-  <form class="form" method="get" action="/admin/integrations/telemetry" role="search"><label class="field">Search sources <input type="search" name="q" value="<%= it.query || "" %>" maxlength="80" /></label><button class="button button--secondary button--small" type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small" href="/admin/integrations/telemetry">Clear</a><% } %></form>
+  <form class="form" method="get" action="/admin/integrations/telemetry"
+    role="search"><label class="field">Search sources <input type="search" name="q" value="<%= it.query || "" %>"
+    maxlength="80" /></label><button class="button button--secondary button--small"
+    type="submit">Search</button><% if (it.query) { %><a class="button button--secondary button--small"
+    href="/admin/integrations/telemetry">Clear</a><% } %></form>
   <section aria-labelledby="active-telemetry-heading">
     <%~ include("/partials/section-heading", {
       id: "active-telemetry-heading",
@@ -40,7 +44,10 @@
               level: 3,
               badge: { label: "Active", tone: "healthy" },
             }) %>
-            <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Created</dt><dd><time datetime="<%= source.keyCreatedAt %>"><%= source.keyCreatedAtLabel %></time></dd></div></dl>
+            <dl>
+              <div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div>
+              <div><dt>Created</dt><dd><time datetime="<%= source.keyCreatedAt %>"><%= source.keyCreatedAtLabel %></time></dd></div>
+            </dl>
             <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">Open source</a>
           </article>
         <% } %>
@@ -68,7 +75,10 @@
                 level: 3,
                 badge: { label: "Disabled" },
               }) %>
-              <dl><div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div><div><dt>Disabled</dt><dd><time datetime="<%= source.disabledAt %>"><%= source.disabledAtLabel %></time></dd></div></dl>
+              <dl>
+                <div><dt>Key identifier</dt><dd><code><%= source.keyPublicId %></code></dd></div>
+                <div><dt>Disabled</dt><dd><time datetime="<%= source.disabledAt %>"><%= source.disabledAtLabel %></time></dd></div>
+              </dl>
               <a class="button button--secondary button--small" href="/admin/integrations/telemetry-sources/<%= source.id %>">View history</a>
             </article>
           <% } %>

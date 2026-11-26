@@ -16,42 +16,84 @@
     }) %>
     <form class="form auto-grid auto-grid--sm keg-room-filter-form" method="get" action="/admin/keg-room" role="search">
       <label class="field">Search <input type="search" name="q" value="<%= it.query.q %>" maxlength="80" placeholder="Beverage, Keg, or Tap" /></label>
-      <label class="field">Show <select name="state"><option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option><option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option><option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option><option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option><option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option><option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option></select></label>
-      <label class="field">Sort <select name="sort"><option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option><option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option><option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option><option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option><option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option></select></label>
+      <label class="field">Show <select name="state">
+      <option value="active"<% if (it.query.state === "active") { %> selected<% } %>>Active Kegs</option>
+      <option value="available"<% if (it.query.state === "available") { %> selected<% } %>>Available</option>
+      <option value="on_deck"<% if (it.query.state === "on_deck") { %> selected<% } %>>On Deck</option>
+      <option value="on_tap"<% if (it.query.state === "on_tap") { %> selected<% } %>>On Tap</option>
+      <option value="ended"<% if (it.query.state === "ended") { %> selected<% } %>>History</option>
+      <option value="all"<% if (it.query.state === "all") { %> selected<% } %>>All</option>
+      </select></label>
+      <label class="field">Sort <select name="sort">
+      <option value="state"<% if (it.query.sort === "state") { %> selected<% } %>>State</option>
+      <option value="name"<% if (it.query.sort === "name") { %> selected<% } %>>Beverage</option>
+      <option value="fill_date"<% if (it.query.sort === "fill_date") { %> selected<% } %>>Fill date</option>
+      <option value="keg"<% if (it.query.sort === "keg") { %> selected<% } %>>Keg number</option>
+      <option value="updated"<% if (it.query.sort === "updated") { %> selected<% } %>>Recently updated</option>
+      </select></label>
       <button class="button button--secondary button--small" type="submit">Apply</button>
     </form>
   </section>
   <% for (const section of it.sections) { %>
     <section class="keg-room-section" aria-labelledby="keg-room-section-<%= section.id %>"<% if (section.id === "on-deck") { %> data-admin-reorder<% } %>>
-      <% const sectionEyebrow = section.id === "available" ? "Ready to serve" : section.id === "on-deck" ? "Queued next" : section.id === "on-tap" ? "Serving now" : "Audit trail"; %>
       <%~ include("/partials/section-heading", {
         id: `keg-room-section-${section.id}`,
         title: section.title,
-        eyebrow: sectionEyebrow,
+        eyebrow: section.eyebrow,
         badge: { label: section.items.length },
       }) %>
-      <% if (section.id === "on-deck") { %><div class="reorder-enhancement"><p class="muted" data-reorder-help hidden>Drag the handle to reorder, or use the Move up/down buttons.</p><form data-reorder-form action="/admin/fills/reorder-on-deck" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><input type="hidden" name="fillIds" value="<%= section.items.map((item) => item.id).join(",") %>" /></form><output data-reorder-status aria-live="polite"></output></div><% } %>
+      <% if (section.id === "on-deck") { %>
+        <div class="reorder-enhancement">
+          <p class="muted" data-reorder-help hidden>Drag the handle to reorder, or use the Move up/down buttons.</p>
+          <form data-reorder-form action="/admin/fills/reorder-on-deck" method="post"><input type="hidden" name="_csrf"
+            value="<%= it.page.csrfToken %>" /><input type="hidden" name="fillIds"
+            value="<%= section.itemIds %>" /></form>
+          <output data-reorder-status aria-live="polite"></output></div>
+      <% } %>
       <% if (section.items.length === 0) { %><p class="muted">No Filled Kegs in this state.</p><% } else { %>
           <table class="table table--wide table--library">
             <caption class="sr-only"><%= section.title %> Filled Kegs</caption>
             <thead><tr><th scope="col">Filled Keg</th><th scope="col">Physical Keg</th><th scope="col">Tap or queue</th><th scope="col">Remaining estimate</th><th scope="col">Actions</th></tr></thead>
             <tbody<% if (section.id === "on-deck") { %> data-reorder-list<% } %>>
               <% for (const fill of section.items) { %>
-                <tr data-fill-id="<%= fill.id %>" data-fill-state="<%= fill.state %>"<% if (fill.state === "on_deck") { %> data-keg-room-reorder data-reorder-item data-order="<%= fill.onDeckOrder || 0 %>"<% } %>>
-                  <th scope="row"><div class="library-cell"><div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: { id: fill.id, graphic: fill.graphic, title: fill.beverageName, accessibleLabel: `${fill.beverageName} Filled Keg`, fillPercent: fill.fillPercent, displayColor: fill.displayColor, tapNumber: fill.tapNumber || 0 } }) %></div><a class="library-cell__name" href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a><span class="library-cell__type"><%~ include("/partials/status-badge", { label: fill.stateLabel, tone: fill.state }) %></span></div></th>
+                <tr data-fill-id="<%= fill.id %>"
+                  data-fill-state="<%= fill.state %>"<% if (fill.state === "on_deck") { %> data-keg-room-reorder
+                  data-reorder-item data-order="<%= fill.onDeckOrder || 0 %>"<% } %>>
+                  <th scope="row">
+                    <div class="library-cell">
+                      <div class="library-cell__preview"><%~ include("/partials/fill-graphic", { tap: fill.vessel }) %></div>
+                      <a class="library-cell__name"
+                        href="/admin/keg-room/fills/<%= fill.id %>"><%= fill.beverageName %></a><span
+                        class="library-cell__type"><%~ include("/partials/status-badge", { label: fill.stateLabel,
+                        tone: fill.state }) %></span></div>
+                  </th>
                   <td data-label="Physical Keg"><a href="/admin/keg-room/kegs/<%= fill.kegId || "" %>">Keg <%= fill.kegNumber %><% if (fill.kegLabel) { %> — <%= fill.kegLabel %><% } %></a></td>
-                  <td data-label="Tap or queue"><% if (fill.tapNumber && fill.tapId) { %><a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a><% } else if (fill.tapNumber) { %>Tap <%= fill.tapNumber %><% } else if (fill.queuePosition) { %>Queue position <%= fill.queuePosition %><% } else { %>Not queued<% } %></td>
+                  <td data-label="Tap or queue"><% if (fill.tapNumber && fill.tapId) { %>
+                    <a href="/admin/taps/<%= fill.tapId %>">Tap <%= fill.tapNumber %></a>
+                    <% } else if (fill.tapNumber) { %>Tap <%= fill.tapNumber %><% } else if (fill.queuePosition) { %>Queue position
+                    <%= fill.queuePosition %><% } else { %>Not queued<% } %></td>
                   <td data-label="Remaining estimate"><%= fill.remainingEstimate %></td>
                   <td><div class="cluster">
-                  <a class="button button--secondary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Open<span class="sr-only"> <%= fill.beverageName %>, Keg <%= fill.kegNumber %></span></a>
+                  <a class="button button--secondary button--small"
+                    href="/admin/keg-room/fills/<%= fill.id %>">Open<span class="sr-only"> <%= fill.beverageName %>, Keg
+                    <%= fill.kegNumber %></span></a>
                   <% if (fill.state === "available") { %>
-                    <form action="/admin/fills/<%= fill.id %>/on-deck" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--primary button--small" type="submit">Put On Deck</button></form>
+                    <form action="/admin/fills/<%= fill.id %>/on-deck" method="post"><input type="hidden" name="_csrf"
+                      value="<%= it.page.csrfToken %>" /><button class="button button--primary button--small"
+                      type="submit">Put On Deck</button></form>
                   <% } else if (fill.state === "on_deck") { %>
-                    <button class="button button--secondary button--small" type="button" data-reorder-handle draggable="true" hidden aria-label="Drag to reorder <%= fill.beverageName %>">☷ <span class="sr-only">Drag to reorder</span></button>
+                    <button class="button button--secondary button--small" type="button" data-reorder-handle
+                      draggable="true" hidden
+                      aria-label="Drag to reorder <%= fill.beverageName %>">☷ <span class="sr-only">Drag to
+                      reorder</span></button>
                     <a class="button button--primary button--small" href="/admin/keg-room/fills/<%= fill.id %>">Assign to a Tap</a>
                     <div class="reorder-actions" data-keg-room-reorder-controls>
-                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" name="direction" value="up" type="submit">Move up</button></form>
-                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small" name="direction" value="down" type="submit">Move down</button></form>
+                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf"
+                        value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small"
+                        name="direction" value="up" type="submit">Move up</button></form>
+                      <form action="/admin/fills/<%= fill.id %>/move" method="post"><input type="hidden" name="_csrf"
+                        value="<%= it.page.csrfToken %>" /><button class="button button--secondary button--small"
+                        name="direction" value="down" type="submit">Move down</button></form>
                     </div>
                   <% } %>
                   </div></td>
