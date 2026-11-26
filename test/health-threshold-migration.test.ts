@@ -6,6 +6,7 @@ import { test, type TestContext } from "node:test";
 
 import { openDatabase, type DatabaseExecutor } from "../src/infrastructure/database/connection.ts";
 import {
+  CURRENT_SCHEMA_VERSION,
   HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
   MIGRATIONS,
 } from "../src/infrastructure/database/migrations.ts";
@@ -86,15 +87,18 @@ void test("v30 databases upgrade to v31 with health history unchanged", (context
 
   const upgraded = openDatabase(path);
   try {
-    assert.equal(
-      upgraded.pragma<number>("user_version", { simple: true }),
-      HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
-    );
+    assert.equal(upgraded.pragma<number>("user_version", { simple: true }), CURRENT_SCHEMA_VERSION);
     const after = snapshot(upgraded);
     assert.deepEqual(after.health_threshold_global_config, []);
     assert.deepEqual(after.health_threshold_tap_overrides, []);
     delete after.health_threshold_global_config;
     delete after.health_threshold_tap_overrides;
+    // v32 adds only the display time zone, as UTC.
+    after.display_settings = after.display_settings!.map((row) => {
+      const { time_zone: timeZone, ...rest } = row as Record<string, unknown>;
+      assert.equal(timeZone, "UTC");
+      return rest;
+    });
     assert.deepEqual(after, before);
     assert.deepEqual(all(upgraded, "PRAGMA foreign_key_check"), []);
 

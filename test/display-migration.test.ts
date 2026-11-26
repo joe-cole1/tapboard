@@ -324,7 +324,11 @@ void test("v23->v24 rebuild preserves display settings and accepts the auto them
         .get()?.name,
       DISPLAY_AUTO_THEME_MIGRATION_NAME,
     );
-    assert.deepEqual(database.prepare<[], object>("SELECT * FROM display_settings").all(), before);
+    // Later migrations only add the time zone (v32), as UTC.
+    assert.deepEqual(
+      database.prepare<[], object>("SELECT * FROM display_settings").all(),
+      before.map((row) => ({ ...row, time_zone: "UTC" })),
+    );
 
     database.prepare("UPDATE display_settings SET theme = 'auto' WHERE id = 1").run();
     assert.throws(
@@ -374,7 +378,11 @@ void test("v24->v25 keeps settings, checks only the theme name's format, and unk
         .get()?.name,
       DISPLAY_THEME_FORMAT_MIGRATION_NAME,
     );
-    assert.deepEqual(database.prepare<[], object>("SELECT * FROM display_settings").all(), before);
+    // Later migrations only add the time zone (v32), as UTC.
+    assert.deepEqual(
+      database.prepare<[], object>("SELECT * FROM display_settings").all(),
+      before.map((row) => ({ ...row, time_zone: "UTC" })),
+    );
     assert.equal(readDisplaySettings(database).theme, "auto");
 
     const setTheme = database.prepare<[string]>(

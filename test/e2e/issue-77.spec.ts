@@ -167,7 +167,7 @@ test("Brew Story follows shared and local display preferences", async ({ browser
   const unitsForm = admin.locator('form[action="/admin/system/units"]');
   const sharedTemperature = unitsForm.locator('input[name="showServingTemperature"]');
   await sharedTemperature.check();
-  await saveLive(unitsForm, "Save units");
+  await saveLive(unitsForm, "Save units and time zone");
   await expect(admin).toHaveURL(/\/admin\/system$/u);
   await expect(page.locator("html")).toHaveAttribute("data-show-serving-temperature", "true");
   await expect(temperature).toBeVisible();
@@ -176,7 +176,7 @@ test("Brew Story follows shared and local display preferences", async ({ browser
 
   await admin.goto("/admin/system");
   await sharedTemperature.uncheck();
-  await saveLive(unitsForm, "Save units");
+  await saveLive(unitsForm, "Save units and time zone");
   await expect(admin).toHaveURL(/\/admin\/system$/u);
   await expect(page.locator("html")).toHaveAttribute("data-show-serving-temperature", "false");
   await expect(temperature).toBeHidden();

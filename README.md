@@ -20,7 +20,7 @@ unset TAPBOARD_NEW_PIN
 npm start
 ```
 
-Open http://127.0.0.1:3000. A ready server answers `GET /healthz` with HTTP 200 and `{"status":"ok","schemaVersion":31}`; readiness covers only the local application and database, not integrations.
+Open http://127.0.0.1:3000. A ready server answers `GET /healthz` with HTTP 200 and `{"status":"ok","schemaVersion":32}`; readiness covers only the local application and database, not integrations.
 
 To try Tapboard without hardware, sign in, open **Admin → Simulation**, and turn on **Enable simulation** (see [Simulation](docs/operations.md#built-in-simulation)). The dashboard's **Settings** link always leads to Admin, even with no taps or with integrations offline.
 

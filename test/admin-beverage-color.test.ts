@@ -98,7 +98,9 @@ void test("Keg Room cards use a beer's SRM colour in every fill state", () => {
   const { fillService } = setup();
   fillService.markOnDeck(uuid(21));
   const byName = (items: readonly Parameters<typeof safeFillCard>[0][]) =>
-    new Map(items.map((fill) => [fill.beverageName, safeFillCard(fill, unusedDashboard, [])]));
+    new Map(
+      items.map((fill) => [fill.beverageName, safeFillCard(fill, unusedDashboard, "UTC", [])]),
+    );
 
   // The paged Keg Room projection (SQL) and the single-fill view (service) both carry SRM.
   const page = byName(fillService.listAdminPage({ state: "active", sort: "keg" }).items);
@@ -106,6 +108,6 @@ void test("Keg Room cards use a beer's SRM colour in every fill state", () => {
   assert.equal(page.get("Painted Pale")?.["displayColor"], "#123456");
   assert.equal(page.get("Orchard Cider")?.["displayColor"], SAFE_DISPLAY_COLOR);
 
-  const single = safeFillCard(fillService.getFill(uuid(20)), unusedDashboard, []);
+  const single = safeFillCard(fillService.getFill(uuid(20)), unusedDashboard, "UTC", []);
   assert.equal(single["displayColor"], SRM_40);
 });

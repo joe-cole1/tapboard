@@ -74,8 +74,8 @@ function fillPourHistory(
     cursorRejected = true;
   }
   try {
-    const unitSystem =
-      dependencies.displayService.getSettings().unitSystem === "metric" ? "metric" : "us";
+    const display = dependencies.displayService.getSettings();
+    const unitSystem = display.unitSystem === "metric" ? "metric" : "us";
     const page = dependencies.forecastService.getPourHistory(fillId, {
       limit: POUR_HISTORY_PAGE_SIZE,
       ...(cursor === undefined ? {} : { cursor }),
@@ -88,6 +88,7 @@ function fillPourHistory(
         const entry = pourHistoryEntry(
           { volumeMl: pour.canonicalVolumeMl, completedAt: pour.completedAt },
           now,
+          display.timeZone,
         );
         return { ...entry, volumeLabel: entry.volumeLabels[unitSystem] };
       }),
@@ -139,8 +140,9 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
     const requested = adminFillPageQueryFromRequest(request);
     const page = fallbackAdminFillPage(dependencies.fillService, requested);
     const publicCards = safePublicTapCards(dependencies.dashboardService, dependencies.logger);
+    const { timeZone } = dependencies.displayService.getSettings();
     const fills = page.items.map((fill) =>
-      safeFillCard(fill, dependencies.dashboardService, publicCards),
+      safeFillCard(fill, dependencies.dashboardService, timeZone, publicCards),
     );
     const section = (state: "available" | "on_deck" | "on_tap" | "ended") =>
       fills.filter((fill) => fill.state === state);
@@ -259,7 +261,12 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       const currentCard =
         currentFillView === undefined
           ? null
-          : safeFillCard(currentFillView, dependencies.dashboardService, publicCards);
+          : safeFillCard(
+              currentFillView,
+              dependencies.dashboardService,
+              displaySettings.timeZone,
+              publicCards,
+            );
       const fillHistory = fills.map((fill) => ({
         id: fill.id,
         beverageName: fill.beverageName,
@@ -393,6 +400,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       const tareHistory = detailRecord.tareHistory ?? [];
       const maintenanceHistory = detailRecord.maintenanceHistory ?? [];
       const impact = dependencies.kegService.getDeletionImpact(params.id ?? "");
+      const { timeZone } = dependencies.displayService.getSettings();
       const fillHistory = dependencies.fillService
         .listFills({ kegId: physical.id })
         .map((fill) => ({
@@ -402,7 +410,7 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           state: fill.state,
           stateLabel: fillStateLabel(fill.state),
           endedAt: fill.endedAt,
-          endedAtLabel: fill.endedAt === null ? null : timestampLabel(fill.endedAt),
+          endedAtLabel: fill.endedAt === null ? null : timestampLabel(fill.endedAt, timeZone),
         }));
       renderAdmin(
         dependencies,
@@ -419,16 +427,16 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           } satisfies PageHeader,
           keg: {
             ...physical,
-            updatedAtLabel: timestampLabel(physical.updatedAt),
+            updatedAtLabel: timestampLabel(physical.updatedAt, timeZone),
             confirmationLabel: kegDeletionConfirmationLabel(physical),
             tareHistory: tareHistory.map((item) => ({
               ...item,
               changeLabel: `${item.previousTareG === null ? "Initial" : `${item.previousTareG} g`} → ${item.newTareG} g`,
-              recordedAtLabel: timestampLabel(item.recordedAt),
+              recordedAtLabel: timestampLabel(item.recordedAt, timeZone),
             })),
             maintenanceHistory: maintenanceHistory.map((item) => ({
               ...item,
-              recordedAtLabel: timestampLabel(item.recordedAt),
+              recordedAtLabel: timestampLabel(item.recordedAt, timeZone),
             })),
             deletionImpact: deletionImpactSentence(impact.impacts, "kegs"),
             fillHistory,
@@ -483,7 +491,8 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
         .filter((tap) => !tap.isRetired && !tap.isOccupied)
         .map((tap) => ({ id: tap.id, tapNumber: tap.tapNumber, name: tap.name }));
       const publicCards = safePublicTapCards(dependencies.dashboardService, dependencies.logger);
-      const card = safeFillCard(fill, dependencies.dashboardService, publicCards);
+      const { timeZone } = dependencies.displayService.getSettings();
+      const card = safeFillCard(fill, dependencies.dashboardService, timeZone, publicCards);
       const pourHistory = fillPourHistory(dependencies, fill.id, request.url);
       renderAdmin(
         dependencies,
@@ -934,6 +943,7 @@ export function safeRemainingEstimate(
 export function safeFillCard(
   fill: AdminFillView,
   dashboardService: DashboardService,
+  timeZone: string,
   publicCards: readonly PublicTapCardView[] = safePublicTapCards(dashboardService),
 ): Record<string, unknown> {
   // Match only by the non-Mystery public fillId. Public projections may hide
@@ -998,6 +1008,6 @@ export function safeFillCard(
       tapNumber: authoritativeTapNumber || 0,
     },
     updatedAt: fill.updatedAt,
-    updatedAtLabel: timestampLabel(fill.updatedAt),
+    updatedAtLabel: timestampLabel(fill.updatedAt, timeZone),
   };
 }

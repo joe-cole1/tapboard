@@ -50,6 +50,7 @@ export type RegisterPublicRoutesDependencies = Pick<
   | "authService"
   | "canonicalOrigin"
   | "dashboardService"
+  | "displayService"
   | "liveUpdates"
   | "logger"
   | "publicTapWarsService"
@@ -163,7 +164,12 @@ export type RegisterAdminEventRoutesDependencies = Pick<
 >;
 export type RegisterAdminTapWarsApiDependencies = Pick<
   WebRouteDependencies,
-  "authService" | "publicTapWarsService" | "router" | "tapService" | "tapWarsService"
+  | "authService"
+  | "displayService"
+  | "publicTapWarsService"
+  | "router"
+  | "tapService"
+  | "tapWarsService"
 >;
 export type RegisterSystemMutationsDependencies = Pick<
   WebRouteDependencies,
@@ -252,7 +258,7 @@ export type RegisterAdminNotFoundDependencies = Pick<
 export type SendTapWarsVoteErrorDependencies = Pick<WebRouteDependencies, "publicTapWarsService">;
 export type AdminTapWarsPageDataDependencies = Pick<
   WebRouteDependencies,
-  "publicTapWarsService" | "tapService" | "tapWarsService"
+  "displayService" | "publicTapWarsService" | "tapService" | "tapWarsService"
 >;
 export type MachineKeyPageDataDependencies = Pick<
   WebRouteDependencies,

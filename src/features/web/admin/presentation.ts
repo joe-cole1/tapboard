@@ -1,4 +1,5 @@
 import { ML_PER_US_FL_OZ } from "../../forecasting/forecast.ts";
+import { calendarDay, zonedParts } from "../../../shared/time-zone.ts";
 
 export function volume(ml: number, unit: string): string {
   return unit === "metric" ? `${(ml / 1000).toFixed(1)} L` : `${(ml / 3785.411784).toFixed(1)} gal`;
@@ -56,32 +57,37 @@ export function fillStateLabel(state: string): string {
   return FILL_STATE_LABELS[state] ?? state;
 }
 
-export function timestampLabel(value: string | null | undefined): string {
+/**
+ * "Nov 25, 2026, 11:18 PM EST": the instant in the display time zone, ending with Intl's
+ * short zone name (UTC, EST/EDT, GMT+1).
+ */
+export function timestampLabel(value: string | null | undefined, timeZone: string): string {
   if (value === null || value === undefined || value.length === 0) return "Never";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
-  const hour24 = date.getUTCHours();
-  const hour = hour24 % 12 || 12;
-  const minute = String(date.getUTCMinutes()).padStart(2, "0");
-  return `${ADMIN_TIMESTAMP_MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}, ${hour}:${minute} ${hour24 < 12 ? "AM" : "PM"} UTC`;
+  const parts = zonedParts(date, timeZone);
+  const minute = String(parts.minute).padStart(2, "0");
+  return `${ADMIN_TIMESTAMP_MONTHS[parts.month - 1]} ${parts.day}, ${parts.year}, ${parts.hour12}:${minute} ${parts.dayPeriod} ${parts.zoneName}`;
 }
 
 const RELATIVE_TIME = new Intl.RelativeTimeFormat("en-US", { numeric: "auto" });
-const DAY_MS = 86_400_000;
 
 /**
  * "12 seconds ago", "5 minutes ago", "3 hours ago", "yesterday", "4 days ago".
  * Hours apply only within the same calendar day, so a pour before midnight
- * reads "yesterday". Days follow timestampLabel and use UTC.
+ * reads "yesterday". Days follow timestampLabel and use the display time zone.
  */
-export function relativeTimeLabel(value: string, now: string): string {
+export function relativeTimeLabel(value: string, now: string, timeZone: string): string {
   const at = Date.parse(value);
   const current = Date.parse(now);
   if (!Number.isFinite(at) || !Number.isFinite(current)) return "Unknown";
   const seconds = Math.floor(Math.max(0, current - at) / 1000);
   if (seconds < 60) return RELATIVE_TIME.format(-seconds, "second");
   if (seconds < 3600) return RELATIVE_TIME.format(-Math.floor(seconds / 60), "minute");
-  const days = Math.floor(current / DAY_MS) - Math.floor(at / DAY_MS);
+  const days = Math.max(
+    0,
+    calendarDay(new Date(current), timeZone) - calendarDay(new Date(at), timeZone),
+  );
   if (days === 0) return RELATIVE_TIME.format(-Math.floor(seconds / 3600), "hour");
   return RELATIVE_TIME.format(-days, "day");
 }
@@ -96,11 +102,12 @@ export interface PourHistoryEntry {
 export function pourHistoryEntry(
   pour: { readonly volumeMl: number; readonly completedAt: string },
   now: string,
+  timeZone: string,
 ): PourHistoryEntry {
   return {
     completedAt: pour.completedAt,
-    relativeLabel: relativeTimeLabel(pour.completedAt, now),
-    absoluteLabel: timestampLabel(pour.completedAt),
+    relativeLabel: relativeTimeLabel(pour.completedAt, now, timeZone),
+    absoluteLabel: timestampLabel(pour.completedAt, timeZone),
     volumeLabels: {
       us: pourVolume(pour.volumeMl, "us"),
       metric: pourVolume(pour.volumeMl, "metric"),

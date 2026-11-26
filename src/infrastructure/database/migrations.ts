@@ -62,7 +62,9 @@ export const TELEMETRY_ROLLUPS_SCHEMA_VERSION = 30;
 export const TELEMETRY_ROLLUPS_MIGRATION_NAME = "telemetry-rollups";
 export const HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION = 31;
 export const HEALTH_THRESHOLD_CHECKS_MIGRATION_NAME = "health-threshold-checks";
-export const CURRENT_SCHEMA_VERSION = HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION;
+export const DISPLAY_TIME_ZONE_SCHEMA_VERSION = 32;
+export const DISPLAY_TIME_ZONE_MIGRATION_NAME = "display-time-zone";
+export const CURRENT_SCHEMA_VERSION = DISPLAY_TIME_ZONE_SCHEMA_VERSION;
 
 export interface MigrationDefinition {
   readonly version: number;
@@ -4590,12 +4592,16 @@ const thresholdColumnRows = (nullable: boolean) =>
     pk: 0,
   }));
 
-function validateHealthThresholdChecksSchema(database: DatabaseExecutor): void {
+function validateHealthThresholdChecksSchema(
+  database: DatabaseExecutor,
+  version: number = HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
+): void {
+  const timeZone = version >= DISPLAY_TIME_ZONE_SCHEMA_VERSION;
   validateTelemetrySchemaDefinition(
     database,
     HEALTH_THRESHOLD_CHECKS_SCHEMA_OBJECTS,
-    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_FLOW_SCHEMA_SQL}\n${TELEMETRY_ROLLUPS_SCHEMA_SQL}\n${HEALTH_THRESHOLD_CHECKS_SCHEMA_SQL}`,
-    HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION,
+    `${FORENSIC_QC_SCHEMA_SQL}\n${TELEMETRY_EPOCHS_SCHEMA_SQL}\n${FORECASTING_SCHEMA_SQL}\n${HEALTH_MAINTENANCE_SCHEMA_SQL}\n${DISPLAY_SCHEMA_SQL}\n${BREW_STORY_SENSORY_MYSTERY_SCHEMA_SQL}\n${TAP_CARD_DISPLAY_SCHEMA_SQL}\n${DISPLAY_FONT_SCHEMA_SQL}\n${TELEMETRY_DISABLED_LIFECYCLE_SCHEMA_SQL}\n${TAP_WARS_SCHEMA_SQL}\n${OUTBOUND_DESTINATIONS_SCHEMA_SQL}\n${FILL_CARD_BADGES_SCHEMA_SQL}\n${BUILTIN_SIMULATION_SCHEMA_SQL}\n${SYSTEM_ADMINISTRATION_SCHEMA_SQL}${FLAVOR_PROFILE_SCHEMA_SQL}${DISPLAY_AUTO_THEME_SCHEMA_SQL}${DISPLAY_THEME_FORMAT_SCHEMA_SQL}${DISPLAY_THEME_ACCENT_SCHEMA_SQL}\n${TELEMETRY_READINGS_SCHEMA_SQL}\n${TELEMETRY_FLOW_SCHEMA_SQL}\n${TELEMETRY_ROLLUPS_SCHEMA_SQL}\n${HEALTH_THRESHOLD_CHECKS_SCHEMA_SQL}${timeZone ? `\n${DISPLAY_TIME_ZONE_SCHEMA_SQL}` : ""}`,
+    version,
     (schemaDatabase) => {
       validateTelemetryReadingsColumns(schemaDatabase);
       expectColumns(schemaDatabase, "telemetry_rollups_hourly", ROLLUP_COLUMNS);
@@ -4647,6 +4653,44 @@ export const HEALTH_THRESHOLD_CHECKS_MIGRATION: MigrationDefinition = {
   },
 };
 
+/**
+ * v32 adds the household's IANA time zone, which Admin dates and pour-history days use.
+ * The column keeps a format check; the application validates the name against Intl. Every
+ * existing database gets UTC, so its output is unchanged.
+ */
+export const DISPLAY_TIME_ZONE_SCHEMA_SQL = DISPLAY_THEME_ACCENT_SCHEMA_SQL.replace(
+  "layout_mode TEXT NOT NULL CHECK (layout_mode IN ('scroll', 'rotation')),",
+  "layout_mode TEXT NOT NULL CHECK (layout_mode IN ('scroll', 'rotation')),\n    time_zone TEXT NOT NULL CHECK (length(CAST(time_zone AS BLOB)) BETWEEN 1 AND 64 AND time_zone NOT GLOB '*[^A-Za-z0-9_/+-]*'),",
+);
+
+export const DISPLAY_TIME_ZONE_MIGRATION: MigrationDefinition = {
+  version: DISPLAY_TIME_ZONE_SCHEMA_VERSION,
+  name: DISPLAY_TIME_ZONE_MIGRATION_NAME,
+  apply(database) {
+    // The new column sits before updated_at and has no default, so rebuild only this
+    // singleton table, copying every value and the revision unchanged; the zone is UTC.
+    database.execute(
+      DISPLAY_TIME_ZONE_SCHEMA_SQL.replace(
+        "CREATE TABLE display_settings",
+        "CREATE TABLE display_settings_v32",
+      ),
+    );
+    database.execute(`
+      INSERT INTO display_settings_v32 (
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, time_zone, updated_at
+      )
+      SELECT
+        id, revision, tapboard_name, theme, font, accent, unit_system,
+        show_serving_temperature, layout_mode, 'UTC', updated_at
+      FROM display_settings;
+      DROP TABLE display_settings;
+      ALTER TABLE display_settings_v32 RENAME TO display_settings;
+    `);
+    return undefined;
+  },
+};
+
 /** Canonical production migration list. Keep this array identity stable. */
 export const MIGRATIONS: readonly MigrationDefinition[] = [
   FOUNDATION_MIGRATIONS[0]!,
@@ -4680,6 +4724,7 @@ export const MIGRATIONS: readonly MigrationDefinition[] = [
   TELEMETRY_FLOW_MIGRATION,
   TELEMETRY_ROLLUPS_MIGRATION,
   HEALTH_THRESHOLD_CHECKS_MIGRATION,
+  DISPLAY_TIME_ZONE_MIGRATION,
 ];
 
 function recordMigration(database: DatabaseExecutor, migration: MigrationDefinition): void {
@@ -4724,7 +4769,8 @@ function applyMigration(
         migration.version === TELEMETRY_ROLE_AUTHORITY_SCHEMA_VERSION ||
         migration.version === TELEMETRY_FLOW_SCHEMA_VERSION ||
         migration.version === TELEMETRY_ROLLUPS_SCHEMA_VERSION ||
-        migration.version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION)
+        migration.version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION ||
+        migration.version === DISPLAY_TIME_ZONE_SCHEMA_VERSION)
     ) {
       validateCanonicalSchemaAtVersion(database, migration.version);
     }
@@ -4863,8 +4909,11 @@ function validateCanonicalSchemaAtVersion(database: DatabaseExecutor, version: n
     validateTelemetryFlowSchema(database);
   } else if (version === TELEMETRY_ROLLUPS_SCHEMA_VERSION) {
     validateTelemetryRollupsSchema(database);
-  } else if (version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION) {
-    validateHealthThresholdChecksSchema(database);
+  } else if (
+    version === HEALTH_THRESHOLD_CHECKS_SCHEMA_VERSION ||
+    version === DISPLAY_TIME_ZONE_SCHEMA_VERSION
+  ) {
+    validateHealthThresholdChecksSchema(database, version);
   } else {
     throw incompatibleSchema("schema version is not a canonical Tapboard version");
   }

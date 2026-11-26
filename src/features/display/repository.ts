@@ -9,6 +9,7 @@ import type {
   UpdateTapCardDisplaySettingsInput,
 } from "./types.ts";
 import { DISPLAY_THEMES, isDisplayAccent } from "./types.ts";
+import { isTimeZone } from "../../shared/time-zone.ts";
 
 interface Row {
   revision: number;
@@ -19,6 +20,7 @@ interface Row {
   unit_system: DisplaySettings["unitSystem"];
   show_serving_temperature: number;
   layout_mode: DisplaySettings["layoutMode"];
+  time_zone: string;
   updated_at: string;
 }
 function map(row: Row): DisplaySettings {
@@ -40,13 +42,16 @@ function map(row: Row): DisplaySettings {
     unitSystem: row.unit_system,
     showServingTemperature: row.show_serving_temperature === 1,
     layoutMode: row.layout_mode,
+    // The database checks only the zone's format, so a name this build's Intl does not
+    // know (a database from a newer runtime) reads as UTC.
+    timeZone: isTimeZone(row.time_zone) ? row.time_zone : "UTC",
     updatedAt: row.updated_at,
   };
 }
 export function readDisplaySettings(database: DatabaseExecutor): DisplaySettings {
   const row = database
     .prepare<[], Row>(
-      "SELECT revision, tapboard_name, theme, font, accent, unit_system, show_serving_temperature, layout_mode, updated_at FROM display_settings WHERE id = 1",
+      "SELECT revision, tapboard_name, theme, font, accent, unit_system, show_serving_temperature, layout_mode, time_zone, updated_at FROM display_settings WHERE id = 1",
     )
     .get();
   if (!row) throw new Error("display_settings row 1 is missing");
@@ -59,8 +64,8 @@ export function updateDisplaySettings(
 ): boolean {
   return (
     database
-      .prepare<[string, string, string, string, string, number, string, string, number]>(
-        "UPDATE display_settings SET tapboard_name = ?, theme = ?, font = ?, accent = ?, unit_system = ?, show_serving_temperature = ?, layout_mode = ?, revision = revision + 1, updated_at = ? WHERE id = 1 AND revision = ?",
+      .prepare<[string, string, string, string, string, number, string, string, string, number]>(
+        "UPDATE display_settings SET tapboard_name = ?, theme = ?, font = ?, accent = ?, unit_system = ?, show_serving_temperature = ?, layout_mode = ?, time_zone = ?, revision = revision + 1, updated_at = ? WHERE id = 1 AND revision = ?",
       )
       .run(
         input.tapboardName,
@@ -70,6 +75,7 @@ export function updateDisplaySettings(
         input.unitSystem,
         input.showServingTemperature ? 1 : 0,
         input.layoutMode,
+        input.timeZone,
         updatedAt,
         input.expectedRevision,
       ).changes === 1

@@ -158,6 +158,7 @@ void test("the Filled Keg page pages through every pour, newest first, in readab
     unitSystem: "metric",
     showServingTemperature: current.showServingTemperature,
     layoutMode: current.layoutMode,
+    timeZone: current.timeZone,
     expectedRevision: current.revision,
   });
   const metricSection = pourSection(await (await get(f.fillPath)).text());

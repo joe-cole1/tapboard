@@ -5,6 +5,7 @@ import test from "node:test";
 
 import { readBrewingInputs } from "../src/features/beverages/brewing-inputs.ts";
 import { createBeverageService } from "../src/features/beverages/service.ts";
+import { createDisplaySettingsService } from "../src/features/display/index.ts";
 import { createFillService } from "../src/features/fills/service.ts";
 import { createKegService } from "../src/features/kegs/service.ts";
 import { createMachineKeyService } from "../src/features/machine-keys/service.ts";
@@ -80,6 +81,7 @@ function harness(
     beverageService,
     fillService,
     telemetryService,
+    displayService: createDisplaySettingsService(database),
   };
   const runner = new SimulationRunner(dependencies, {
     clock,
@@ -155,6 +157,8 @@ void test("simulation seeds five ordinary assignments and two On Deck once, with
     assert.equal(new Set(assignments.map((assignment) => assignment!.kegId)).size, 5);
     assert.equal(h.fillService.listFills({ state: "on_deck" }).length, 2);
     assert.equal(count(h.database, "simulation_fill_volumes"), 7);
+    // The sample household is in New York, so its Admin dates show EST/EDT, not UTC.
+    assert.equal(h.displayService.getSettings().timeZone, "America/New_York");
     for (const tap of sensorTaps)
       assert.equal(
         readFillVolume(h.database, tap.activeAssignment!.fillId),

@@ -65,9 +65,10 @@
   <section aria-labelledby="units-heading">
     <h2 id="units-heading">Units and readouts</h2>
     <p>How public displays show volumes and temperatures. A browser can still choose its own units on <a href="/admin/display/this-display">This display</a>.</p>
+    <p>Admin dates and pour history use the time zone. Public displays never show it.</p>
     <form action="/admin/system/units" method="post" class="form form--wide" data-autosave="blur"
       data-autosave-resource="display" data-autosave-revision="expectedDisplayRevision"
-      data-autosave-fields="unitSystem,showServingTemperature">
+      data-autosave-fields="unitSystem,showServingTemperature,timeZone">
       <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />
       <input type="hidden" name="expectedDisplayRevision" value="<%= it.system.display.revision %>" />
       <label class="field">Units <select name="unitSystem">
@@ -77,8 +78,13 @@
       <label class="switch"><input class="switch__control" type="checkbox" role="switch"
         name="showServingTemperature" value="true"<% if (it.system.display.showServingTemperature) { %> checked<% } %>
         />Serving temperature</label>
+      <label class="field">Time zone <select name="timeZone">
+      <% for (const group of it.system.timeZoneGroups) { %><optgroup label="<%= group.label %>">
+        <% for (const zone of group.options) { %><option value="<%= zone.value %>"<% if (zone.selected) { %> selected<% } %>><%= zone.label %></option><% } %>
+      </optgroup><% } %>
+      </select></label>
       <div class="form-actions"><button class="button button--primary" type="submit"
-        data-autosave-fallback>Save units</button><output class="autosave-status" data-autosave-status
+        data-autosave-fallback>Save units and time zone</button><output class="autosave-status" data-autosave-status
         aria-live="polite"></output></div>
     </form>
   </section>

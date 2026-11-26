@@ -29,7 +29,7 @@
       <%~ include("/partials/section-heading", {
         id: "filled-keg-pours",
         title: "Pour history",
-        intro: "Newest first. Times are UTC.",
+        intro: "Newest first.",
       }) %>
       <% const pours = it.pourHistory; %>
       <% if (pours.cursorRejected) { %><p class="error" role="alert">That pour history link is no longer valid. Showing the newest pours.</p><% } %>

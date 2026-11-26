@@ -135,6 +135,7 @@ export function renderBeverageDetail(
   const beverage = adminBeverageDetailDto(detail, usage, impacts, guidance);
   const name = detail.effectivePresentation.name;
   const current = BEVERAGE_TABS.find((item) => item.id === tab)!;
+  const { timeZone } = dependencies.displayService.getSettings();
 
   renderAdmin(
     dependencies,
@@ -157,7 +158,7 @@ export function renderBeverageDetail(
         },
         updated: {
           datetime: detail.beverage.updatedAt,
-          label: timestampLabel(detail.beverage.updatedAt),
+          label: timestampLabel(detail.beverage.updatedAt, timeZone),
         },
       } satisfies PageHeader,
       tabs: {
@@ -173,11 +174,11 @@ export function renderBeverageDetail(
         : { breadcrumbParents: [{ label: name, href: beveragePagePath(id, "info") }] }),
       beverage: {
         ...beverage,
-        updatedAtLabel: timestampLabel(detail.beverage.updatedAt),
+        updatedAtLabel: timestampLabel(detail.beverage.updatedAt, timeZone),
         lastSyncedAtLabel:
           detail.brewfatherLink?.lastSyncedAt == null
             ? null
-            : timestampLabel(detail.brewfatherLink.lastSyncedAt),
+            : timestampLabel(detail.brewfatherLink.lastSyncedAt, timeZone),
       },
       beverageTypes: BEVERAGE_TYPE_OPTIONS,
       linked: detail.beverage.ownershipType === "brewfather",

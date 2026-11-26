@@ -431,7 +431,7 @@
         <caption class="sr-only">Activity for this Tap</caption>
         <thead>
           <tr>
-            <th scope="col">Time (UTC)</th>
+            <th scope="col">Time</th>
             <th scope="col">Action</th>
             <th scope="col">Category</th>
             <th scope="col">Actor</th>

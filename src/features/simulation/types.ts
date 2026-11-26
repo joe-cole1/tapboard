@@ -1,5 +1,6 @@
 import type { DatabaseConnection } from "../../infrastructure/database/connection.ts";
 import type { BeverageService } from "../beverages/service.ts";
+import type { DisplaySettingsService } from "../display/service.ts";
 import type { FillService } from "../fills/service.ts";
 import type { KegService } from "../kegs/service.ts";
 import type { TapService } from "../taps/service.ts";
@@ -53,6 +54,7 @@ export interface SimulationDependencies {
   readonly kegService: KegService;
   readonly fillService: FillService;
   readonly beverageService: BeverageService;
+  readonly displayService: DisplaySettingsService;
 }
 
 export interface SimulationRunnerOptions {

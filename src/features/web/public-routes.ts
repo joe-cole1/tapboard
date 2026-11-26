@@ -27,20 +27,26 @@ import type {
 /** Formats only the fields the story projection already selected. */
 function storyPourHistory(
   history: readonly PublicStoryHistoryItem[] | null,
+  timeZone: string,
 ): readonly PourHistoryEntry[] | null {
   if (history === null) return null;
   const now = new Date().toISOString();
-  return history.map((item) => pourHistoryEntry(item, now));
+  return history.map((item) => pourHistoryEntry(item, now, timeZone));
 }
 
-/** Readable forms of the story values the page shows as text. */
-export function storyLabels(story: PublicStoryView) {
+/**
+ * Readable forms of the story values the page shows as text. The dates appear only in the
+ * Admin sections, so only an Admin request passes the display time zone.
+ */
+export function storyLabels(story: PublicStoryView, timeZone: string) {
   const { beverageType } = story.presentation;
   const { assignedAt } = story.currentFill;
   return {
     beverageType: beverageType === null ? null : beverageTypeLabel(beverageType),
     assigned:
-      assignedAt === null ? null : { datetime: assignedAt, label: timestampLabel(assignedAt) },
+      assignedAt === null
+        ? null
+        : { datetime: assignedAt, label: timestampLabel(assignedAt, timeZone) },
   };
 }
 
@@ -79,6 +85,8 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
       );
       return;
     }
+    // The zone reveals where the household is, so visitors' pages never use it.
+    const timeZone = isAdmin ? dependencies.displayService.getSettings().timeZone : "UTC";
     sendHtml(
       response,
       200,
@@ -96,8 +104,8 @@ export function registerPublicRoutes(dependencies: RegisterPublicRoutesDependenc
         recipeMass,
         recipeNumber,
         story,
-        labels: storyLabels(story),
-        pourHistory: isAdmin ? storyPourHistory(story.history) : null,
+        labels: storyLabels(story, timeZone),
+        pourHistory: isAdmin ? storyPourHistory(story.history, timeZone) : null,
       }),
       { vary: "Cookie" },
     );
