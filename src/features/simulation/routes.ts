@@ -17,6 +17,7 @@ import type { Logger } from "../../shared/logging.ts";
 import type { AuthService, AuthenticatedSession, SessionMaterial } from "../auth/service.ts";
 import { adminBreadcrumbs, adminNav } from "../web/admin/layout.ts";
 import type { SimulationController, SimulationStatus } from "./ui-types.ts";
+import { ADMIN_THEME_COLORS } from "../display/palette.ts";
 
 export interface SimulationRouteDependencies {
   readonly router: Router;
@@ -249,6 +250,7 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
             path: "/admin/simulator",
             breadcrumbs,
             csrfToken: context.csrfToken,
+            themeColors: ADMIN_THEME_COLORS,
             workspace,
             notice: query.get("notice")?.slice(0, 240),
             error: query.get("error")?.slice(0, 240),
@@ -291,6 +293,7 @@ export function registerSimulationRoutes(dependencies: SimulationRouteDependenci
             path: "/admin/simulator",
             breadcrumbs: failureCrumbs,
             csrfToken: context.csrfToken,
+            themeColors: ADMIN_THEME_COLORS,
             error: adminFailureMessage(failure, "The Simulation page could not be loaded."),
           },
           nav: adminNav("/admin/simulator", failureCrumbs),

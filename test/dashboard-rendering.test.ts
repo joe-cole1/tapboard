@@ -7,6 +7,11 @@ import type { PublicDashboardView, PublicTapCardView } from "../src/features/das
 import { tapWarPercentages } from "../src/features/tap-wars/service.ts";
 import type { PublicTapWarView } from "../src/features/tap-wars/types.ts";
 import { createRenderer } from "../src/infrastructure/rendering/renderer.ts";
+import {
+  ADMIN_THEME_COLORS,
+  displayThemeColors,
+  type ThemeColor,
+} from "../src/features/display/palette.ts";
 import { adminBreadcrumbs, adminNav } from "../src/features/web/admin/layout.ts";
 
 const hostile = '<script>alert(1)</script>" onmouseover="alert(2)';
@@ -40,8 +45,12 @@ function tap(id: number, enabled = true): PublicTapCardView & { readonly enabled
   };
 }
 
-function dashboard(tapWars: PublicTapWarView | null = null): PublicDashboardView {
+/** The dashboard route's view data: the service projection plus the presenter's theme colour. */
+function dashboard(
+  tapWars: PublicTapWarView | null = null,
+): PublicDashboardView & { readonly themeColors: readonly ThemeColor[] } {
   return {
+    themeColors: displayThemeColors("modern_dark"),
     sharedDisplay: {
       revision: 1,
       tapboardName: hostile,
@@ -349,7 +358,13 @@ void test("Admin shell exposes all independently reachable navigation seams", ()
   const breadcrumbs = adminBreadcrumbs("/admin/overview", "/admin/overview", "Overview");
   const nav = adminNav("/admin/overview", breadcrumbs);
   const html = createRenderer().render("/admin/overview", {
-    page: { title: "Overview", path: "/admin/overview", breadcrumbs, csrfToken: "safe" },
+    page: {
+      title: "Overview",
+      path: "/admin/overview",
+      breadcrumbs,
+      csrfToken: "safe",
+      themeColors: ADMIN_THEME_COLORS,
+    },
     nav,
     quickLinks: [],
     metrics: [],
@@ -478,6 +493,7 @@ void test("Admin Tap Wars meters carry each side's share in SVG geometry, not in
         path: "/admin/tap-wars",
         breadcrumbs: adminBreadcrumbs("/admin/tap-wars", "/admin/tap-wars", "Tap Wars"),
         csrfToken: "safe",
+        themeColors: ADMIN_THEME_COLORS,
       },
       nav: adminNav("/admin/tap-wars", []),
       tapWars: {

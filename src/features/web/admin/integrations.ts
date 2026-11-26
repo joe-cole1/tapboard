@@ -2,7 +2,7 @@ import { readFormBody } from "../../../infrastructure/http/form.ts";
 import { redirect, sendHtml } from "../../../infrastructure/http/html.ts";
 import { ApplicationError } from "../../../shared/errors.ts";
 import { adminFailureMessage, reportFailure } from "../../../shared/diagnostics.ts";
-import { displayStylesheetHref } from "../../display/palette.ts";
+import { ADMIN_THEME_COLORS, displayStylesheetHref } from "../../display/palette.ts";
 import type { EventType } from "../../events/types.ts";
 import type { OutboundService } from "../../outbound/service.ts";
 import {
@@ -30,7 +30,8 @@ import {
 import { adminBreadcrumbs, adminNav, adminTabs, renderAdmin } from "./layout.ts";
 import { requestUrl, actor, adminContext, messageLocation, type AdminContext } from "./context.ts";
 import {
-  adminTimestampLabel,
+  filterForm,
+  timestampLabel,
   numberedPageNavigation,
   type AutosaveForm,
   type PageHeader,
@@ -64,7 +65,6 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       (item) => item.retiredAt === null && item.enabled,
     ).length;
     const outboundAvailable = dependencies.outboundService !== undefined;
-    const brewfatherConnected = brewfather.configured && brewfather.apiKeyConfigured;
     renderAdmin(
       dependencies,
       response,
@@ -89,9 +89,12 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           apiKeyConfigured: brewfather.apiKeyConfigured,
           linkedBeverages: brewfather.totalLinkedBeverages,
           candidates: brewfather.totalCandidates,
-          badge: brewfatherConnected
-            ? { label: "Connected", tone: "healthy" }
-            : { label: "Not configured", tone: "muted" },
+          badge: brewfatherConnectionBadge(brewfather),
+          summary: !brewfather.apiKeyConfigured
+            ? "Add an API key to import and refresh beverage data."
+            : brewfather.account?.enabled === true
+              ? "Beverage data is available for linking."
+              : "Sync is off. Linked beverages keep their last Brewfather data.",
         },
         outbound: {
           available: outboundAvailable,
@@ -210,7 +213,7 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
           linkedBeverages: brewfather.totalLinkedBeverages,
           candidates: brewfather.totalCandidates,
           lastDataUpdateAt: brewfather.lastDataUpdateAt,
-          lastDataUpdateAtLabel: adminTimestampLabel(brewfather.lastDataUpdateAt),
+          lastDataUpdateAtLabel: timestampLabel(brewfather.lastDataUpdateAt),
           connectionState: brewfather.connectionState,
           credentialStorage: brewfather.credentialStorage,
         },
@@ -262,11 +265,11 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
       name: source.name,
       keyPublicId: source.currentMachineKey.publicId,
       keyCreatedAt: source.currentMachineKey.createdAt,
-      keyCreatedAtLabel: adminTimestampLabel(source.currentMachineKey.createdAt),
+      keyCreatedAtLabel: timestampLabel(source.currentMachineKey.createdAt),
       createdAt: source.createdAt,
-      createdAtLabel: adminTimestampLabel(source.createdAt),
+      createdAtLabel: timestampLabel(source.createdAt),
       disabledAt: source.disabledAt,
-      disabledAtLabel: adminTimestampLabel(source.disabledAt),
+      disabledAtLabel: timestampLabel(source.disabledAt),
     });
     renderAdmin(
       dependencies,
@@ -280,7 +283,11 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
         tabs: adminTabs("integrations", "/admin/integrations/telemetry"),
         activeSources: activePage.items.map(mapSource),
         disabledSources: historyPage.items.map(mapSource),
-        query,
+        filter: filterForm({
+          action: "/admin/integrations/telemetry",
+          label: "Search telemetry sources",
+          search: { value: query ?? "", placeholder: "Source name or ID" },
+        }),
         activePages: telemetryPageNavigation("Active telemetry source pages", activePage, (page) =>
           telemetryPageHref(query, page, historyPage.page, "active"),
         ),
@@ -337,11 +344,11 @@ export function registerIntegrationPages(dependencies: RegisterIntegrationPagesD
             name: source.name,
             keyPublicId: source.currentMachineKey.publicId,
             keyCreatedAt: source.currentMachineKey.createdAt,
-            keyCreatedAtLabel: adminTimestampLabel(source.currentMachineKey.createdAt),
+            keyCreatedAtLabel: timestampLabel(source.currentMachineKey.createdAt),
             createdAt: source.createdAt,
-            createdAtLabel: adminTimestampLabel(source.createdAt),
+            createdAtLabel: timestampLabel(source.createdAt),
             disabledAt: source.disabledAt,
-            disabledAtLabel: adminTimestampLabel(source.disabledAt),
+            disabledAtLabel: timestampLabel(source.disabledAt),
             badge:
               source.disabledAt === null
                 ? { label: "Active", tone: "healthy" }
@@ -979,7 +986,6 @@ const BREWFATHER_CONNECTION_LABELS: Readonly<Record<string, string>> = {
   unknown: "Awaiting verification",
   partial: "Refresh incomplete",
   disconnected: "Disconnected",
-  disabled: "Disabled",
 };
 
 /** The live-saving parts of an outbound destination's page. */
@@ -1021,16 +1027,24 @@ function telemetryPageNavigation(
   );
 }
 
+/**
+ * The one Brewfather status word, shown on Overview, the Integrations card and the Brewfather
+ * page: Not configured, Disabled, API key required, Awaiting verification, Connected, Refresh
+ * incomplete or Disconnected.
+ */
 export function brewfatherConnectionBadge(status: BrewfatherStatus): {
   readonly label: string;
-  readonly tone: "healthy" | "muted";
+  readonly tone: "healthy" | "degraded" | "muted";
 } {
-  const label = !status.configured
-    ? "Not configured"
-    : status.account?.enabled !== true
-      ? "Disabled"
-      : (BREWFATHER_CONNECTION_LABELS[status.connectionState] ?? "Awaiting verification");
-  return { label, tone: label === "Connected" ? "healthy" : "muted" };
+  if (!status.configured) return { label: "Not configured", tone: "muted" };
+  if (status.account?.enabled !== true) return { label: "Disabled", tone: "muted" };
+  if (!status.apiKeyConfigured) return { label: "API key required", tone: "degraded" };
+  const label = BREWFATHER_CONNECTION_LABELS[status.connectionState] ?? "Awaiting verification";
+  return {
+    label,
+    tone:
+      label === "Connected" ? "healthy" : label === "Awaiting verification" ? "muted" : "degraded",
+  };
 }
 
 export function outboundStatusBadge(destination: OutboundDestination): {
@@ -1157,13 +1171,13 @@ export function outboundDestinationPresentation(
             code: destination.failure.code,
             failureClass: outboundStateLabel(destination.failure.failureClass),
             occurredAt: destination.failure.occurredAt,
-            occurredAtLabel: adminTimestampLabel(destination.failure.occurredAt),
+            occurredAtLabel: timestampLabel(destination.failure.occurredAt),
           },
     lastSuccessAt: destination.lastSuccessAt,
     lastSuccessAtLabel:
       destination.lastSuccessAt === null
         ? "No confirmed success"
-        : adminTimestampLabel(destination.lastSuccessAt),
+        : timestampLabel(destination.lastSuccessAt),
     version:
       version === null
         ? null
@@ -1171,7 +1185,7 @@ export function outboundDestinationPresentation(
             id: version.id,
             versionNumber: version.versionNumber,
             createdAt: version.createdAt,
-            createdAtLabel: adminTimestampLabel(version.createdAt),
+            createdAtLabel: timestampLabel(version.createdAt),
           },
     config: outboundConfigPresentation(destination),
   };
@@ -1198,9 +1212,9 @@ export function outboundHistoryPresentation(
     lastErrorCode: row.lastErrorCode,
     lastAttemptAt: row.lastAttemptAt,
     lastAttemptAtLabel:
-      row.lastAttemptAt === null ? "Not attempted" : adminTimestampLabel(row.lastAttemptAt),
+      row.lastAttemptAt === null ? "Not attempted" : timestampLabel(row.lastAttemptAt),
     nextAttemptAt: row.nextAttemptAt,
-    nextAttemptAtLabel: adminTimestampLabel(row.nextAttemptAt),
+    nextAttemptAtLabel: timestampLabel(row.nextAttemptAt),
     canRetry: mutable && row.state === "terminal",
     canDismiss: mutable && row.state === "terminal",
   }));
@@ -1353,6 +1367,7 @@ export function machineKeyPageData(
       breadcrumbs,
       csrfToken: context.csrfToken,
       siteName: display.tapboardName,
+      themeColors: ADMIN_THEME_COLORS,
       displayStylesheetHref: displayStylesheetHref(display.theme, display.accent, display.font),
       returnPath: "/admin/integrations/telemetry",
     },

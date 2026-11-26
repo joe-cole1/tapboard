@@ -967,6 +967,7 @@ class FoundationApplication implements Application {
           { kind: "css", file: "components.css", path: "css/components.css" },
           { kind: "css", file: "dashboard.css", path: "css/dashboard.css" },
           { kind: "css", file: "admin.css", path: "css/admin.css" },
+          { kind: "svg", file: "favicon.svg", path: "img/favicon.svg" },
           { kind: "js", file: "preference-bootstrap.js", path: "js/preference-bootstrap.js" },
           { kind: "js", file: "display-preferences.js", path: "js/display-preferences.js" },
           { kind: "js", file: "dirty-targets.js", path: "js/dirty-targets.js" },

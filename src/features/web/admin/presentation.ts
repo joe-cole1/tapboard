@@ -44,7 +44,19 @@ export const ADMIN_TIMESTAMP_MONTHS = [
   "Dec",
 ] as const;
 
-export function adminTimestampLabel(value: string | null | undefined): string {
+const FILL_STATE_LABELS: Readonly<Record<string, string>> = {
+  available: "Available",
+  on_deck: "On Deck",
+  on_tap: "On Tap",
+  ended: "Ended",
+};
+
+/** The readable name of a Filled Keg state; unknown values pass through unchanged. */
+export function fillStateLabel(state: string): string {
+  return FILL_STATE_LABELS[state] ?? state;
+}
+
+export function timestampLabel(value: string | null | undefined): string {
   if (value === null || value === undefined || value.length === 0) return "Never";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown";
@@ -60,7 +72,7 @@ const DAY_MS = 86_400_000;
 /**
  * "12 seconds ago", "5 minutes ago", "3 hours ago", "yesterday", "4 days ago".
  * Hours apply only within the same calendar day, so a pour before midnight
- * reads "yesterday". Days follow adminTimestampLabel and use UTC.
+ * reads "yesterday". Days follow timestampLabel and use UTC.
  */
 export function relativeTimeLabel(value: string, now: string): string {
   const at = Date.parse(value);
@@ -88,7 +100,7 @@ export function pourHistoryEntry(
   return {
     completedAt: pour.completedAt,
     relativeLabel: relativeTimeLabel(pour.completedAt, now),
-    absoluteLabel: adminTimestampLabel(pour.completedAt),
+    absoluteLabel: timestampLabel(pour.completedAt),
     volumeLabels: {
       us: pourVolume(pour.volumeMl, "us"),
       metric: pourVolume(pour.volumeMl, "metric"),
@@ -164,4 +176,61 @@ export interface AutosaveForm {
   readonly resource: string;
   readonly fields: string;
   readonly statusId?: string;
+}
+
+/** A choice in a list filter; `selected` marks the one the page is showing. */
+export interface FilterOption {
+  readonly value: string;
+  readonly label: string;
+  readonly selected: boolean;
+}
+
+/** A list page's GET filter, rendered by `partials/filter-form`. */
+export interface FilterForm {
+  readonly action: string;
+  readonly label: string;
+  readonly search: { readonly value: string; readonly placeholder: string } | null;
+  readonly selects: readonly {
+    readonly name: string;
+    readonly label: string;
+    readonly options: readonly FilterOption[];
+  }[];
+  /** The unfiltered list, offered only while a search or filter is applied. */
+  readonly clearHref: string | null;
+}
+
+/**
+ * Builds a list filter. Each dropdown names its current value and its unfiltered default; the
+ * form offers Clear when the search has text or any dropdown is off its default.
+ */
+export function filterForm(input: {
+  readonly action: string;
+  readonly label: string;
+  readonly search?: { readonly value: string; readonly placeholder: string };
+  readonly selects?: readonly {
+    readonly name: string;
+    readonly label: string;
+    readonly value: string;
+    readonly defaultValue: string;
+    readonly options: readonly { readonly value: string; readonly label: string }[];
+  }[];
+}): FilterForm {
+  const selects = input.selects ?? [];
+  const active =
+    (input.search?.value ?? "") !== "" ||
+    selects.some((select) => select.value !== select.defaultValue);
+  return {
+    action: input.action,
+    label: input.label,
+    search: input.search ?? null,
+    selects: selects.map((select) => ({
+      name: select.name,
+      label: select.label,
+      options: select.options.map((option) => ({
+        ...option,
+        selected: option.value === select.value,
+      })),
+    })),
+    clearHref: active ? input.action : null,
+  };
 }

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title><%= it.page.title %> · <%= it.page.siteName || "Tapboard" %></title>
+    <%~ include("/partials/head-icons", { themeColors: it.page.themeColors }) %>
     <link rel="stylesheet" href="/assets/css/tokens.css" />
     <link rel="stylesheet" href="/assets/css/components.css" />
     <link rel="stylesheet" href="/assets/css/admin.css" />

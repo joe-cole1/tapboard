@@ -1,0 +1,8 @@
+<% /*
+  The favicon and the browser's theme colour, in each layout's <head>.
+  it.themeColors: [{ color, media }] from palette.ts (ADMIN_THEME_COLORS or displayThemeColors)
+*/ %>
+<link rel="icon" href="/assets/svg/favicon.svg" type="image/svg+xml" />
+<% for (const themeColor of it.themeColors) { %>
+  <meta name="theme-color" content="<%= themeColor.color %>"<% if (themeColor.media) { %> media="<%= themeColor.media %>"<% } %> />
+<% } %>

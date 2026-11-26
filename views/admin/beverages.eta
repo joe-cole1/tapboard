@@ -12,14 +12,7 @@
     intro: `${it.pagination.total} beverage${it.pagination.total === 1 ? "" : "s"}`,
     actions: [{ label: "Add beverage", href: "/admin/beverages/new", primary: true }],
   }) %>
-  <form class="form admin-search" method="get" action="/admin/beverages" role="search">
-    <label for="beverage-search">Search by name, style, type, or source</label>
-    <div class="admin-search__controls">
-      <input id="beverage-search" name="q" type="search" value="<%= it.query %>" maxlength="80" />
-      <button class="button button--primary" type="submit">Search</button>
-      <% if (it.query) { %><a class="button button--secondary button--small" href="/admin/beverages">Clear</a><% } %>
-    </div>
-  </form>
+  <%~ include("/partials/filter-form", it.filter) %>
   <% if (it.beverages.length === 0) { %>
     <%~ include("/partials/empty-state", { ...it.empty, id: "beverage-empty-heading" }) %>
   <% } else { %>
@@ -34,7 +27,7 @@
                 <a class="library-cell__name" href="/admin/beverages/<%= beverage.id %>">
                   <span><%= beverage.name %></span>
                 </a>
-                <span class="library-cell__type"><%= beverage.beverageType %><% if (beverage.fillGlass) { %> · <%= beverage.fillGlass %><% } %></span>
+                <span class="library-cell__type"><%= beverage.beverageTypeLabel %><% if (beverage.fillGlass) { %> · <%= beverage.fillGlass %><% } %></span>
               </div></th>
               <td data-label="Style"><%= beverage.style || "—" %></td>
               <td data-label="ABV"><%= beverage.abv === null ? "—" : `${beverage.abv}%` %></td>

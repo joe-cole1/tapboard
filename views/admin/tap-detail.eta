@@ -440,7 +440,7 @@
         <tbody>
         <% for (const item of it.tap.history.activity.items) { %>
           <tr>
-            <td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td>
+            <td><%~ include("/partials/timestamp", { datetime: item.occurredAt, label: item.occurredAtLabel }) %></td>
             <td data-label="Action"><%= item.actionLabel %></td>
             <td data-label="Category"><%= item.categoryLabel %></td>
             <td data-label="Actor"><%= item.actorLabel %></td>

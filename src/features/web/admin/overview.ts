@@ -4,6 +4,7 @@ import { isActionableHealth, type StatTile, type StatusBadge } from "./presentat
 import { renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier, healthCheckPresentation } from "./detector-presentation.ts";
 import { adminContext } from "./context.ts";
+import { brewfatherConnectionBadge } from "./integrations.ts";
 import type {
   RegisterOverviewPagesDependencies,
   RegisterAdminEventRoutesDependencies,
@@ -129,13 +130,7 @@ export function registerOverviewPages(dependencies: RegisterOverviewPagesDepende
           },
           {
             label: "Brewfather",
-            value: !brewfather.configured
-              ? "Not configured"
-              : brewfather.account?.enabled !== true
-                ? "Disabled"
-                : brewfather.apiKeyConfigured
-                  ? "Enabled"
-                  : "API key required",
+            value: brewfatherConnectionBadge(brewfather).label,
             href: "/admin/integrations/brewfather",
           },
           {

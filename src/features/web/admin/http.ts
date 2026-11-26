@@ -8,6 +8,7 @@ import { adminFailureMessage, reportFailure } from "../../../shared/diagnostics.
 import { type AdminContext, adminContext, requestUrl, messageLocation } from "./context.ts";
 import { renderAdminNotFound } from "./not-found.ts";
 import { adminBreadcrumbs, adminNav } from "./layout.ts";
+import { ADMIN_THEME_COLORS } from "../../display/palette.ts";
 import type {
   RegisterAdminGetDependencies,
   RunAdminAutosaveDependencies,
@@ -52,6 +53,7 @@ export function registerAdminGet(
             path,
             breadcrumbs,
             csrfToken: context.csrfToken,
+            themeColors: ADMIN_THEME_COLORS,
             error: adminFailureMessage(failure, "The Admin page could not be loaded."),
           },
           nav: adminNav(path, breadcrumbs),

@@ -15,12 +15,11 @@
     <div class="stack stack--loose">
       <% for (const session of it.sessions) { %>
         <article class="card" aria-labelledby="session-<%= session.id %>">
-          <h3 id="session-<%= session.id %>"><%= session.current ? 'This session' : `Session ${session.id.slice(0, 8)}` %></h3>
+          <h3 id="session-<%= session.id %>"><%= session.title %></h3>
           <dl class="key-value-list">
-            <div><dt>Created</dt><dd><time datetime="<%= session.createdAt %>"><%= session.createdAt %></time></dd></div>
-            <div><dt>Last used</dt><dd><time datetime="<%= session.lastUsedAt %>"><%= session.lastUsedAt %></time></dd></div>
-            <div><dt>Expires</dt><dd><time datetime="<%= session.expiresAt %>"><%= session.expiresAt %></time></dd></div>
-            <div><dt>Absolute expiry</dt><dd><time datetime="<%= session.absoluteExpiresAt %>"><%= session.absoluteExpiresAt %></time></dd></div>
+            <% for (const time of session.times) { %>
+              <div><dt><%= time.term %></dt><dd><%~ include("/partials/timestamp", time) %></dd></div>
+            <% } %>
           </dl>
           <form action="/admin/logs/sessions/<%= session.id %>/revoke" method="post" class="form system-revoke-form">
             <input type="hidden" name="_csrf" value="<%= it.page.csrfToken %>" />

@@ -9,7 +9,9 @@ import { requestUrl, actor, type AdminContext } from "./context.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
 import { humanizeAdminIdentifier } from "./detector-presentation.ts";
 import { invalidForm } from "./forms.ts";
+import { filterForm, timestampLabel } from "./presentation.ts";
 import { requireSystemService, systemFormFields, systemFormNumber } from "./system.ts";
+import { ACTIVITY_CATEGORIES } from "../../activity/types.ts";
 import type { SystemActivityItem, SystemRetentionSettings } from "../../system/types.ts";
 import type {
   RegisterSystemPagesDependencies,
@@ -79,6 +81,25 @@ export function registerLogsPages(dependencies: RegisterSystemPagesDependencies)
     if (activity.nextCursor !== null) nextQuery.set("cursor", activity.nextCursor);
     renderAdmin(dependencies, response, request, context, "/admin/logs", "Logs", "/admin/logs", {
       tabs: adminTabs("logs", "/admin/logs"),
+      filter: filterForm({
+        action: "/admin/logs",
+        label: "Filter the Activity log",
+        selects: [
+          {
+            name: "category",
+            label: "Activity category",
+            value: category,
+            defaultValue: "",
+            options: [
+              { value: "", label: "All categories" },
+              ...ACTIVITY_CATEGORIES.map((value) => ({
+                value,
+                label: humanizeAdminIdentifier(value),
+              })),
+            ],
+          },
+        ],
+      }),
       activity: {
         ...activity,
         category,
@@ -100,9 +121,18 @@ export function registerLogsPages(dependencies: RegisterSystemPagesDependencies)
       "/admin/logs/sessions",
       {
         tabs: adminTabs("logs", "/admin/logs/sessions"),
-        sessions: dependencies.authService.listActiveSessions({
-          currentSessionId: context.session.id,
-        }),
+        sessions: dependencies.authService
+          .listActiveSessions({ currentSessionId: context.session.id })
+          .map((session) => ({
+            ...session,
+            title: session.current ? "This session" : `Session ${session.id.slice(0, 8)}`,
+            times: [
+              { term: "Created", datetime: session.createdAt },
+              { term: "Last used", datetime: session.lastUsedAt },
+              { term: "Expires", datetime: session.expiresAt },
+              { term: "Absolute expiry", datetime: session.absoluteExpiresAt },
+            ].map((time) => ({ ...time, label: timestampLabel(time.datetime) })),
+          })),
       },
     );
   });
@@ -193,6 +223,7 @@ export function registerLogsMutations(dependencies: RegisterSystemMutationsDepen
 export function presentActivityItems(items: readonly SystemActivityItem[]) {
   return items.map((item) => ({
     ...item,
+    occurredAtLabel: timestampLabel(item.occurredAt),
     actionLabel: humanizeAdminIdentifier(item.action.replaceAll(".", " ")),
     categoryLabel: humanizeAdminIdentifier(item.category),
     actorLabel: humanizeAdminIdentifier(item.actorType),

@@ -1,5 +1,5 @@
-<% layout("/layouts/public", { sharedDisplay: it.sharedDisplay, header: it.header }) %>
-<%~ include("/partials/public-header", { header: it.header }) %>
+<% layout("/layouts/public", { sharedDisplay: it.sharedDisplay, header: it.header, themeColors: it.themeColors }) %>
+<%~ include("/partials/public-header", { header: it.header, brandHeading: false }) %>
 <main id="main-content" class="story-page">
   <% if (!it.story) { %>
     <p><a class="story-back" href="/">← Back</a></p>
@@ -14,7 +14,7 @@
         <h2 id="story-overview">Overview</h2>
         <dl>
           <% if (presentation.beverageName) { %><dt>Name</dt><dd><%= presentation.beverageName %></dd><% } %>
-          <% if (presentation.beverageType) { %><dt>Type</dt><dd><%= presentation.beverageType %></dd><% } %>
+          <% if (it.labels.beverageType) { %><dt>Type</dt><dd><%= it.labels.beverageType %></dd><% } %>
           <% if (presentation.style) { %><dt>Style</dt><dd><%= presentation.style %></dd><% } %>
           <% if (presentation.abv !== null) { %><dt>ABV</dt><dd><%= presentation.abv %>%</dd><% } %>
           <% if (presentation.ibu !== null) { %><dt>IBU</dt><dd><%= presentation.ibu %></dd><% } %>
@@ -64,7 +64,7 @@
         <div class="fill-summary">
           <dl>
             <% if (current.fillDate) { %><dt>Filled</dt><dd><%= current.fillDate %></dd><% } %>
-            <% if (current.assignedAt) { %><dt>Assigned</dt><dd><%= current.assignedAt %></dd><% } %>
+            <% if (it.labels.assigned) { %><dt>Assigned</dt><dd><%~ include("/partials/timestamp", it.labels.assigned) %></dd><% } %>
             <% if (current.fillPercent !== null) { %><dt>Remaining</dt><dd><%= current.fillPercent %>%</dd><% } %>
             <% if (current.remainingVolumeMl !== null && current.capacityMl !== null) { %><dt>Volume</dt><dd data-field="volume"><span data-unit="metric"><%= it.volume(current.remainingVolumeMl, "metric") %> / <%= it.volume(current.capacityMl, "metric") %></span><span data-unit="us"><%= it.volume(current.remainingVolumeMl, "us") %> / <%= it.volume(current.capacityMl, "us") %></span></dd><% } %>
             <% if (current.servingsRemaining !== null) { %><dt>Servings</dt><dd><%= current.servingsRemaining %></dd><% } %>

@@ -1,5 +1,14 @@
+<% /*
+  The public header: the Tapboard name, connectivity and Settings.
+  it.header: the dashboard header projection
+  it.brandHeading: false on pages whose own title is the <h1> (Story); the dashboard omits it
+*/ %>
 <header class="public-header" data-connectivity="<%= it.header.connectivity %>" data-connectivity-label="<%= it.header.connectivityLabel %>">
-  <h1><a class="public-brand" href="/"><%= it.header.tapboardName %></a></h1>
+  <% if (it.brandHeading === false) { %>
+    <p class="public-header__brand"><a class="public-brand" href="/"><%= it.header.tapboardName %></a></p>
+  <% } else { %>
+    <h1 class="public-header__brand"><a class="public-brand" href="/"><%= it.header.tapboardName %></a></h1>
+  <% } %>
   <div class="public-header-actions">
     <a class="connectivity" href="/admin"><span aria-hidden="true"></span><span data-connectivity-label><%= it.header.connectivityLabel %></span><span class="sr-only"> Open administration</span></a>
     <a class="button button--secondary" href="/admin/system">Settings</a>

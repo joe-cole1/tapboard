@@ -35,11 +35,11 @@
       <div><dt>Leased deliveries</dt><dd><%= it.system.diagnostics.counts.outboxLeased %></dd></div>
       <div><dt>Retrying deliveries</dt><dd><%= it.system.diagnostics.counts.outboxRetry %></dd></div>
       <div><dt>Terminal deliveries</dt><dd><%= it.system.diagnostics.counts.outboxTerminal %></dd></div>
+      <div><dt>Last retention pass</dt><dd><%= it.system.retention.outcome %></dd></div>
       <div>
-        <dt>Last retention pass</dt>
-        <dd><%= it.system.diagnostics.retention.lastOutcome === 'completed' ? 'Completed' : it.system.diagnostics.retention.lastOutcome === 'failed' ? 'Failed; will retry' : 'Not yet run' %></dd>
+        <dt>Retention checked at</dt>
+        <dd><% if (it.system.retention.checked) { %><%~ include("/partials/timestamp", it.system.retention.checked) %><% } else { %>—<% } %></dd>
       </div>
-      <div><dt>Retention checked at</dt><dd><%= it.system.diagnostics.retention.lastRunAt || '—' %></dd></div>
     </dl>
     <p class="muted">Counts and storage totals contain no credentials, integration endpoints, raw payloads, or private
       notes. Database backups and restores are managed by your installation operator.</p>

@@ -22,7 +22,9 @@ import {
 import { safePublicTapCards } from "./tap-presentation.ts";
 import { adminTabs, renderAdmin } from "./layout.ts";
 import {
-  adminTimestampLabel,
+  filterForm,
+  fillStateLabel,
+  timestampLabel,
   capacityLabel,
   pourHistoryEntry,
   numberedPageNavigation,
@@ -47,12 +49,6 @@ import type {
 
 const POUR_HISTORY_PAGE_SIZE = 25;
 const PHYSICAL_KEGS_CRUMB = { label: "Physical Kegs", href: "/admin/keg-room/kegs" } as const;
-const FILL_STATE_LABELS: Readonly<Record<string, string>> = {
-  available: "Available",
-  on_deck: "On Deck",
-  on_tap: "On Tap",
-  ended: "Ended",
-};
 /** The Keg settings saved by `updateKeg`; the label saves on its own. */
 const KEG_SETTINGS_FIELDS = ["kegNumber", "capacityMl", "isActive", "currentTareG", "reason"];
 
@@ -181,7 +177,40 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           ...item,
           itemIds: item.items.map((fill) => String(fill.id)).join(","),
         })),
-        query: requested,
+        filter: filterForm({
+          action: "/admin/keg-room",
+          label: "Find a Filled Keg",
+          search: { value: requested.q, placeholder: "Beverage, Keg, or Tap" },
+          selects: [
+            {
+              name: "state",
+              label: "Show",
+              value: requested.state,
+              defaultValue: "active",
+              options: [
+                { value: "active", label: "Active Kegs" },
+                { value: "available", label: "Available" },
+                { value: "on_deck", label: "On Deck" },
+                { value: "on_tap", label: "On Tap" },
+                { value: "ended", label: "History" },
+                { value: "all", label: "All" },
+              ],
+            },
+            {
+              name: "sort",
+              label: "Sort",
+              value: requested.sort,
+              defaultValue: "state",
+              options: [
+                { value: "state", label: "State" },
+                { value: "name", label: "Beverage" },
+                { value: "fill_date", label: "Fill date" },
+                { value: "keg", label: "Keg number" },
+                { value: "updated", label: "Recently updated" },
+              ],
+            },
+          ],
+        }),
         pagination: { total: page.total },
         pageNavigation: numberedPageNavigation(
           "Keg Room pages",
@@ -293,7 +322,35 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
       "/admin/keg-room/kegs",
       {
         kegs,
-        query: requested,
+        filter: filterForm({
+          action: "/admin/keg-room/kegs",
+          label: "Find a Physical Keg",
+          search: { value: requested.q, placeholder: "Keg number or label" },
+          selects: [
+            {
+              name: "status",
+              label: "Show",
+              value: requested.status,
+              defaultValue: "active",
+              options: [
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+                { value: "all", label: "All" },
+              ],
+            },
+            {
+              name: "sort",
+              label: "Sort",
+              value: requested.sort,
+              defaultValue: "number",
+              options: [
+                { value: "number", label: "Keg number" },
+                { value: "label", label: "Label" },
+                { value: "updated", label: "Recently updated" },
+              ],
+            },
+          ],
+        }),
         pagination: { total: page.total },
         pageNavigation: numberedPageNavigation(
           "Physical Keg pages",
@@ -343,9 +400,9 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           beverageName: fill.beverageName,
           fillDate: fill.fillDate,
           state: fill.state,
-          stateLabel: FILL_STATE_LABELS[fill.state] ?? fill.state,
+          stateLabel: fillStateLabel(fill.state),
           endedAt: fill.endedAt,
-          endedAtLabel: fill.endedAt === null ? null : adminTimestampLabel(fill.endedAt),
+          endedAtLabel: fill.endedAt === null ? null : timestampLabel(fill.endedAt),
         }));
       renderAdmin(
         dependencies,
@@ -362,16 +419,16 @@ export function registerKegRoomPages(dependencies: RegisterKegRoomPagesDependenc
           } satisfies PageHeader,
           keg: {
             ...physical,
-            updatedAtLabel: adminTimestampLabel(physical.updatedAt),
+            updatedAtLabel: timestampLabel(physical.updatedAt),
             confirmationLabel: kegDeletionConfirmationLabel(physical),
             tareHistory: tareHistory.map((item) => ({
               ...item,
               changeLabel: `${item.previousTareG === null ? "Initial" : `${item.previousTareG} g`} → ${item.newTareG} g`,
-              recordedAtLabel: adminTimestampLabel(item.recordedAt),
+              recordedAtLabel: timestampLabel(item.recordedAt),
             })),
             maintenanceHistory: maintenanceHistory.map((item) => ({
               ...item,
-              recordedAtLabel: adminTimestampLabel(item.recordedAt),
+              recordedAtLabel: timestampLabel(item.recordedAt),
             })),
             deletionImpact: deletionImpactSentence(impact.impacts, "kegs"),
             fillHistory,
@@ -911,7 +968,7 @@ export function safeFillCard(
     confirmationLabel: fillDeletionConfirmationLabel(fill),
     fillDate: fill.fillDate,
     state: fill.state,
-    stateLabel: FILL_STATE_LABELS[fill.state] ?? "Available",
+    stateLabel: fillStateLabel(fill.state),
     onDeckOrder: fill.onDeckOrder,
     tapNumber: authoritativeTapNumber,
     tapId: authoritativeTapId,
@@ -941,5 +998,6 @@ export function safeFillCard(
       tapNumber: authoritativeTapNumber || 0,
     },
     updatedAt: fill.updatedAt,
+    updatedAtLabel: timestampLabel(fill.updatedAt),
   };
 }

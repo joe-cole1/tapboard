@@ -10,15 +10,7 @@
   <% if (it.workspace?.enabled) { %><p class="muted">This activity belongs to the saved simulation workspace.</p><% } %>
   <section id="activity" aria-labelledby="system-activity-heading">
     <h2 id="system-activity-heading">Activity log</h2>
-    <form action="/admin/logs" method="get" class="form system-activity-filter">
-      <label class="field">Activity category<select name="category">
-      <option value="">All categories</option>
-      <% for (const category of ['security', 'admin', 'domain', 'integration', 'outbox', 'system']) { %>
-        <option value="<%= category %>"<% if (it.activity.category === category) { %> selected<% } %>><%= category[0].toUpperCase() + category.slice(1) %></option>
-      <% } %>
-      </select></label>
-      <button type="submit" class="button button--secondary">Filter Activity log</button>
-    </form>
+    <%~ include("/partials/filter-form", it.filter) %>
     <% if (it.activity.items.length === 0) { %><p>No activity matches this view.</p><% } else { %>
         <table class="table">
           <caption class="sr-only">Activity log entries</caption>
@@ -34,7 +26,7 @@
           <tbody>
           <% for (const item of it.activity.items) { %>
             <tr>
-              <td><time datetime="<%= item.occurredAt %>"><%= item.occurredAt %></time></td>
+              <td><%~ include("/partials/timestamp", { datetime: item.occurredAt, label: item.occurredAtLabel }) %></td>
               <td data-label="Category"><%= item.categoryLabel %></td>
               <td data-label="Action"><%= item.actionLabel %></td>
               <td data-label="Actor"><%= item.actorLabel %></td>
@@ -45,6 +37,6 @@
     <% } %>
     <p class="muted">Up to 50 entries per page. Activity records show actions and resource types; private details and authentication tokens are excluded.</p>
     <% if (it.activity.nextHref) { %><a class="button button--secondary" href="<%= it.activity.nextHref %>">Older activity</a><% } %>
-    <% if (it.activity.category || it.activity.hasCursor) { %><a class="button button--secondary" href="/admin/logs">Latest activity</a><% } %>
+    <% if (it.activity.hasCursor) { %><a class="button button--secondary" href="/admin/logs">Latest activity</a><% } %>
   </section>
 </main>

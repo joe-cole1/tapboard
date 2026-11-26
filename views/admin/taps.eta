@@ -14,20 +14,7 @@
     actions: [{ label: "Add Tap", href: "/admin/taps/new", primary: true }],
   }) %>
 
-  <form class="form admin-search" method="get" action="/admin/taps" role="search">
-    <label for="tap-search">Search by tap number, name, assignment, or keg</label>
-    <div class="admin-search__controls">
-      <input id="tap-search" name="q" type="search" value="<%= it.query %>" maxlength="80" />
-      <label class="sr-only" for="tap-state">Tap state</label>
-      <select id="tap-state" name="state">
-        <% for (const state of ["all", "assigned", "unassigned", "disabled", "retired"]) { %>
-          <option value="<%= state %>"<% if (it.state === state) { %> selected<% } %>><%= state[0].toUpperCase() + state.slice(1) %></option>
-        <% } %>
-      </select>
-      <button class="button button--primary button--small" type="submit">Filter</button>
-      <% if (it.query || it.state !== "all") { %><a class="button button--secondary button--small" href="/admin/taps">Clear</a><% } %>
-    </div>
-  </form>
+  <%~ include("/partials/filter-form", it.filter) %>
 
   <% if (it.taps.length === 0) { %>
     <%~ include("/partials/empty-state", { ...it.empty, id: "tap-empty-heading" }) %>

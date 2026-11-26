@@ -287,6 +287,31 @@ const ADMIN_PALETTES: Readonly<Record<"dark" | "light", DisplayPalette>> = {
   },
 };
 
+/** A `theme-color` value: the page background, with a media query when it follows the device. */
+export interface ThemeColor {
+  readonly color: string;
+  readonly media: string | null;
+}
+
+const LIGHT_SCHEME = "(prefers-color-scheme: light)";
+const DARK_SCHEME = "(prefers-color-scheme: dark)";
+
+/** Admin's browser colour: its own background in the device's light or dark scheme. */
+export const ADMIN_THEME_COLORS: readonly ThemeColor[] = [
+  { color: ADMIN_PALETTES.light.background, media: LIGHT_SCHEME },
+  { color: ADMIN_PALETTES.dark.background, media: DARK_SCHEME },
+];
+
+/** The public pages' browser colour: the display theme's background ("auto" gives both). */
+export function displayThemeColors(theme: DisplayTheme): readonly ThemeColor[] {
+  return theme === "auto"
+    ? [
+        { color: THEMES[AUTO_THEME.light].background, media: LIGHT_SCHEME },
+        { color: THEMES[AUTO_THEME.dark].background, media: DARK_SCHEME },
+      ]
+    : [{ color: THEMES[theme].background, media: null }];
+}
+
 /** Every palette the generator can emit, for contrast tests. */
 export const DISPLAY_PALETTES: Readonly<Record<string, DisplayPalette>> = {
   ...THEMES,
